@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
@@ -10,8 +8,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    ports:
-      - "5432:5432"
 
   task:
     build: .
