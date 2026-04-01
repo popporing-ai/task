@@ -77,9 +77,12 @@ const TimelineView = {
         for (let m = 0; m < 12; m++) {
           const isCurrent = (this.year === currentYear && m === currentMonth);
           const inRange = m >= startM && m <= endM;
+          // 범위 내 셀에 툴팁 표시 (제목 + 상태)
+          const statusLabel = { planned: '예정', in_progress: '진행 중', done: '완료', tbd: 'TBD' }[item.status] || item.status;
+          const tooltip = inRange ? `title="${escHtml(item.title)} (${statusLabel})"` : '';
           rowsHtml += `
             <div class="timeline-cell ${isCurrent ? 'current-month' : ''}"
-                 data-item-id="${item.id}" data-month="${m}">
+                 data-item-id="${item.id}" data-month="${m}" ${tooltip}>
               ${inRange ? `<div class="timeline-bar ${item.status}"></div>` : ''}
             </div>
           `;

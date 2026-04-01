@@ -28,6 +28,14 @@ const ContentView = {
   renderTable(content) {
     const channels = ['YT','BL','LI','IG','FB','EM','HM'];
 
+    // 담당자 드롭다운 옵션 생성
+    const assigneeOptions = `
+      <option value="">전체 담당자</option>
+      ${App.users.map(u =>
+        `<option value="${u.id}" ${this.filterAssignee == u.id ? 'selected' : ''}>${escHtml(u.name)}</option>`
+      ).join('')}
+    `;
+
     const filterHtml = `
       <div class="filter-bar">
         <button class="filter-btn ${!this.filterChannel ? 'active' : ''}" data-ch="">전체</button>
@@ -35,13 +43,11 @@ const ContentView = {
           `<button class="filter-btn ${this.filterChannel === ch ? 'active' : ''}" data-ch="${ch}">${ch}</button>`
         ).join('')}
         <div class="filter-sep"></div>
-        <button class="filter-btn ${!this.filterAssignee ? 'active' : ''}" data-user="">전체</button>
-        ${App.users.map(u =>
-          `<button class="filter-btn ${this.filterAssignee == u.id ? 'active' : ''}" data-user="${u.id}">${u.name}</button>`
-        ).join('')}
+        <select id="f-assignee" style="height:30px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">${assigneeOptions}</select>
         <div class="filter-sep"></div>
         <label style="font-size:12px;color:var(--color-text-muted)">월 선택:</label>
         <input type="month" value="${this.month}" id="f-month" style="height:30px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit;">
+        <button class="filter-btn" id="btn-reset-filters" title="필터 초기화" style="margin-left:4px;">✕ 초기화</button>
       </div>
     `;
 
@@ -77,8 +83,8 @@ const ContentView = {
               <td>${item.assignee_name ? App.avatar({name: item.assignee_name, avatar_bg: item.avatar_bg, avatar_text: item.avatar_text}) + ' ' + escHtml(item.assignee_name) : '-'}</td>
               <td>${App.statusBadge(item.status)}</td>
               <td>
-                <button class="card-action-btn" data-edit="${item.id}" title="수정">✏</button>
-                <button class="card-action-btn" data-del="${item.id}" title="삭제">✕</button>
+                <button class="card-action-btn" data-edit="${item.id}" title="수정"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>
+                <button class="card-action-btn" data-del="${item.id}" title="삭제"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </td>
             </tr>
           `).join('')}
@@ -95,14 +101,17 @@ const ContentView = {
         this.render();
       });
     });
-    content.querySelectorAll('.filter-btn[data-user]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.filterAssignee = btn.dataset.user || null;
-        this.render();
-      });
+    document.getElementById('f-assignee')?.addEventListener('change', (e) => {
+      this.filterAssignee = e.target.value || null;
+      this.render();
     });
     document.getElementById('f-month')?.addEventListener('change', (e) => {
       this.month = e.target.value;
+      this.render();
+    });
+    document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
+      this.filterChannel = null;
+      this.filterAssignee = null;
       this.render();
     });
 

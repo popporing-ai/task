@@ -5,7 +5,9 @@ const RRRView = {
   async render() {
     const content = document.getElementById('content');
     const actions = document.getElementById('topbar-actions');
-    actions.innerHTML = '';
+    // 항상 추가 버튼 표시
+    actions.innerHTML = '<button class="btn btn-primary" id="btn-add-rrr">+ R&R 추가</button>';
+    document.getElementById('btn-add-rrr').addEventListener('click', () => this.openAddForm());
 
     await this.loadData();
     this.renderCards(content);
@@ -20,14 +22,7 @@ const RRRView = {
 
   renderCards(content) {
     if (this.data.length === 0) {
-      content.innerHTML = `
-        <div class="empty-state">
-          R&R 데이터가 없습니다.
-          <br><br>
-          <button class="btn btn-primary" id="btn-add-rrr-empty">+ R&R 추가</button>
-        </div>
-      `;
-      document.getElementById('btn-add-rrr-empty')?.addEventListener('click', () => this.openAddForm());
+      content.innerHTML = '<div class="empty-state">R&R 데이터가 없습니다.</div>';
       return;
     }
 
@@ -42,7 +37,6 @@ const RRRView = {
               <div class="rrr-card-header">
                 ${App.avatar({name: user.user_name, avatar_bg: user.avatar_bg, avatar_text: user.avatar_text})}
                 <span class="rrr-card-name">${escHtml(user.user_name)}</span>
-                <button class="rrr-edit-btn" data-toggle-edit="${user.user_id}" style="margin-left:auto">편집</button>
               </div>
               ${leads.length > 0 ? `
                 <div class="rrr-section">
@@ -51,8 +45,8 @@ const RRRView = {
                     <div class="rrr-item" data-item-id="${item.id}">
                       <span>${escHtml(item.description)}</span>
                       <div class="rrr-item-actions">
-                        <button class="card-action-btn" data-rrr-edit="${item.id}" title="수정">✏</button>
-                        <button class="card-action-btn" data-rrr-del="${item.id}" title="삭제">✕</button>
+                        <button class="card-action-btn" data-rrr-edit="${item.id}" title="수정"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>
+                        <button class="card-action-btn" data-rrr-del="${item.id}" title="삭제"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                       </div>
                     </div>
                   `).join('')}
@@ -65,14 +59,14 @@ const RRRView = {
                     <div class="rrr-item" data-item-id="${item.id}">
                       <span>${escHtml(item.description)}</span>
                       <div class="rrr-item-actions">
-                        <button class="card-action-btn" data-rrr-edit="${item.id}" title="수정">✏</button>
-                        <button class="card-action-btn" data-rrr-del="${item.id}" title="삭제">✕</button>
+                        <button class="card-action-btn" data-rrr-edit="${item.id}" title="수정"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>
+                        <button class="card-action-btn" data-rrr-del="${item.id}" title="삭제"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                       </div>
                     </div>
                   `).join('')}
                 </div>
               ` : ''}
-              <div class="rrr-add-area" style="display:none;margin-top:10px;">
+              <div class="rrr-add-area" style="margin-top:10px;">
                 <button class="btn btn-default" data-rrr-add="${user.user_id}" style="font-size:12px;width:100%">+ 역할 추가</button>
               </div>
             </div>
@@ -80,16 +74,6 @@ const RRRView = {
         }).join('')}
       </div>
     `;
-
-    // 편집 토글
-    content.querySelectorAll('[data-toggle-edit]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const card = btn.closest('.rrr-card');
-        const isEditing = card.classList.toggle('editing');
-        btn.textContent = isEditing ? '완료' : '편집';
-        card.querySelector('.rrr-add-area').style.display = isEditing ? 'block' : 'none';
-      });
-    });
 
     // 항목 수정
     content.querySelectorAll('[data-rrr-edit]').forEach(btn => {
@@ -111,7 +95,7 @@ const RRRView = {
       });
     });
 
-    // 항목 추가
+    // 역할 추가
     content.querySelectorAll('[data-rrr-add]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.openAddForm(parseInt(btn.dataset.rrrAdd));
