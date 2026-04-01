@@ -2,7 +2,13 @@
 const DashboardView = {
   async render() {
     const content = document.getElementById('content');
-    content.innerHTML = '<div class="empty-state">로딩 중...</div>';
+    // 로딩 상태
+    content.innerHTML = `
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <span>대시보드 불러오는 중...</span>
+      </div>
+    `;
 
     try {
       const res = await API.get('/dashboard');
@@ -46,14 +52,20 @@ const DashboardView = {
                 <tbody>
                   ${d.weekTasks.map(t => `
                     <tr>
-                      <td>${t.category_name ? categoryTag(escHtml(t.category_name)) + ' ' : ''}${escHtml(t.title)}</td>
+                      <td>${t.category_name ? categoryTag(t.category_name) + ' ' : ''}${escHtml(t.title)}</td>
                       <td>${t.assignee_name ? App.avatar({name: t.assignee_name, avatar_bg: t.avatar_bg, avatar_text: t.avatar_text}) + ' ' + escHtml(t.assignee_name) : '-'}</td>
                       <td>${App.statusBadge(t.status)}</td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
-            ` : '<div class="empty-state">이번 주 업무가 없습니다.</div>'}
+            ` : `
+              <div class="empty-state" style="padding:24px 12px">
+                <span class="empty-state-icon">📋</span>
+                <div class="empty-state-title">이번 주 업무가 없습니다</div>
+                <div class="empty-state-desc">업무 현황에서 새 업무를 추가해보세요</div>
+              </div>
+            `}
           </div>
           <div class="card">
             <div style="font-size:14px;font-weight:600;margin-bottom:14px;">채널별 발행 현황</div>
@@ -61,11 +73,17 @@ const DashboardView = {
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="width:24px;font-weight:600;font-size:12px;">${ch.channel}</span>
                 <span style="font-size:12px;color:var(--color-text-muted);width:30px;">${ch.count}건</span>
-                <div style="flex:1;height:6px;background:#E8E9ED;border-radius:3px;overflow:hidden">
-                  <div style="height:100%;background:var(--color-primary);width:${Math.min(ch.count * 10, 100)}%;border-radius:3px"></div>
+                <div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;background:var(--color-primary);width:${Math.min(ch.count * 10, 100)}%;border-radius:3px;box-shadow:0 0 6px rgba(79,110,247,0.45)"></div>
                 </div>
               </div>
-            `).join('') : '<div class="empty-state">발행 데이터가 없습니다.</div>'}
+            `).join('') : `
+              <div class="empty-state" style="padding:24px 12px">
+                <span class="empty-state-icon">📊</span>
+                <div class="empty-state-title">발행 데이터가 없습니다</div>
+                <div class="empty-state-desc">콘텐츠 캘린더에서 발행 완료 항목을 추가해보세요</div>
+              </div>
+            `}
           </div>
         </div>
 
@@ -88,7 +106,13 @@ const DashboardView = {
         ` : ''}
       `;
     } catch (e) {
-      content.innerHTML = '<div class="empty-state">대시보드를 불러올 수 없습니다.</div>';
+      content.innerHTML = `
+        <div class="empty-state">
+          <span class="empty-state-icon">⚠</span>
+          <div class="empty-state-title">대시보드를 불러올 수 없습니다</div>
+          <div class="empty-state-desc">잠시 후 다시 시도해주세요</div>
+        </div>
+      `;
     }
   }
 };

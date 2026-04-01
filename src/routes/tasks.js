@@ -10,6 +10,12 @@ router.use(authMiddleware);
 // 업무 목록
 router.get('/', async (req, res, next) => {
   try {
+    // 마감일 초과된 업무 자동 차단 처리
+    await db.query(`
+      UPDATE tasks SET status = 'blocked', updated_at = NOW()
+      WHERE due_date < CURRENT_DATE AND status IN ('todo', 'in_progress')
+    `);
+
     const { status, category_id, assignee_id } = req.query;
     let where = [];
     let params = [];
@@ -96,6 +102,22 @@ router.delete('/:id', auditMiddleware('tasks'), async (req, res, next) => {
 router.patch('/:id/status', auditMiddleware('tasks'), async (req, res, next) => {
   try {
     const { status } = req.body;
+
+    // 마감일 초과 업무는 'todo' 또는 'in_progress'로 변경 불가
+    if (status === 'todo' || status === 'in_progress') {
+      const { rows: existing } = await db.query(
+        'SELECT due_date FROM tasks WHERE id=$1', [req.params.id]
+      );
+      if (existing.length > 0 && existing[0].due_date) {
+        const dueDate = new Date(existing[0].due_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (dueDate < today) {
+          return res.status(400).json({ error: "마감일이 지난 업무는 '할 일' 또는 '진행 중'으로 변경할 수 없습니다." });
+        }
+      }
+    }
+
     const { rows } = await db.query(
       'UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING *',
       [status, req.params.id]

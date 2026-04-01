@@ -5,9 +5,16 @@ const RRRView = {
   async render() {
     const content = document.getElementById('content');
     const actions = document.getElementById('topbar-actions');
-    // 항상 추가 버튼 표시
     actions.innerHTML = '<button class="btn btn-primary" id="btn-add-rrr">+ R&R 추가</button>';
     document.getElementById('btn-add-rrr').addEventListener('click', () => this.openAddForm());
+
+    // 로딩 상태
+    content.innerHTML = `
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <span>R&R 데이터 불러오는 중...</span>
+      </div>
+    `;
 
     await this.loadData();
     this.renderCards(content);
@@ -22,7 +29,13 @@ const RRRView = {
 
   renderCards(content) {
     if (this.data.length === 0) {
-      content.innerHTML = '<div class="empty-state">R&R 데이터가 없습니다.</div>';
+      content.innerHTML = `
+        <div class="empty-state">
+          <span class="empty-state-icon">👥</span>
+          <div class="empty-state-title">R&R 데이터가 없습니다</div>
+          <div class="empty-state-desc">+ R&R 추가 버튼으로 팀원의 역할을 등록해보세요</div>
+        </div>
+      `;
       return;
     }
 
@@ -66,6 +79,11 @@ const RRRView = {
                   `).join('')}
                 </div>
               ` : ''}
+              ${leads.length === 0 && funcs.length === 0 ? `
+                <div style="padding:12px 0;font-size:12px;color:var(--color-text-hint);text-align:center;">
+                  등록된 역할이 없습니다
+                </div>
+              ` : ''}
               <div class="rrr-add-area" style="margin-top:10px;">
                 <button class="btn btn-default" data-rrr-add="${user.user_id}" style="font-size:12px;width:100%">+ 역할 추가</button>
               </div>
@@ -90,6 +108,7 @@ const RRRView = {
         const confirmed = await App.confirm('이 항목을 삭제하시겠습니까?');
         if (confirmed) {
           await API.del(`/rrr/${btn.dataset.rrrDel}`);
+          App.toast('항목이 삭제되었습니다.', 'info');
           this.render();
         }
       });
@@ -126,10 +145,14 @@ const RRRView = {
       const data = {
         user_id: document.getElementById('f-user').value,
         role_type: document.querySelector('input[name="f-type"]:checked').value,
-        description: document.getElementById('f-desc').value,
+        description: document.getElementById('f-desc').value.trim(),
       };
-      if (!data.user_id || !data.description) return alert('필수 항목을 입력해주세요.');
+      if (!data.user_id || !data.description) {
+        App.toast('필수 항목을 입력해주세요.', 'error');
+        return false;
+      }
       await API.post('/rrr', data);
+      App.toast('R&R이 추가되었습니다.', 'success');
       this.render();
     });
   },
@@ -145,17 +168,21 @@ const RRRView = {
       </div>
       <div class="form-group">
         <label>설명 *</label>
-        <input type="text" id="f-desc" value="${item.description}">
+        <input type="text" id="f-desc" value="${escHtml(item.description)}">
       </div>
     `;
 
     App.openPanel('R&R 수정', html, async () => {
       const data = {
         role_type: document.querySelector('input[name="f-type"]:checked').value,
-        description: document.getElementById('f-desc').value,
+        description: document.getElementById('f-desc').value.trim(),
       };
-      if (!data.description) return alert('설명을 입력해주세요.');
+      if (!data.description) {
+        App.toast('설명을 입력해주세요.', 'error');
+        return false;
+      }
       await API.put(`/rrr/${item.id}`, data);
+      App.toast('R&R이 수정되었습니다.', 'success');
       this.render();
     });
   },

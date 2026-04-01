@@ -23,6 +23,14 @@ const AuditView = {
       this.dateTo = new Date().toISOString().slice(0, 10);
     }
 
+    // 로딩 상태
+    content.innerHTML = `
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <span>변경 이력 불러오는 중...</span>
+      </div>
+    `;
+
     await this.loadData();
     this.renderTable(content);
   },
@@ -58,22 +66,23 @@ const AuditView = {
       return `<span class="badge ${map[action] || ''}">${label[action] || action}</span>`;
     };
 
+    // 필터 바 — CSS 클래스 기반, 인라인 light 색상 제거
     const filterHtml = `
       <div class="filter-bar">
         <label style="font-size:12px;color:var(--color-text-muted)">대상:</label>
-        <select id="f-table" style="height:30px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit;">
+        <select id="f-table">
           <option value="">전체</option>
           ${tables.map(t => `<option value="${t.key}" ${this.filterTable===t.key?'selected':''}>${t.label}</option>`).join('')}
         </select>
         <label style="font-size:12px;color:var(--color-text-muted);margin-left:8px">작업자:</label>
-        <select id="f-user" style="height:30px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit;">
+        <select id="f-user">
           <option value="">전체</option>
-          ${App.users.map(u => `<option value="${u.id}" ${this.filterUser==u.id?'selected':''}>${u.name}</option>`).join('')}
+          ${App.users.map(u => `<option value="${u.id}" ${this.filterUser==u.id?'selected':''}>${escHtml(u.name)}</option>`).join('')}
         </select>
         <label style="font-size:12px;color:var(--color-text-muted);margin-left:8px">기간:</label>
-        <input type="date" id="f-from" value="${this.dateFrom}" style="height:30px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit;">
+        <input type="date" id="f-from" value="${this.dateFrom}">
         <span style="color:var(--color-text-hint)">~</span>
-        <input type="date" id="f-to" value="${this.dateTo}" style="height:30px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit;">
+        <input type="date" id="f-to" value="${this.dateTo}">
         <button class="btn btn-default" id="f-search" style="font-size:12px;padding:4px 12px;">조회</button>
       </div>
     `;
@@ -115,7 +124,13 @@ const AuditView = {
           }).join('')}
         </tbody>
       </table>
-    ` : '<div class="empty-state">변경 이력이 없습니다.</div>';
+    ` : `
+      <div class="empty-state">
+        <span class="empty-state-icon">📋</span>
+        <div class="empty-state-title">변경 이력이 없습니다</div>
+        <div class="empty-state-desc">조회 기간 또는 필터를 변경해보세요</div>
+      </div>
+    `;
 
     // 페이지네이션
     const totalPages = Math.ceil(this.total / 50);
@@ -140,6 +155,13 @@ const AuditView = {
       this.dateTo = document.getElementById('f-to').value || null;
       this.page = 1;
       this.render();
+    });
+
+    // 조회 입력에서 엔터 키 처리
+    content.querySelectorAll('#f-from, #f-to').forEach(el => {
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('f-search')?.click();
+      });
     });
 
     content.querySelectorAll('.page-btn[data-page]').forEach(btn => {

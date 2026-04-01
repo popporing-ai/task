@@ -24,6 +24,7 @@ const App = {
     this.bindNav();
     this.bindPanel();
     this.bindDialog();
+    this.bindGlobalKeys();
 
     // 초기 뷰 렌더링
     this.navigate('dashboard');
@@ -136,8 +137,17 @@ const App = {
     saveBtn.parentNode.replaceChild(newSave, saveBtn);
     newSave.id = 'panel-save';
     newSave.addEventListener('click', async () => {
-      await onSave();
-      this.closePanel();
+      const result = await onSave();
+      if (result !== false) this.closePanel();
+    });
+
+    // 패널 내 폼에서 Ctrl+Enter 또는 단순 Enter(textarea 제외) 저장
+    const panelBody = document.getElementById('panel-body');
+    panelBody.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        document.getElementById('panel-save')?.click();
+      }
     });
   },
 
@@ -171,6 +181,69 @@ const App = {
         resolve(false);
       }, { once: true });
     });
+  },
+
+  // 글로벌 키보드 단축키
+  bindGlobalKeys() {
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        // 팝오버 닫기
+        const popover = document.querySelector('.popover-overlay');
+        if (popover) { popover.remove(); return; }
+        // 다이얼로그 닫기
+        const dialog = document.getElementById('dialog-overlay');
+        if (dialog && dialog.style.display !== 'none') {
+          dialog.style.display = 'none';
+          return;
+        }
+        // 슬라이드 패널 닫기
+        const panel = document.getElementById('slide-panel');
+        if (panel && panel.classList.contains('open')) {
+          this.closePanel();
+          return;
+        }
+      }
+    });
+  },
+
+  // 토스트 알림
+  toast(message, type = 'info') {
+    const colors = {
+      success: { bg: 'rgba(74,185,100,0.15)', border: 'rgba(74,185,100,0.35)', text: '#5DD984', icon: '✓' },
+      error:   { bg: 'rgba(226,75,74,0.15)',  border: 'rgba(226,75,74,0.35)',  text: '#F07070', icon: '✕' },
+      info:    { bg: 'rgba(79,110,247,0.15)', border: 'rgba(79,110,247,0.35)', text: '#7B9BFA', icon: 'i' },
+    };
+    const c = colors[type] || colors.info;
+
+    const el = document.createElement('div');
+    el.className = 'app-toast';
+    el.innerHTML = `
+      <span class="app-toast-icon" style="color:${c.text}">${c.icon}</span>
+      <span class="app-toast-msg">${escHtml(message)}</span>
+    `;
+    el.style.cssText = `
+      background:${c.bg};
+      border:0.5px solid ${c.border};
+    `;
+
+    // 토스트 컨테이너
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      document.body.appendChild(container);
+    }
+
+    container.appendChild(el);
+
+    // 애니메이션 진입
+    requestAnimationFrame(() => el.classList.add('show'));
+
+    // 3초 후 소멸
+    setTimeout(() => {
+      el.classList.remove('show');
+      el.addEventListener('transitionend', () => el.remove(), { once: true });
+    }, 3000);
   },
 
   // 유틸리티
@@ -245,24 +318,24 @@ const App = {
   },
 };
 
-// 카테고리 태그 색상 매핑
+// 카테고리 태그 색상 매핑 (다크 테마 호환)
 const CATEGORY_TAG_COLORS = {
-  '소개자료': { bg: '#FEF3E2', text: '#854F0B' },
-  '회사소개서': { bg: '#FEF3E2', text: '#854F0B' },
-  '홈페이지': { bg: '#E6F1FB', text: '#185FA5' },
-  '전시회': { bg: '#F0E8FF', text: '#6B3FA0' },
-  '온라인광고': { bg: '#E2F4EC', text: '#1A6B3A' },
-  'PR': { bg: '#FCE8EE', text: '#9B2147' },
-  '브랜딩': { bg: '#E8E9ED', text: '#4A4D5A' },
-  '콘텐츠 제작': { bg: '#D6E4FF', text: '#2D5CC8' },
-  '고도화 자료 제작': { bg: '#FFF0E0', text: '#7A3B00' },
-  '1층 체험관': { bg: '#EEEDFE', text: '#534AB7' },
-  '지원사업': { bg: '#F2F3F7', text: '#6B6B6B' },
-  '제안서 지원': { bg: '#F2F3F7', text: '#6B6B6B' },
+  '소개자료':        { bg: 'rgba(245,158,11,0.18)',  text: '#F5A94A' },
+  '회사소개서':      { bg: 'rgba(245,158,11,0.18)',  text: '#F5A94A' },
+  '홈페이지':        { bg: 'rgba(59,130,246,0.18)',  text: '#7BA8F7' },
+  '전시회':          { bg: 'rgba(139,92,246,0.18)',  text: '#B08CF9' },
+  '온라인광고':      { bg: 'rgba(34,197,94,0.16)',   text: '#5DD984' },
+  'PR':              { bg: 'rgba(236,72,153,0.16)',  text: '#F07DB0' },
+  '브랜딩':          { bg: 'rgba(148,163,184,0.16)', text: '#94A3B8' },
+  '콘텐츠 제작':     { bg: 'rgba(79,110,247,0.18)',  text: '#7B9BFA' },
+  '고도화 자료 제작':{ bg: 'rgba(251,146,60,0.18)',  text: '#FB924A' },
+  '1층 체험관':      { bg: 'rgba(99,102,241,0.18)',  text: '#9DA3FA' },
+  '지원사업':        { bg: 'rgba(148,163,184,0.12)', text: '#9A9BA3' },
+  '제안서 지원':     { bg: 'rgba(148,163,184,0.12)', text: '#9A9BA3' },
 };
 
 function categoryTag(name) {
-  const c = CATEGORY_TAG_COLORS[name] || { bg: '#F2F3F7', text: '#6B6B6B' };
+  const c = CATEGORY_TAG_COLORS[name] || { bg: 'rgba(148,163,184,0.12)', text: '#9A9BA3' };
   return `<span class="card-category" style="background:${c.bg};color:${c.text}">${escHtml(name)}</span>`;
 }
 

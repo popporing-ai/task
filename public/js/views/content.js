@@ -11,6 +11,14 @@ const ContentView = {
     actions.innerHTML = '<button class="btn btn-primary" id="btn-add-content">+ 콘텐츠 추가</button>';
     document.getElementById('btn-add-content').addEventListener('click', () => this.openForm());
 
+    // 로딩 상태
+    content.innerHTML = `
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <span>콘텐츠 목록 불러오는 중...</span>
+      </div>
+    `;
+
     await this.loadData();
     this.renderTable(content);
   },
@@ -28,7 +36,6 @@ const ContentView = {
   renderTable(content) {
     const channels = ['YT','BL','LI','IG','FB','EM','HM'];
 
-    // 담당자 드롭다운 옵션 생성
     const assigneeOptions = `
       <option value="">전체 담당자</option>
       ${App.users.map(u =>
@@ -36,6 +43,7 @@ const ContentView = {
       ).join('')}
     `;
 
+    // 필터 바 — CSS 클래스 사용, 인라인 light 색상 제거
     const filterHtml = `
       <div class="filter-bar">
         <button class="filter-btn ${!this.filterChannel ? 'active' : ''}" data-ch="">전체</button>
@@ -43,11 +51,11 @@ const ContentView = {
           `<button class="filter-btn ${this.filterChannel === ch ? 'active' : ''}" data-ch="${ch}">${ch}</button>`
         ).join('')}
         <div class="filter-sep"></div>
-        <select id="f-assignee" style="height:30px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">${assigneeOptions}</select>
+        <select id="f-assignee">${assigneeOptions}</select>
         <div class="filter-sep"></div>
         <label style="font-size:12px;color:var(--color-text-muted)">월 선택:</label>
-        <input type="month" value="${this.month}" id="f-month" style="height:30px;border:0.5px solid rgba(0,0,0,0.12);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit;">
-        <button class="filter-btn" id="btn-reset-filters" title="필터 초기화" style="margin-left:4px;">✕ 초기화</button>
+        <input type="month" value="${this.month}" id="f-month">
+        <button class="filter-btn" id="btn-reset-filters" title="필터 초기화">✕ 초기화</button>
       </div>
     `;
 
@@ -70,7 +78,9 @@ const ContentView = {
           ${this.items.map(item => `
             <tr>
               <td>
-                ${item.publish_url ? `<a href="${escHtml(item.publish_url)}" target="_blank" rel="noopener" style="color:var(--color-primary)">${escHtml(item.title)} ↗</a>` : escHtml(item.title)}
+                ${item.publish_url
+                  ? `<a href="${escHtml(item.publish_url)}" target="_blank" rel="noopener" style="color:var(--color-primary)">${escHtml(item.title)} ↗</a>`
+                  : escHtml(item.title)}
               </td>
               <td>${escHtml(item.product_name) || '-'}</td>
               <td><span class="badge badge-plan">${escHtml(item.channel)}</span></td>
@@ -90,7 +100,13 @@ const ContentView = {
           `).join('')}
         </tbody>
       </table>
-    ` : '<div class="empty-state">콘텐츠가 없습니다.</div>';
+    ` : `
+      <div class="empty-state">
+        <span class="empty-state-icon">📅</span>
+        <div class="empty-state-title">${this.month} 콘텐츠가 없습니다</div>
+        <div class="empty-state-desc">+ 콘텐츠 추가 버튼으로 첫 콘텐츠를 등록해보세요</div>
+      </div>
+    `;
 
     content.innerHTML = filterHtml + tableHtml;
 
@@ -119,6 +135,7 @@ const ContentView = {
     content.querySelectorAll('[data-copy-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         navigator.clipboard.writeText(btn.dataset.copyId);
+        App.toast('ID가 클립보드에 복사되었습니다.', 'info');
       });
     });
 
@@ -134,6 +151,7 @@ const ContentView = {
         const confirmed = await App.confirm('이 콘텐츠를 삭제하시겠습니까?');
         if (confirmed) {
           await API.del(`/content/${btn.dataset.del}`);
+          App.toast('콘텐츠가 삭제되었습니다.', 'info');
           this.render();
         }
       });
@@ -152,7 +170,7 @@ const ContentView = {
     const html = `
       <div class="form-group">
         <label>콘텐츠 제목 *</label>
-        <input type="text" id="f-title" value="${item?.title || ''}">
+        <input type="text" id="f-title" value="${escHtml(item?.title || '')}" placeholder="콘텐츠 제목을 입력하세요">
       </div>
       <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
         <div class="form-group">
@@ -180,16 +198,16 @@ const ContentView = {
       </div>
       <div class="form-group">
         <label>콘텐츠 ID (자동 생성)</label>
-        <input type="text" id="f-content-id" value="${item?.content_id || ''}" placeholder="배포일+채널+타입 입력 시 자동 생성">
-        <div class="preview-text" id="f-id-preview">${item?.content_id || '배포일, 채널, 타입을 입력하면 미리보기가 표시됩니다.'}</div>
+        <input type="text" id="f-content-id" value="${escHtml(item?.content_id || '')}" placeholder="배포일+채널+타입 입력 시 자동 생성">
+        <div class="preview-text" id="f-id-preview">${escHtml(item?.content_id || '배포일, 채널, 타입을 입력하면 미리보기가 표시됩니다.')}</div>
       </div>
       <div class="form-group">
         <label>유입 URL (자동 생성)</label>
-        <input type="text" id="f-inflow-url" value="${item?.inflow_url || ''}" placeholder="콘텐츠 ID 기반 자동 생성">
+        <input type="text" id="f-inflow-url" value="${escHtml(item?.inflow_url || '')}" placeholder="콘텐츠 ID 기반 자동 생성">
       </div>
       <div class="form-group">
         <label>배포 완료 URL</label>
-        <input type="text" id="f-publish-url" value="${item?.publish_url || ''}" placeholder="https://...">
+        <input type="text" id="f-publish-url" value="${escHtml(item?.publish_url || '')}" placeholder="https://...">
       </div>
       <div class="form-group">
         <label>상태</label>
@@ -201,13 +219,13 @@ const ContentView = {
       </div>
       <div class="form-group">
         <label>메모</label>
-        <textarea id="f-memo">${item?.memo || ''}</textarea>
+        <textarea id="f-memo" placeholder="메모를 입력하세요">${escHtml(item?.memo || '')}</textarea>
       </div>
     `;
 
     App.openPanel(title, html, async () => {
       const data = {
-        title: document.getElementById('f-title').value,
+        title: document.getElementById('f-title').value.trim(),
         product_id: document.getElementById('f-product').value || null,
         channel: document.getElementById('f-channel').value,
         content_type: document.getElementById('f-type').value,
@@ -219,13 +237,17 @@ const ContentView = {
         status: document.querySelector('input[name="f-status"]:checked').value,
         memo: document.getElementById('f-memo').value,
       };
-      if (!data.title) return alert('제목을 입력해주세요.');
+      if (!data.title) {
+        App.toast('제목을 입력해주세요.', 'error');
+        return false;
+      }
       if (isEdit) {
         await API.put(`/content/${item.id}`, data);
+        App.toast('콘텐츠가 수정되었습니다.', 'success');
       } else {
         await API.post('/content', data);
+        App.toast('콘텐츠가 추가되었습니다.', 'success');
       }
-      // 저장된 항목의 publish_date 월로 필터를 맞춰 새 항목이 보이도록 함
       if (data.publish_date) {
         this.month = data.publish_date.slice(0, 7);
       }
