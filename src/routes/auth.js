@@ -140,6 +140,7 @@ router.get('/me', authMiddleware, (req, res) => {
       id: req.user.id,
       name: req.user.name,
       email: req.user.email,
+      role: req.user.role,
       avatar_bg: req.user.avatar_bg,
       avatar_text: req.user.avatar_text,
     }

@@ -9,7 +9,7 @@ async function authMiddleware(req, res, next) {
     }
 
     const { rows } = await db.query(
-      `SELECT s.id as session_id, s.expires_at, u.id, u.name, u.email, u.avatar_bg, u.avatar_text
+      `SELECT s.id as session_id, s.expires_at, u.id, u.name, u.email, u.role, u.avatar_bg, u.avatar_text
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.token = $1 AND s.expires_at > NOW()`,

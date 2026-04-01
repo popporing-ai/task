@@ -57,6 +57,13 @@ const App = {
       await API.post('/auth/logout');
       window.location.href = '/task/login.html';
     });
+
+    // 관리자 메뉴 표시
+    if (this.user.role === 'admin') {
+      document.querySelectorAll('.nav-admin-only').forEach(el => {
+        el.style.display = '';
+      });
+    }
   },
 
   renderCategoryDots() {

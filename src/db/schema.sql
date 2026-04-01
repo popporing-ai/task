@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   name          VARCHAR(50)  NOT NULL,
   email         VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(200) NOT NULL,
+  role          VARCHAR(20)  NOT NULL DEFAULT 'user'
+                CHECK (role IN ('admin','user')),
   avatar_bg     VARCHAR(20)  DEFAULT '#EEF1FD',
   avatar_text   VARCHAR(20)  DEFAULT '#4F6EF7',
   created_at    TIMESTAMPTZ  DEFAULT NOW()

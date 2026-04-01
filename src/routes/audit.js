@@ -6,6 +6,14 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
+// 관리자 전용 접근 제한
+router.use((req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: '관리자만 접근할 수 있습니다.' });
+  }
+  next();
+});
+
 // 테이블명 한글 매핑
 const TABLE_LABELS = {
   tasks: '업무 현황',
