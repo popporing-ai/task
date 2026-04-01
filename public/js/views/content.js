@@ -216,6 +216,12 @@ const ContentView = {
       } else {
         await API.post('/content', data);
       }
+      // 저장된 항목의 publish_date 월로 필터를 맞춰 새 항목이 보이도록 함
+      if (data.publish_date) {
+        const d = new Date(data.publish_date);
+        this.year = d.getFullYear();
+        this.month = d.getMonth() + 1;
+      }
       this.render();
     });
 

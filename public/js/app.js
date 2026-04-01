@@ -21,7 +21,6 @@ const App = {
 
     // UI 초기화
     this.renderUserInfo();
-    this.renderCategoryDots();
     this.bindNav();
     this.bindPanel();
     this.bindDialog();
@@ -66,17 +65,6 @@ const App = {
     }
   },
 
-  renderCategoryDots() {
-    const container = document.getElementById('sb-categories');
-    container.innerHTML = '<div class="nav-section">분류</div>' +
-      this.categories.map(c =>
-        `<div class="sb-cat-item">
-          <span class="category-dot" style="background:${escHtml(c.color)}"></span>
-          <span class="sb-cat-name">${escHtml(c.name)}</span>
-        </div>`
-      ).join('');
-  },
-
   bindNav() {
     document.querySelectorAll('.nav-item[data-view]').forEach(item => {
       item.addEventListener('click', () => {
@@ -100,6 +88,7 @@ const App = {
       timeline: '연간 타임라인',
       content: '콘텐츠 캘린더',
       rrr: 'R&R 현황',
+      settings: '설정',
       audit: '변경 이력',
     };
     document.getElementById('topbar-title').textContent = titles[view] || '';
@@ -112,6 +101,7 @@ const App = {
       timeline: TimelineView,
       content: ContentView,
       rrr: RRRView,
+      settings: SettingsView,
       audit: AuditView,
     };
 

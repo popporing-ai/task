@@ -23,6 +23,7 @@ app.use('/task/api/content', require('./routes/content'));
 app.use('/task/api/timeline', require('./routes/timeline'));
 app.use('/task/api/rrr', require('./routes/rrr'));
 app.use('/task/api/audit', require('./routes/audit'));
+app.use('/task/api/categories', require('./routes/categories'));
 
 // 메타 API (카테고리, 제품, 유저 목록, 대시보드)
 const authMiddleware = require('./middleware/auth');
@@ -32,15 +33,6 @@ app.get('/task/api/users', authMiddleware, async (req, res, next) => {
   try {
     const { rows } = await db.query(
       'SELECT id, name, email, avatar_bg, avatar_text FROM users ORDER BY name'
-    );
-    res.json({ data: rows });
-  } catch (err) { next(err); }
-});
-
-app.get('/task/api/categories', authMiddleware, async (req, res, next) => {
-  try {
-    const { rows } = await db.query(
-      'SELECT id, name, color FROM task_categories ORDER BY id'
     );
     res.json({ data: rows });
   } catch (err) { next(err); }

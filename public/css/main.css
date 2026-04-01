@@ -13,10 +13,16 @@
   --sidebar-border: rgba(255,255,255,0.06);
   --sidebar-section: rgba(255,255,255,0.3);
 
-  --main-bg: #F2F3F7;
+  --main-bg: #EDEEF3;
   --topbar-bg: #FFFFFF;
-  --topbar-border: #E8E9ED;
-  --kanban-col-bg: #E8EAEF;
+  --topbar-border: #E4E5EC;
+  --kanban-col-bg: #E2E4EB;
+
+  --shadow-xs: 0 1px 3px rgba(30,35,60,0.07), 0 1px 2px rgba(30,35,60,0.04);
+  --shadow-sm: 0 2px 8px rgba(30,35,60,0.08), 0 1px 3px rgba(30,35,60,0.05);
+  --shadow-md: 0 4px 16px rgba(30,35,60,0.10), 0 2px 6px rgba(30,35,60,0.06);
+  --shadow-lg: 0 8px 32px rgba(30,35,60,0.14), 0 3px 10px rgba(30,35,60,0.08);
+  --shadow-panel: -4px 0 32px rgba(30,35,60,0.14), -1px 0 6px rgba(30,35,60,0.06);
 
   --color-done-bg: #EAF3DE;
   --color-done-text: #3B6D11;
@@ -28,8 +34,8 @@
   --color-warn-text: #A32D2D;
 
   --color-bg-primary: #FFFFFF;
-  --color-bg-secondary: #F7F7F5;
-  --color-border: rgba(0,0,0,0.08);
+  --color-bg-secondary: #F4F5F8;
+  --color-border: rgba(30,35,60,0.09);
   --color-text-primary: #1A1A1A;
   --color-text-muted: #6B6B6B;
   --color-text-hint: #9B9B9B;
@@ -156,6 +162,7 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
 .topbar {
   background: var(--topbar-bg);
   border-bottom: 1px solid var(--topbar-border);
+  box-shadow: 0 1px 4px rgba(30,35,60,0.07);
   padding: 16px 24px;
   display: flex;
   align-items: center;
@@ -185,57 +192,70 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
 /* 뱃지 */
 .badge {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: 99px;
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 500;
+  letter-spacing: 0.1px;
 }
-.badge-done { background: var(--color-done-bg); color: var(--color-done-text); }
-.badge-plan { background: var(--color-plan-bg); color: var(--color-plan-text); }
-.badge-skip { background: var(--color-skip-bg); color: var(--color-skip-text); }
-.badge-warn { background: var(--color-warn-bg); color: var(--color-warn-text); }
-.badge-create { background: #EAF3DE; color: #3B6D11; }
-.badge-update { background: #E6F1FB; color: #185FA5; }
-.badge-delete { background: #FCEBEB; color: #C02B2B; }
+.badge-done { background: var(--color-done-bg); color: var(--color-done-text); box-shadow: 0 1px 3px rgba(59,109,17,0.12); }
+.badge-plan { background: var(--color-plan-bg); color: var(--color-plan-text); box-shadow: 0 1px 3px rgba(24,95,165,0.12); }
+.badge-skip { background: var(--color-skip-bg); color: var(--color-skip-text); box-shadow: 0 1px 2px rgba(0,0,0,0.07); }
+.badge-warn { background: var(--color-warn-bg); color: var(--color-warn-text); box-shadow: 0 1px 3px rgba(163,45,45,0.12); }
+.badge-create { background: #EAF3DE; color: #3B6D11; box-shadow: 0 1px 3px rgba(59,109,17,0.12); }
+.badge-update { background: #E6F1FB; color: #185FA5; box-shadow: 0 1px 3px rgba(24,95,165,0.12); }
+.badge-delete { background: #FCEBEB; color: #C02B2B; box-shadow: 0 1px 3px rgba(192,43,43,0.12); }
 
 /* 버튼 */
 .btn {
   padding: 6px 14px;
-  border: 0.5px solid rgba(0,0,0,0.2);
+  border: 0.5px solid rgba(30,35,60,0.18);
   border-radius: 8px;
   font-size: 13px;
   font-family: 'Pretendard', sans-serif;
   cursor: pointer;
   background: #fff;
-  transition: background 0.15s;
+  box-shadow: 0 1px 3px rgba(30,35,60,0.08);
+  transition: all 0.15s;
 }
-.btn:hover { background: var(--color-bg-secondary); }
+.btn:hover {
+  background: var(--color-bg-secondary);
+  box-shadow: 0 2px 6px rgba(30,35,60,0.12);
+}
 .btn-primary {
   background: var(--color-primary);
   color: #fff;
   border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(79,110,247,0.30);
 }
-.btn-primary:hover { background: #1555C0; }
+.btn-primary:hover {
+  background: var(--color-primary-dark);
+  box-shadow: 0 3px 12px rgba(79,110,247,0.38);
+}
 .btn-danger {
   background: #E24B4A;
   color: #fff;
   border-color: #E24B4A;
+  box-shadow: 0 2px 8px rgba(226,75,74,0.28);
 }
-.btn-danger:hover { background: #C02B2B; }
+.btn-danger:hover {
+  background: #C02B2B;
+  box-shadow: 0 3px 12px rgba(226,75,74,0.36);
+}
 .btn-default { background: #fff; }
 
 /* D-day 뱃지 */
 .due-badge {
   display: inline-block;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
   font-size: 11px;
   font-weight: 500;
 }
-.due-normal { background: #F2F3F7; color: #888; }
-.due-warning { background: #FEF3E2; color: #854F0B; }
-.due-over { background: #FFE8E8; color: #C02B2B; }
-.due-done { background: #D4F0DE; color: #1F7A45; }
+.due-normal { background: #EDEEF3; color: #777; }
+.due-warning { background: #FEF3E2; color: #854F0B; box-shadow: 0 1px 3px rgba(133,79,11,0.10); }
+.due-over { background: #FFE8E8; color: #C02B2B; box-shadow: 0 1px 3px rgba(192,43,43,0.12); }
+.due-done { background: #D4F0DE; color: #1F7A45; box-shadow: 0 1px 3px rgba(31,122,69,0.10); }
 
 /* 카드 */
 .card {
@@ -243,6 +263,11 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   border: 0.5px solid var(--color-border);
   border-radius: 12px;
   padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.18s;
+}
+.card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 /* 지표 카드 */
@@ -256,7 +281,13 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   background: #fff;
   border: 0.5px solid var(--color-border);
   border-radius: 12px;
-  padding: 16px 20px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.18s, transform 0.18s;
+}
+.metric-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 .metric-label { font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px; }
 .metric-value { font-size: 22px; font-weight: 600; }
@@ -278,20 +309,26 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   align-items: center;
 }
 .filter-btn {
-  padding: 5px 12px;
-  border: 0.5px solid rgba(0,0,0,0.12);
+  padding: 5px 13px;
+  border: 0.5px solid rgba(30,35,60,0.13);
   border-radius: 99px;
   font-size: 12px;
   font-family: 'Pretendard', sans-serif;
   background: #fff;
   cursor: pointer;
   transition: all 0.15s;
+  box-shadow: 0 1px 2px rgba(30,35,60,0.06);
 }
-.filter-btn:hover { background: var(--color-bg-secondary); }
+.filter-btn:hover {
+  background: var(--color-bg-secondary);
+  border-color: rgba(30,35,60,0.2);
+  box-shadow: 0 2px 5px rgba(30,35,60,0.09);
+}
 .filter-btn.active {
   background: var(--color-primary);
   color: #fff;
   border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(79,110,247,0.28);
 }
 .filter-sep {
   width: 1px;
@@ -309,9 +346,11 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
 }
 .kanban-col {
   background: var(--kanban-col-bg);
+  border: 1px solid rgba(30,35,60,0.07);
   border-radius: 10px;
   padding: 12px;
   min-height: 200px;
+  box-shadow: inset 0 1px 3px rgba(30,35,60,0.05);
 }
 .kanban-col-header {
   display: flex;
@@ -332,17 +371,20 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
 
 .kanban-card {
   background: #fff;
-  border: 1px solid #E4E6EC;
+  border: 1px solid rgba(30,35,60,0.09);
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 8px;
   cursor: pointer;
   position: relative;
-  transition: all 0.15s;
+  transition: all 0.18s;
+  box-shadow: var(--shadow-xs);
 }
 .kanban-card:hover {
   border-color: var(--color-primary-muted);
   background: #FAFBFF;
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 .kanban-card.dragging { opacity: 0.4; }
 .kanban-card.drag-over { border: 2px dashed var(--color-primary); }
@@ -411,7 +453,8 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   width: 420px;
   height: 100vh;
   background: #fff;
-  border-left: 0.5px solid rgba(0,0,0,0.1);
+  border-left: 0.5px solid rgba(30,35,60,0.08);
+  box-shadow: var(--shadow-panel);
   transform: translateX(100%);
   transition: transform 0.25s ease;
   z-index: 100;
@@ -521,7 +564,7 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   border-radius: 12px;
   padding: 24px;
   width: 360px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  box-shadow: 0 12px 40px rgba(30,35,60,0.18), 0 4px 12px rgba(30,35,60,0.10);
 }
 .dialog-msg {
   font-size: 14px;
@@ -542,24 +585,28 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   border-radius: 10px;
   overflow: hidden;
   border: 0.5px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
 }
 .data-table th {
-  background: var(--color-bg-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  background: #F0F1F6;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--color-text-muted);
   text-align: left;
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--color-border);
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
 }
 .data-table td {
-  padding: 10px 14px;
+  padding: 11px 14px;
   font-size: 13px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(30,35,60,0.06);
   vertical-align: middle;
 }
 .data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: #FAFBFF; }
+.data-table tbody tr:nth-child(even) td { background: #FAFBFD; }
+.data-table tbody tr:hover td { background: #F0F4FF; transition: background 0.12s; }
 
 /* === 타임라인 === */
 .timeline-grid {
@@ -570,6 +617,7 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   border-radius: 10px;
   border: 0.5px solid var(--color-border);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 .timeline-header {
   font-size: 12px;
@@ -630,6 +678,11 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   border: 0.5px solid var(--color-border);
   border-radius: 12px;
   padding: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.18s;
+}
+.rrr-card:hover {
+  box-shadow: var(--shadow-md);
 }
 .rrr-card-header {
   display: flex;
@@ -716,7 +769,7 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
   width: 90%;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  box-shadow: 0 12px 40px rgba(30,35,60,0.18), 0 4px 12px rgba(30,35,60,0.10);
 }
 .popover-title {
   font-size: 14px;
@@ -744,10 +797,11 @@ a { text-decoration: none; color: inherit; cursor: pointer; }
 /* 진행바 */
 .progress-bar {
   height: 6px;
-  background: #E8E9ED;
+  background: #E2E4EB;
   border-radius: 3px;
   overflow: hidden;
   margin-top: 6px;
+  box-shadow: inset 0 1px 2px rgba(30,35,60,0.08);
 }
 .progress-fill {
   height: 100%;
