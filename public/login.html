@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task — 로그인</title>
+  <base href="/task/">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #F2F3F7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 48px 40px 40px;
+      width: 400px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .logo-badge {
+      width: 32px; height: 32px;
+      background: #4F6EF7;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700; color: #fff;
+    }
+    .logo-text { font-size: 22px; font-weight: 700; color: #1A1A1A; }
+    .subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: #6B6B6B;
+      margin-bottom: 32px;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #E8E9ED;
+      margin-bottom: 24px;
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #9B9B9B;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      color: #4F6EF7;
+      border-bottom-color: #4F6EF7;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #1A1A1A;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border: 0.5px solid rgba(0,0,0,0.2);
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: 'Pretendard', sans-serif;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .form-group input:focus {
+      border-color: #4F6EF7;
+      box-shadow: 0 0 0 3px rgba(79,110,247,0.1);
+    }
+    .btn-submit {
+      width: 100%;
+      height: 42px;
+      background: #4F6EF7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'Pretendard', sans-serif;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+    .btn-submit:hover { background: #3D5CE0; }
+    .error-msg {
+      color: #C02B2B;
+      font-size: 12px;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+    .form-panel { display: none; }
+    .form-panel.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="logo">
+      <span class="logo-badge">T</span>
+      <span class="logo-text">Task</span>
+    </div>
+    <p class="subtitle">마케팅 업무 관리 도구</p>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="login">로그인</div>
+      <div class="tab" data-tab="register">회원가입</div>
+    </div>
+
+    <!-- 로그인 폼 -->
+    <div id="login-form" class="form-panel active">
+      <div class="form-group">
+        <label>이메일</label>
+        <input type="email" id="login-email" placeholder="이메일을 입력하세요">
+      </div>
+      <div class="form-group">
+        <label>비밀번호</label>
+        <input type="password" id="login-password" placeholder="비밀번호를 입력하세요">
+      </div>
+      <div class="error-msg" id="login-error"></div>
+      <button class="btn-submit" id="login-btn">로그인</button>
+    </div>
+
+    <!-- 회원가입 폼 -->
+    <div id="register-form" class="form-panel">
+      <div class="form-group">
+        <label>이름</label>
+        <input type="text" id="reg-name" placeholder="이름을 입력하세요">
+      </div>
+      <div class="form-group">
+        <label>이메일</label>
+        <input type="email" id="reg-email" placeholder="이메일을 입력하세요">
+      </div>
+      <div class="form-group">
+        <label>비밀번호</label>
+        <input type="password" id="reg-password" placeholder="비밀번호를 입력하세요">
+      </div>
+      <div class="form-group">
+        <label>비밀번호 확인</label>
+        <input type="password" id="reg-password2" placeholder="비밀번호를 다시 입력하세요">
+      </div>
+      <div class="error-msg" id="reg-error"></div>
+      <button class="btn-submit" id="reg-btn">회원가입</button>
+    </div>
+  </div>
+
+  <script>
+    const BASE = '/task/api';
+
+    // 탭 전환
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.form-panel').forEach(f => f.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab + '-form').classList.add('active');
+      });
+    });
+
+    // 로그인
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const errEl = document.getElementById('login-error');
+      errEl.textContent = '';
+
+      try {
+        const res = await fetch(`${BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const body = await res.json();
+        if (!res.ok) { errEl.textContent = body.error; return; }
+        window.location.href = '/task/';
+      } catch (e) { errEl.textContent = '서버 연결에 실패했습니다.'; }
+    });
+
+    // 비밀번호 입력 시 엔터 키 처리
+    document.getElementById('login-password').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('login-btn').click();
+    });
+
+    // 회원가입
+    document.getElementById('reg-btn').addEventListener('click', async () => {
+      const name = document.getElementById('reg-name').value;
+      const email = document.getElementById('reg-email').value;
+      const password = document.getElementById('reg-password').value;
+      const password2 = document.getElementById('reg-password2').value;
+      const errEl = document.getElementById('reg-error');
+      errEl.textContent = '';
+
+      if (!name || !email || !password) {
+        errEl.textContent = '모든 항목을 입력해주세요.';
+        return;
+      }
+      if (password !== password2) {
+        errEl.textContent = '비밀번호가 일치하지 않습니다.';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password }),
+        });
+        const body = await res.json();
+        if (!res.ok) { errEl.textContent = body.error; return; }
+        window.location.href = '/task/';
+      } catch (e) { errEl.textContent = '서버 연결에 실패했습니다.'; }
+    });
+
+    // 이미 로그인 상태면 리다이렉트
+    fetch(`${BASE}/auth/me`).then(r => {
+      if (r.ok) window.location.href = '/task/';
+    });
+  </script>
+</body>
+</html>

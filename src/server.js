@@ -1,0 +1,156 @@
+const express = require('express');
+const cookieParser = require('cookie-parser');
+const path = require('path');
+const errorHandler = require('./middleware/error');
+
+const app = express();
+const PORT = process.env.PORT || 3004;
+
+// Nginx 프록시 뒤에서 실제 클라이언트 IP 기록
+app.set('trust proxy', 1);
+
+// 미들웨어
+app.use(express.json());
+app.use(cookieParser());
+
+// 정적 파일 (login.html은 인증 없이 접근)
+app.use('/task', express.static(path.join(__dirname, '..', 'public')));
+
+// API 라우트
+app.use('/task/api/auth', require('./routes/auth'));
+app.use('/task/api/tasks', require('./routes/tasks'));
+app.use('/task/api/content', require('./routes/content'));
+app.use('/task/api/timeline', require('./routes/timeline'));
+app.use('/task/api/rrr', require('./routes/rrr'));
+app.use('/task/api/audit', require('./routes/audit'));
+
+// 메타 API (카테고리, 제품, 유저 목록, 대시보드)
+const authMiddleware = require('./middleware/auth');
+const db = require('./db');
+
+app.get('/task/api/users', authMiddleware, async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT id, name, email, avatar_bg, avatar_text FROM users ORDER BY name'
+    );
+    res.json({ data: rows });
+  } catch (err) { next(err); }
+});
+
+app.get('/task/api/categories', authMiddleware, async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT id, name, color FROM task_categories ORDER BY id'
+    );
+    res.json({ data: rows });
+  } catch (err) { next(err); }
+});
+
+app.get('/task/api/products', authMiddleware, async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT id, name FROM products ORDER BY id'
+    );
+    res.json({ data: rows });
+  } catch (err) { next(err); }
+});
+
+app.get('/task/api/dashboard', authMiddleware, async (req, res, next) => {
+  try {
+    // 이번 주 업무 수
+    const weekTasks = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'done') AS done_count,
+        COUNT(*) FILTER (WHERE status != 'done') AS pending_count,
+        COUNT(*) AS total
+      FROM tasks
+      WHERE due_date >= date_trunc('week', CURRENT_DATE)
+        AND due_date < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'
+    `);
+
+    // 콘텐츠 발행 현황 (이번 달)
+    const contentStats = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'done') AS done_count,
+        COUNT(*) AS total
+      FROM content_items
+      WHERE publish_date >= date_trunc('month', CURRENT_DATE)
+        AND publish_date < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+    `);
+
+    // 진행 중 카테고리 수
+    const activeCategories = await db.query(`
+      SELECT COUNT(DISTINCT category_id) AS count
+      FROM tasks WHERE status = 'in_progress'
+    `);
+
+    // 미진행 업무 수
+    const blockedTasks = await db.query(`
+      SELECT COUNT(*) AS count FROM tasks WHERE status = 'blocked'
+    `);
+
+    // 이번 주 주요 업무
+    const weekTaskList = await db.query(`
+      SELECT t.id, t.title, t.status, t.due_date,
+             u.name AS assignee_name, u.avatar_bg, u.avatar_text,
+             tc.name AS category_name
+      FROM tasks t
+      LEFT JOIN users u ON u.id = t.assignee_id
+      LEFT JOIN task_categories tc ON tc.id = t.category_id
+      WHERE t.due_date >= date_trunc('week', CURRENT_DATE)
+        AND t.due_date < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'
+      ORDER BY t.due_date
+      LIMIT 10
+    `);
+
+    // 채널별 발행 현황 (이번 달)
+    const channelStats = await db.query(`
+      SELECT channel, COUNT(*) AS count
+      FROM content_items
+      WHERE publish_date >= date_trunc('month', CURRENT_DATE)
+        AND publish_date < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+      GROUP BY channel
+      ORDER BY count DESC
+    `);
+
+    // 나의 이번 주 업무
+    const myTasks = await db.query(`
+      SELECT t.id, t.title, t.status, t.due_date,
+             tc.name AS category_name
+      FROM tasks t
+      LEFT JOIN task_categories tc ON tc.id = t.category_id
+      WHERE t.assignee_id = $1
+        AND t.due_date >= date_trunc('week', CURRENT_DATE)
+        AND t.due_date < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'
+      ORDER BY t.due_date
+      LIMIT 5
+    `, [req.user.id]);
+
+    res.json({
+      data: {
+        weekSummary: weekTasks.rows[0],
+        contentSummary: contentStats.rows[0],
+        activeCategoryCount: activeCategories.rows[0].count,
+        blockedCount: blockedTasks.rows[0].count,
+        weekTasks: weekTaskList.rows,
+        channelStats: channelStats.rows,
+        myTasks: myTasks.rows,
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// SPA 폴백: /task로 접근 시 index.html
+app.get('/task', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+app.get('/task/', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
+// 에러 핸들러
+app.use(errorHandler);
+
+app.listen(PORT, () => {
+  console.log(`Task 서버 실행 중: http://localhost:${PORT}/task`);
+});
