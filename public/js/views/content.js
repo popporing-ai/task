@@ -109,7 +109,7 @@ const ContentView = {
         </thead>
         <tbody>
           ${this.items.map(item => `
-            <tr>
+            <tr style="cursor:pointer;" data-row-id="${item.id}">
               <td>
                 ${item.publish_url
                   ? `<a href="${escHtml(item.publish_url)}" target="_blank" rel="noopener" style="color:var(--color-primary)">${escHtml(item.title)} ↗</a>`
@@ -206,15 +206,26 @@ const ContentView = {
       });
     });
 
+    // 행 클릭 → 수정 폼 열기
+    content.querySelectorAll('tr[data-row-id]').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('button') || e.target.closest('a')) return;
+        const item = this.items.find(i => i.id == row.dataset.rowId);
+        if (item) this.openForm(item);
+      });
+    });
+
     // 수정/삭제
     content.querySelectorAll('[data-edit]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const item = this.items.find(i => i.id == btn.dataset.edit);
         if (item) this.openForm(item);
       });
     });
     content.querySelectorAll('[data-del]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const confirmed = await App.confirm('이 콘텐츠를 삭제하시겠습니까?');
         if (confirmed) {
           await API.del(`/content/${btn.dataset.del}`);

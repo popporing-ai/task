@@ -48,6 +48,14 @@ const DashboardView = {
     localStorage.setItem(`dashboard_chart_type_${widgetId}`, type);
   },
 
+  // 위젯별 크기 (localStorage): 'quarter' | 'half' | 'full'
+  getWidgetSize(widgetId) {
+    return localStorage.getItem(`dashboard_widget_size_${widgetId}`) || null;
+  },
+  setWidgetSize(widgetId, size) {
+    localStorage.setItem(`dashboard_widget_size_${widgetId}`, size);
+  },
+
   async render() {
     const content = document.getElementById('content');
     const actions = document.getElementById('topbar-actions');
@@ -91,10 +99,26 @@ const DashboardView = {
 
     const widgetsHtml = layout.map((id, idx) => this.renderWidgetShell(id, idx, d)).join('');
 
+    // 빠른 기간 버튼 계산
+    const _now = new Date();
+    const _y = _now.getFullYear();
+    const _m = _now.getMonth();
+    const _qStart = Math.floor(_m / 3) * 3;
+    const _pad = n => String(n).padStart(2, '0');
+    const _periodBtns = [
+      { label: '오늘',     from: `${_y}-${_pad(_m+1)}-${_pad(_now.getDate())}`,  to: `${_y}-${_pad(_m+1)}-${_pad(_now.getDate())}` },
+      { label: '이번 주',  from: (() => { const d = new Date(_now); d.setDate(_now.getDate() - _now.getDay()); return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())}`; })(),
+                           to:   (() => { const d = new Date(_now); d.setDate(_now.getDate() + (6 - _now.getDay())); return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())}`; })() },
+      { label: '이번 달',  from: `${_y}-${_pad(_m+1)}-01`, to: `${_y}-${_pad(_m+1)}-${_pad(new Date(_y, _m+1, 0).getDate())}` },
+      { label: '이번 분기',from: `${_y}-${_pad(_qStart+1)}-01`, to: `${_y}-${_pad(_qStart+3)}-${_pad(new Date(_y, _qStart+3, 0).getDate())}` },
+      { label: '올해',     from: `${_y}-01-01`, to: `${_y}-12-31` },
+    ];
+
     // 전역 날짜 필터 바
     const dateFilterHtml = `
       <div class="dashboard-date-filter">
         <span style="font-size:12px;color:var(--color-text-muted);white-space:nowrap;">기간:</span>
+        ${_periodBtns.map(p => `<button class="filter-btn dash-period-btn" data-from="${p.from}" data-to="${p.to}" style="font-size:11px;padding:3px 8px;">${p.label}</button>`).join('')}
         <input type="date" id="dash-date-from" value="${escHtml(this._dateFrom)}"
           style="background:var(--color-bg-secondary);color:var(--color-text-primary);border:1px solid var(--color-border);border-radius:6px;padding:4px 8px;font-size:12px;outline:none;">
         <span style="font-size:12px;color:var(--color-text-muted);">~</span>
@@ -127,7 +151,11 @@ const DashboardView = {
   renderWidgetShell(widgetId, idx, d) {
     const widget = this.WIDGETS.find(w => w.id === widgetId);
     if (!widget) return '';
-    const spanClass = widget.size === 'quarter' ? 'span-1' : widget.size === 'half' ? 'span-2' : 'span-4';
+
+    // 저장된 크기 우선, 없으면 기본값
+    const savedSize = this.getWidgetSize(widgetId);
+    const effectiveSize = savedSize || widget.size;
+    const spanClass = effectiveSize === 'quarter' ? 'span-1' : effectiveSize === 'half' ? 'span-2' : 'span-4';
     const editClass = this.editMode ? 'edit-mode' : '';
     const draggable = this.editMode ? 'draggable="true"' : '';
 
@@ -141,9 +169,23 @@ const DashboardView = {
           <button class="chart-type-btn ${currentType === 'bar' ? 'active' : ''}" data-type="bar" title="막대 차트">바</button>
           <button class="chart-type-btn ${currentType === 'donut' ? 'active' : ''}" data-type="donut" title="도넛 차트">도넛</button>
           <button class="chart-type-btn ${currentType === 'list' ? 'active' : ''}" data-type="list" title="목록">리스트</button>
+          <button class="chart-type-btn ${currentType === 'line' ? 'active' : ''}" data-type="line" title="라인 차트">라인</button>
         </div>
       `;
     }
+
+    // 크기 토글 버튼 (편집 모드)
+    let sizeBtnHtml = '';
+    if (this.editMode) {
+      const sizeLabel = effectiveSize === 'quarter' ? '1x' : effectiveSize === 'half' ? '2x' : '4x';
+      sizeBtnHtml = `<button class="chart-type-btn" data-size-widget="${widgetId}" title="크기 변경" style="font-size:10px;padding:2px 6px;">${sizeLabel}</button>`;
+    }
+
+    // 새로고침 버튼 (비편집 모드)
+    const refreshBtnHtml = !this.editMode ? `
+      <button class="widget-refresh-btn" data-refresh-widget="${widgetId}" title="새로고침" style="background:none;border:none;cursor:pointer;color:var(--color-text-muted);padding:2px 4px;border-radius:4px;display:flex;align-items:center;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2L14 3v4h-4l1.7-1.7A3.5 3.5 0 1 0 11.5 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>` : '';
 
     return `
       <div class="dashboard-widget ${spanClass} ${editClass}" data-widget-id="${widgetId}" data-idx="${idx}" ${draggable}>
@@ -151,6 +193,8 @@ const DashboardView = {
           ${this.editMode ? '<div class="widget-drag-handle" title="드래그하여 이동">⠿</div>' : ''}
           <span class="widget-title">${widget.title}</span>
           ${chartToggleHtml}
+          ${sizeBtnHtml}
+          ${refreshBtnHtml}
           ${this.editMode ? `<button class="widget-remove-btn" data-remove-widget="${widgetId}" title="제거">✕</button>` : ''}
         </div>
         <div class="widget-body">${this.renderWidgetContent(widgetId, d)}</div>
@@ -206,6 +250,7 @@ const DashboardView = {
     const type = this.getChartType(widgetId);
     if (type === 'donut') return this._renderDonut(widgetId, d);
     if (type === 'list') return this._renderList(widgetId, d);
+    if (type === 'line') return this._renderLine(widgetId, d);
     return this._renderBar(widgetId, d);
   },
 
@@ -323,6 +368,35 @@ const DashboardView = {
       `</ol>`;
   },
 
+  // 라인 차트 (SVG polyline)
+  _renderLine(widgetId, d) {
+    const entries = this._getChartData(widgetId, d);
+    if (!entries.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
+    const max = Math.max(...entries.map(e => e.count), 1);
+    const W = 240, H = 80, pad = 20;
+    const innerW = W - pad * 2;
+    const innerH = H - pad;
+    const step = entries.length > 1 ? innerW / (entries.length - 1) : innerW;
+    const points = entries.map((e, i) => {
+      const x = pad + (entries.length > 1 ? i * step : innerW / 2);
+      const y = pad / 2 + innerH - (e.count / max) * innerH;
+      return { x, y, label: e.label, count: e.count, color: e.color };
+    });
+    const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+    const dotsHtml = points.map(p => `
+      <circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${p.color}" stroke="var(--color-bg-primary)" stroke-width="1.5">
+        <title>${escHtml(p.label)}: ${p.count}</title>
+      </circle>`).join('');
+    const labelsHtml = points.map(p => `
+      <text x="${p.x}" y="${H}" text-anchor="middle" font-size="9" fill="var(--color-text-muted)">${escHtml(p.label.slice(0, 5))}</text>`).join('');
+    return `
+      <svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;overflow:visible;">
+        <polyline points="${polylinePoints}" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dotsHtml}
+        ${labelsHtml}
+      </svg>`;
+  },
+
   _renderTaskTable(tasks, emptyTitle, emptyDesc) {
     if (!tasks.length) return `<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📋</span><div class="empty-state-title">${emptyTitle}</div><div class="empty-state-desc">${emptyDesc}</div></div>`;
     return `<table class="data-table"><thead><tr><th>업무명</th><th>담당자</th><th>상태</th></tr></thead><tbody>
@@ -369,6 +443,56 @@ const DashboardView = {
   bindEvents(layout) {
     const content = document.getElementById('content');
     const grid = document.getElementById('dashboard-grid');
+
+    // 빠른 기간 버튼
+    content.querySelectorAll('.dash-period-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        this._dateFrom = btn.dataset.from;
+        this._dateTo = btn.dataset.to;
+        document.getElementById('dash-date-from').value = this._dateFrom;
+        document.getElementById('dash-date-to').value = this._dateTo;
+        try {
+          await this._fetchData();
+          this.renderGrid();
+        } catch {
+          App.toast('데이터를 불러올 수 없습니다.', 'error');
+        }
+      });
+    });
+
+    // 위젯 새로고침 버튼
+    if (grid) {
+      grid.querySelectorAll('[data-refresh-widget]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const widgetId = btn.dataset.refreshWidget;
+          btn.style.opacity = '0.4';
+          try {
+            await this._fetchData();
+            const widgetEl = grid.querySelector(`[data-widget-id="${widgetId}"]`);
+            if (widgetEl) {
+              widgetEl.querySelector('.widget-body').innerHTML = this.renderWidgetContent(widgetId, this._data);
+            }
+          } catch {
+            App.toast('새로고침 실패', 'error');
+          }
+          btn.style.opacity = '';
+        });
+      });
+
+      // 위젯 크기 토글 버튼 (편집 모드)
+      grid.querySelectorAll('[data-size-widget]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const widgetId = btn.dataset.sizeWidget;
+          const current = this.getWidgetSize(widgetId) || (this.WIDGETS.find(w => w.id === widgetId)?.size || 'half');
+          const cycle = { quarter: 'half', half: 'full', full: 'quarter' };
+          const next = cycle[current] || 'half';
+          this.setWidgetSize(widgetId, next);
+          this.renderGrid();
+        });
+      });
+    }
 
     // 날짜 필터 이벤트
     const applyBtn = document.getElementById('btn-dash-apply');

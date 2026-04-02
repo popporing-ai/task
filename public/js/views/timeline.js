@@ -68,13 +68,39 @@ const TimelineView = {
       groups[catName].items.push(item);
     }
 
+    // 빠른 필터 버튼 (localStorage 기반)
+    const quickCatIds = this._getQuickFilterButtons();
+    const quickCatBtns = quickCatIds.map(id => {
+      const cat = App.categories.find(c => String(c.id) === String(id));
+      if (!cat) return '';
+      const isActive = this.filterCategory == cat.id;
+      return `<button class="filter-btn ${isActive ? 'active' : ''}" data-quick-tl-cat="${cat.id}">${escHtml(cat.name)}</button>`;
+    }).join('');
+
+    // 기어 드롭다운
+    const gearDropdownHtml = `
+      <div style="position:relative;display:inline-block;">
+        <button class="filter-btn" id="tl-gear-btn" title="빠른 필터 설정" style="padding:4px 8px;">⚙</button>
+        <div id="tl-gear-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:90;background:var(--color-bg-primary);border-radius:10px;padding:12px;min-width:200px;box-shadow:var(--shadow-lg);border:0.5px solid var(--color-border);">
+          <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">빠른 필터 버튼</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            ${App.categories.map(c => `
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 6px;border-radius:6px;color:var(--color-text-primary);">
+                <input type="checkbox" data-tl-gear-cat="${c.id}" ${quickCatIds.includes(String(c.id)) ? 'checked' : ''} style="width:auto;height:auto;margin:0;accent-color:var(--color-primary);">
+                ${escHtml(c.name)}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
     // 필터 바
     const filterHtml = `
       <div class="filter-bar">
         <button class="filter-btn ${!this.filterCategory ? 'active' : ''}" data-cat="">전체</button>
-        ${App.categories.map(c =>
-          `<button class="filter-btn ${this.filterCategory == c.id ? 'active' : ''}" data-cat="${c.id}">${escHtml(c.name)}</button>`
-        ).join('')}
+        ${quickCatBtns}
+        ${gearDropdownHtml}
         <div class="filter-sep"></div>
         <button class="filter-btn" id="btn-prev-year">◀</button>
         <span style="font-size:14px;font-weight:600;padding:0 8px;color:var(--color-text-primary)">${this.year}년</span>
@@ -153,6 +179,39 @@ const TimelineView = {
     content.querySelectorAll('.filter-btn[data-cat]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.filterCategory = btn.dataset.cat || null;
+        this.renderTimeline(content);
+      });
+    });
+
+    // 빠른 필터 버튼 토글
+    content.querySelectorAll('[data-quick-tl-cat]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const catId = btn.dataset.quickTlCat;
+        this.filterCategory = (this.filterCategory == catId) ? null : catId;
+        this.renderTimeline(content);
+      });
+    });
+
+    // 기어 드롭다운 토글
+    const tlGearBtn = content.querySelector('#tl-gear-btn');
+    const tlGearDropdown = content.querySelector('#tl-gear-dropdown');
+    tlGearBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = tlGearDropdown.style.display !== 'none';
+      tlGearDropdown.style.display = isOpen ? 'none' : 'block';
+    });
+    document.addEventListener('click', function closeTlGear(e) {
+      if (tlGearDropdown && !tlGearDropdown.contains(e.target) && e.target !== tlGearBtn) {
+        tlGearDropdown.style.display = 'none';
+        document.removeEventListener('click', closeTlGear);
+      }
+    });
+    content.querySelectorAll('[data-tl-gear-cat]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const current = this._getQuickFilterButtons();
+        const id = cb.dataset.tlGearCat;
+        const updated = cb.checked ? [...new Set([...current, id])] : current.filter(x => x !== id);
+        this._setQuickFilterButtons(updated);
         this.renderTimeline(content);
       });
     });
@@ -345,5 +404,20 @@ const TimelineView = {
         }
       });
     }
+  },
+
+  // 빠른 필터 버튼 localStorage 조회
+  _getQuickFilterButtons() {
+    try {
+      const saved = localStorage.getItem('timeline_filter_buttons');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  },
+
+  // 빠른 필터 버튼 localStorage 저장
+  _setQuickFilterButtons(ids) {
+    try {
+      localStorage.setItem('timeline_filter_buttons', JSON.stringify(ids));
+    } catch {}
   },
 };
