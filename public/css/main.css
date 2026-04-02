@@ -470,22 +470,30 @@ a { text-decoration: none; color: var(--color-primary); cursor: pointer; }
 }
 .card-action-btn:hover { background: rgba(255,255,255,0.18); color: var(--color-text-primary); }
 
-/* === 슬라이드 패널 === */
+/* === 슬라이드 패널 (센터 모달) === */
 .slide-panel {
   position: fixed;
-  top: 0; right: 0;
-  width: 420px;
-  height: 100vh;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  width: 480px;
+  max-height: 85vh;
   background: var(--color-bg-primary);
-  border-left: 0.5px solid rgba(255,255,255,0.08);
-  box-shadow: var(--shadow-panel);
-  transform: translateX(100%);
-  transition: transform 0.25s ease;
+  border: 0.5px solid var(--color-border);
+  border-radius: 16px;
   z-index: 100;
   display: flex;
   flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  box-shadow: var(--shadow-lg);
 }
-.slide-panel.open { transform: translateX(0); }
+.slide-panel.open {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  visibility: visible;
+}
 .panel-header {
   display: flex;
   align-items: center;
@@ -558,6 +566,10 @@ a { text-decoration: none; color: var(--color-primary); cursor: pointer; }
   background: #252631;
 }
 .form-group textarea { height: 80px; padding: 10px 12px; resize: vertical; }
+input[type="date"],
+input[type="month"] {
+  color-scheme: dark;
+}
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1002,6 +1014,37 @@ a { text-decoration: none; color: var(--color-primary); cursor: pointer; }
 }
 .settings-table tr:last-child td { border-bottom: none; }
 .settings-table tbody tr:hover td { background: rgba(79,110,247,0.06); transition: background 0.12s; }
+
+/* === 설정 탭 바 === */
+.settings-tabs-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+/* === 설정 코드 뱃지 === */
+.settings-code-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: var(--color-bg-secondary);
+  color: var(--color-primary-muted);
+  border: 0.5px solid rgba(79,110,247,0.30);
+}
+
+/* === 설정 읽기 전용 안내 === */
+.settings-readonly-notice {
+  font-size: 12px;
+  color: var(--color-text-hint);
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
 
 /* === 필터 바 인라인 컨트롤 === */
 .filter-bar select,

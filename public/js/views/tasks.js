@@ -121,6 +121,7 @@ const TasksView = {
               <div class="kanban-col-header">
                 <span class="kanban-col-title">${col.label}</span>
                 <span class="kanban-col-count">${colTasks.length}</span>
+                ${col.key === 'todo' ? `<button class="card-action-btn" id="kanban-quick-add" title="업무 추가" style="cursor:pointer"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>` : ''}
               </div>
               <div class="kanban-cards" data-status="${col.key}">
                 ${colTasks.length > 0
@@ -188,6 +189,9 @@ const TasksView = {
         this.renderBoard(content);
       });
     });
+
+    // 칸반 빠른 추가 버튼
+    content.querySelector('#kanban-quick-add')?.addEventListener('click', () => this.openForm());
 
     // 드래그 앤 드롭
     this.bindDragDrop(content);
@@ -361,6 +365,18 @@ const TasksView = {
     const isEdit = !!task;
     const title = isEdit ? '업무 수정' : '업무 추가';
 
+    const statusHtml = isEdit ? `
+      <div class="form-group">
+        <label>상태</label>
+        <div class="radio-group">
+          <label><input type="radio" name="f-status" value="todo" ${task.status==='todo' ? 'checked' : ''}>할 일</label>
+          <label><input type="radio" name="f-status" value="in_progress" ${task.status==='in_progress' ? 'checked' : ''}>진행 중</label>
+          <label><input type="radio" name="f-status" value="done" ${task.status==='done' ? 'checked' : ''}>완료</label>
+          <label><input type="radio" name="f-status" value="blocked" ${task.status==='blocked' ? 'checked' : ''}>미진행</label>
+        </div>
+      </div>
+    ` : '';
+
     const html = `
       <div class="form-group">
         <label>업무명 *</label>
@@ -384,15 +400,7 @@ const TasksView = {
           <input type="date" id="f-due" value="${task?.due_date?.slice(0,10) || ''}">
         </div>
       </div>
-      <div class="form-group">
-        <label>상태</label>
-        <div class="radio-group">
-          <label><input type="radio" name="f-status" value="todo" ${(!task || task.status==='todo') ? 'checked' : ''}>할 일</label>
-          <label><input type="radio" name="f-status" value="in_progress" ${task?.status==='in_progress' ? 'checked' : ''}>진행 중</label>
-          <label><input type="radio" name="f-status" value="done" ${task?.status==='done' ? 'checked' : ''}>완료</label>
-          <label><input type="radio" name="f-status" value="blocked" ${task?.status==='blocked' ? 'checked' : ''}>미진행</label>
-        </div>
-      </div>
+      ${statusHtml}
     `;
 
     App.openPanel(title, html, async () => {
@@ -402,7 +410,7 @@ const TasksView = {
         category_id: document.getElementById('f-category').value || null,
         assignee_id: document.getElementById('f-assignee').value || null,
         due_date: document.getElementById('f-due').value || null,
-        status: document.querySelector('input[name="f-status"]:checked').value,
+        status: isEdit ? document.querySelector('input[name="f-status"]:checked').value : 'todo',
       };
       if (!data.title) {
         App.toast('업무명을 입력해주세요.', 'error');

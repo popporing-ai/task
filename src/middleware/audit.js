@@ -1,7 +1,7 @@
 const db = require('../db');
 
 // 허용된 테이블 화이트리스트 (SQL 인젝션 방지)
-const ALLOWED_TABLES = ['tasks', 'timeline_items', 'content_items', 'rrr_items', 'task_categories'];
+const ALLOWED_TABLES = ['tasks', 'timeline_items', 'content_items', 'rrr_items', 'task_categories', 'products'];
 
 // 감사 로그 자동 기록 미들웨어
 function auditMiddleware(tableName) {

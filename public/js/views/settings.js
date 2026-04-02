@@ -1,40 +1,94 @@
-// 설정 뷰 — 분류(카테고리) 관리
+// 설정 뷰 — 분류 / 제품 / 채널 / 콘텐츠 타입 관리 (탭 기반)
 const SettingsView = {
+  // 현재 활성 탭
+  activeTab: 'categories',
+
+  // 채널 코드 + 설명 (시스템 정의)
+  CHANNELS: [
+    { code: 'IG', desc: 'Instagram' },
+    { code: 'FB', desc: 'Facebook' },
+    { code: 'LI', desc: 'LinkedIn' },
+    { code: 'YT', desc: 'YouTube' },
+    { code: 'BL', desc: 'Blog' },
+    { code: 'EM', desc: 'Email' },
+    { code: 'HM', desc: 'Homepage' },
+  ],
+
+  // 콘텐츠 타입 코드 + 설명 (시스템 정의)
+  CONTENT_TYPES: [
+    { code: 'I', desc: 'Image' },
+    { code: 'C', desc: 'Card News' },
+    { code: 'V', desc: 'Video' },
+    { code: 'S', desc: 'Short' },
+    { code: 'Q', desc: 'Quote' },
+    { code: 'A', desc: 'Article' },
+    { code: 'L', desc: 'Link' },
+    { code: 'T', desc: 'Text' },
+  ],
+
   async render() {
     const container = document.getElementById('content');
+
+    // 상단 액션 영역 초기화
+    const actions = document.getElementById('topbar-actions');
+    actions.innerHTML = '';
+
+    // 탭 + 콘텐츠 골격 렌더링
     container.innerHTML = `
-      <div class="loading-state">
-        <div class="loading-spinner"></div>
-        <span>설정 불러오는 중...</span>
+      <div class="settings-tabs-bar">
+        <button class="filter-btn ${this.activeTab === 'categories' ? 'active' : ''}" data-tab="categories">분류</button>
+        <button class="filter-btn ${this.activeTab === 'products'   ? 'active' : ''}" data-tab="products">제품</button>
+        <button class="filter-btn ${this.activeTab === 'channels'   ? 'active' : ''}" data-tab="channels">채널</button>
+        <button class="filter-btn ${this.activeTab === 'types'      ? 'active' : ''}" data-tab="types">콘텐츠 타입</button>
       </div>
+      <div id="settings-tab-content"></div>
     `;
+
+    // 탭 클릭 이벤트
+    container.querySelectorAll('.filter-btn[data-tab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.activeTab = btn.dataset.tab;
+        container.querySelectorAll('.filter-btn[data-tab]').forEach(b => b.classList.toggle('active', b === btn));
+        this._renderActiveTab();
+      });
+    });
+
+    await this._renderActiveTab();
+  },
+
+  async _renderActiveTab() {
+    switch (this.activeTab) {
+      case 'categories': await this._renderCategories(); break;
+      case 'products':   await this._renderProducts();   break;
+      case 'channels':   this._renderChannels();         break;
+      case 'types':      this._renderContentTypes();     break;
+    }
+  },
+
+  // ─────────────────────────────────────────
+  // 분류 탭
+  // ─────────────────────────────────────────
+  async _renderCategories() {
+    const wrap = document.getElementById('settings-tab-content');
+    wrap.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><span>불러오는 중...</span></div>`;
 
     let categories = [];
     try {
       const res = await API.get('/categories');
       categories = res.data;
     } catch (e) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <span class="empty-state-icon">⚠</span>
-          <div class="empty-state-title">카테고리를 불러오지 못했습니다</div>
-          <div class="empty-state-desc">잠시 후 다시 시도해주세요</div>
-        </div>
-      `;
+      wrap.innerHTML = `<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">카테고리를 불러오지 못했습니다</div></div>`;
       return;
     }
 
-    // 상단 액션 버튼
+    // 상단 버튼
     const actions = document.getElementById('topbar-actions');
-    actions.innerHTML = `
-      <button class="btn btn-primary" id="btn-add-category">+ 분류 추가</button>
-    `;
+    actions.innerHTML = `<button class="btn btn-primary" id="btn-add-category">+ 분류 추가</button>`;
     document.getElementById('btn-add-category').addEventListener('click', () => {
-      this.openCategoryPanel(null);
+      this.openCategoryPanel(null, categories);
     });
 
-    // 테이블 렌더링
-    container.innerHTML = `
+    wrap.innerHTML = `
       <div class="card" style="padding:0;overflow:hidden">
         <table class="settings-table">
           <thead>
@@ -50,41 +104,38 @@ const SettingsView = {
                    등록된 분류가 없습니다.<br>
                    <span style="font-size:12px;margin-top:4px;display:block">+ 분류 추가 버튼으로 업무 분류를 만들어보세요</span>
                  </td></tr>`
-              : categories.map(c => this.rowHtml(c)).join('')}
+              : categories.map(c => this._categoryRowHtml(c)).join('')}
           </tbody>
         </table>
       </div>
     `;
 
-    // 이벤트 위임 — 수정/삭제
     document.getElementById('category-tbody').addEventListener('click', async (e) => {
       const editBtn = e.target.closest('.btn-edit-cat');
-      const delBtn = e.target.closest('.btn-del-cat');
+      const delBtn  = e.target.closest('.btn-del-cat');
 
       if (editBtn) {
-        const id = editBtn.dataset.id;
-        const cat = categories.find(c => String(c.id) === String(id));
-        if (cat) this.openCategoryPanel(cat);
+        const cat = categories.find(c => String(c.id) === editBtn.dataset.id);
+        if (cat) this.openCategoryPanel(cat, categories);
       }
 
       if (delBtn) {
-        const id = delBtn.dataset.id;
-        const cat = categories.find(c => String(c.id) === String(id));
+        const cat = categories.find(c => String(c.id) === delBtn.dataset.id);
         const ok = await App.confirm(`"${cat?.name}" 분류를 삭제하시겠습니까?`);
         if (!ok) return;
         try {
-          await API.del(`/categories/${id}`);
+          await API.del(`/categories/${cat.id}`);
           App.toast(`"${cat?.name}" 분류가 삭제되었습니다.`, 'info');
           await App.loadMeta();
-          this.render();
-        } catch (e) {
+          await this._renderCategories();
+        } catch {
           App.toast('삭제에 실패했습니다.', 'error');
         }
       }
     });
   },
 
-  rowHtml(c) {
+  _categoryRowHtml(c) {
     return `
       <tr>
         <td>
@@ -102,10 +153,8 @@ const SettingsView = {
     `;
   },
 
-  openCategoryPanel(category) {
+  openCategoryPanel(category, categories) {
     const isEdit = !!category;
-    const title = isEdit ? '분류 수정' : '분류 추가';
-
     const html = `
       <div class="form-group">
         <label>분류명 <span style="color:var(--color-warn-text)">*</span></label>
@@ -120,14 +169,10 @@ const SettingsView = {
       </div>
     `;
 
-    App.openPanel(title, html, async () => {
-      const name = document.getElementById('f-cat-name').value.trim();
+    App.openPanel(isEdit ? '분류 수정' : '분류 추가', html, async () => {
+      const name  = document.getElementById('f-cat-name').value.trim();
       const color = document.getElementById('f-cat-color').value;
-      if (!name) {
-        App.toast('분류명을 입력해주세요.', 'error');
-        return false;
-      }
-
+      if (!name) { App.toast('분류명을 입력해주세요.', 'error'); return false; }
       try {
         if (isEdit) {
           await API.put(`/categories/${category.id}`, { name, color });
@@ -137,21 +182,187 @@ const SettingsView = {
           App.toast('분류가 추가되었습니다.', 'success');
         }
         await App.loadMeta();
-        this.render();
-      } catch (e) {
+        await this._renderCategories();
+      } catch {
         App.toast('저장에 실패했습니다.', 'error');
       }
     });
 
-    // 색상 선택기 변경 시 미리보기 업데이트
     setTimeout(() => {
       const colorInput = document.getElementById('f-cat-color');
-      const preview = document.getElementById('f-cat-color-preview');
+      const preview    = document.getElementById('f-cat-color-preview');
       if (colorInput && preview) {
-        colorInput.addEventListener('input', () => {
-          preview.textContent = colorInput.value;
-        });
+        colorInput.addEventListener('input', () => { preview.textContent = colorInput.value; });
       }
     }, 0);
+  },
+
+  // ─────────────────────────────────────────
+  // 제품 탭
+  // ─────────────────────────────────────────
+  async _renderProducts() {
+    const wrap = document.getElementById('settings-tab-content');
+    wrap.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><span>불러오는 중...</span></div>`;
+
+    let products = [];
+    try {
+      const res = await API.get('/products');
+      products = res.data;
+    } catch (e) {
+      wrap.innerHTML = `<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">제품 목록을 불러오지 못했습니다</div></div>`;
+      return;
+    }
+
+    // 상단 버튼
+    const actions = document.getElementById('topbar-actions');
+    actions.innerHTML = `<button class="btn btn-primary" id="btn-add-product">+ 제품 추가</button>`;
+    document.getElementById('btn-add-product').addEventListener('click', () => {
+      this.openProductPanel(null, products);
+    });
+
+    wrap.innerHTML = `
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="settings-table">
+          <thead>
+            <tr>
+              <th>제품명</th>
+              <th style="width:120px;text-align:right">작업</th>
+            </tr>
+          </thead>
+          <tbody id="product-tbody">
+            ${products.length === 0
+              ? `<tr><td colspan="2" style="text-align:center;color:var(--color-text-hint);padding:40px">
+                   등록된 제품이 없습니다.<br>
+                   <span style="font-size:12px;margin-top:4px;display:block">+ 제품 추가 버튼으로 제품을 등록하세요</span>
+                 </td></tr>`
+              : products.map(p => this._productRowHtml(p)).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    document.getElementById('product-tbody').addEventListener('click', async (e) => {
+      const editBtn = e.target.closest('.btn-edit-prod');
+      const delBtn  = e.target.closest('.btn-del-prod');
+
+      if (editBtn) {
+        const prod = products.find(p => String(p.id) === editBtn.dataset.id);
+        if (prod) this.openProductPanel(prod, products);
+      }
+
+      if (delBtn) {
+        const prod = products.find(p => String(p.id) === delBtn.dataset.id);
+        const ok = await App.confirm(`"${prod?.name}" 제품을 삭제하시겠습니까?`);
+        if (!ok) return;
+        try {
+          await API.del(`/products/${prod.id}`);
+          App.toast(`"${prod?.name}" 제품이 삭제되었습니다.`, 'info');
+          await App.loadMeta();
+          await this._renderProducts();
+        } catch {
+          App.toast('삭제에 실패했습니다.', 'error');
+        }
+      }
+    });
+  },
+
+  _productRowHtml(p) {
+    return `
+      <tr>
+        <td>${escHtml(p.name)}</td>
+        <td style="text-align:right">
+          <button class="btn btn-default btn-edit-prod" data-id="${p.id}" style="margin-right:6px">수정</button>
+          <button class="btn btn-danger btn-del-prod" data-id="${p.id}">삭제</button>
+        </td>
+      </tr>
+    `;
+  },
+
+  openProductPanel(product, products) {
+    const isEdit = !!product;
+    const html = `
+      <div class="form-group">
+        <label>제품명 <span style="color:var(--color-warn-text)">*</span></label>
+        <input type="text" id="f-prod-name" value="${escHtml(product?.name || '')}" placeholder="예: Remote">
+      </div>
+    `;
+
+    App.openPanel(isEdit ? '제품 수정' : '제품 추가', html, async () => {
+      const name = document.getElementById('f-prod-name').value.trim();
+      if (!name) { App.toast('제품명을 입력해주세요.', 'error'); return false; }
+      try {
+        if (isEdit) {
+          await API.put(`/products/${product.id}`, { name });
+          App.toast('제품이 수정되었습니다.', 'success');
+        } else {
+          await API.post('/products', { name });
+          App.toast('제품이 추가되었습니다.', 'success');
+        }
+        await App.loadMeta();
+        await this._renderProducts();
+      } catch {
+        App.toast('저장에 실패했습니다.', 'error');
+      }
+    });
+  },
+
+  // ─────────────────────────────────────────
+  // 채널 탭 (표시 전용)
+  // ─────────────────────────────────────────
+  _renderChannels() {
+    document.getElementById('topbar-actions').innerHTML = '';
+    document.getElementById('settings-tab-content').innerHTML = `
+      <div class="settings-readonly-notice">
+        시스템에 정의된 채널 코드입니다. 현재 변경이 불가합니다.
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="settings-table">
+          <thead>
+            <tr>
+              <th style="width:80px">코드</th>
+              <th>채널명</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.CHANNELS.map(ch => `
+              <tr>
+                <td><span class="settings-code-badge">${escHtml(ch.code)}</span></td>
+                <td>${escHtml(ch.desc)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  // ─────────────────────────────────────────
+  // 콘텐츠 타입 탭 (표시 전용)
+  // ─────────────────────────────────────────
+  _renderContentTypes() {
+    document.getElementById('topbar-actions').innerHTML = '';
+    document.getElementById('settings-tab-content').innerHTML = `
+      <div class="settings-readonly-notice">
+        시스템에 정의된 콘텐츠 타입 코드입니다. 현재 변경이 불가합니다.
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="settings-table">
+          <thead>
+            <tr>
+              <th style="width:80px">코드</th>
+              <th>타입명</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.CONTENT_TYPES.map(t => `
+              <tr>
+                <td><span class="settings-code-badge">${escHtml(t.code)}</span></td>
+                <td>${escHtml(t.desc)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
   },
 };

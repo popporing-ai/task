@@ -123,7 +123,7 @@ const App = {
 
     closeBtn.addEventListener('click', close);
     cancelBtn.addEventListener('click', close);
-    overlay.addEventListener('click', close);
+    // 오버레이 클릭 시 패널 닫지 않음 (사용자 요청)
   },
 
   openPanel(title, bodyHtml, onSave) {

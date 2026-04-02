@@ -131,11 +131,21 @@ const ContentView = {
       this.render();
     });
 
-    // 콘텐츠 ID 복사
+    // 콘텐츠 ID 복사 (HTTPS/localhost가 아닌 환경 fallback 포함)
     content.querySelectorAll('[data-copy-id]').forEach(btn => {
       btn.addEventListener('click', () => {
-        navigator.clipboard.writeText(btn.dataset.copyId);
-        App.toast('ID가 클립보드에 복사되었습니다.', 'info');
+        const text = btn.dataset.copyId;
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(() => App.toast('복사되었습니다', 'success'));
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          App.toast('복사되었습니다', 'success');
+        }
       });
     });
 

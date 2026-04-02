@@ -47,6 +47,57 @@ app.get('/task/api/products', authMiddleware, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+const auditMiddleware = require('./middleware/audit');
+
+// POST /task/api/products — 제품 생성
+app.post('/task/api/products', authMiddleware, auditMiddleware('products'), async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ data: null, message: '제품 이름은 필수입니다.' });
+    }
+    const { rows } = await db.query(
+      'INSERT INTO products (name) VALUES ($1) RETURNING id, name',
+      [name.trim()]
+    );
+    res.status(201).json({ data: rows[0], message: '제품이 생성되었습니다.' });
+  } catch (err) { next(err); }
+});
+
+// PUT /task/api/products/:id — 제품 수정
+app.put('/task/api/products/:id', authMiddleware, auditMiddleware('products'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ data: null, message: '제품 이름은 필수입니다.' });
+    }
+    const { rows } = await db.query(
+      'UPDATE products SET name = $1 WHERE id = $2 RETURNING id, name',
+      [name.trim(), id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ data: null, message: '제품을 찾을 수 없습니다.' });
+    }
+    res.json({ data: rows[0], message: '제품이 수정되었습니다.' });
+  } catch (err) { next(err); }
+});
+
+// DELETE /task/api/products/:id — 제품 삭제
+app.delete('/task/api/products/:id', authMiddleware, auditMiddleware('products'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await db.query(
+      'DELETE FROM products WHERE id = $1 RETURNING id, name',
+      [id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ data: null, message: '제품을 찾을 수 없습니다.' });
+    }
+    res.json({ data: rows[0], message: '제품이 삭제되었습니다.' });
+  } catch (err) { next(err); }
+});
+
 app.get('/task/api/dashboard', authMiddleware, async (req, res, next) => {
   try {
     // 이번 주 업무 수
