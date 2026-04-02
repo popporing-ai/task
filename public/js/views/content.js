@@ -145,15 +145,15 @@ const ContentView = {
 
     // 채널 기어 드롭다운 토글
     const chGearBtn = content.querySelector('#ch-gear-btn');
-    const chGearDropdown = content.querySelector('#ch-gear-dropdown');
+    const chGearDropdownEl = content.querySelector('#ch-gear-dropdown');
     chGearBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
-      const isOpen = chGearDropdown.style.display !== 'none';
-      chGearDropdown.style.display = isOpen ? 'none' : 'block';
+      const isOpen = chGearDropdownEl.style.display !== 'none';
+      chGearDropdownEl.style.display = isOpen ? 'none' : 'block';
     });
     document.addEventListener('click', function closeChGear(e) {
-      if (chGearDropdown && !chGearDropdown.contains(e.target) && e.target !== chGearBtn) {
-        chGearDropdown.style.display = 'none';
+      if (chGearDropdownEl && !chGearDropdownEl.contains(e.target) && e.target !== chGearBtn) {
+        chGearDropdownEl.style.display = 'none';
         document.removeEventListener('click', closeChGear);
       }
     });
