@@ -650,19 +650,19 @@ const TasksView = {
       });
     });
 
-    // 드롭다운 외부 클릭 닫기
-    document.addEventListener('click', function closeDropdowns(e) {
+    // 드롭다운 외부 클릭 닫기 (이전 리스너 제거 후 재등록)
+    if (this._closeDropdownsHandler) {
+      document.removeEventListener('click', this._closeDropdownsHandler);
+    }
+    this._closeDropdownsHandler = (e) => {
       if (dropdown && !dropdown.contains(e.target) && e.target !== toggleBtn) {
         dropdown.style.display = 'none';
       }
       if (sortDropdown && !sortDropdown.contains(e.target) && e.target !== sortToggleBtn) {
         sortDropdown.style.display = 'none';
       }
-      // 두 드롭다운 모두 닫혔으면 리스너 제거
-      if (dropdown?.style.display === 'none' && sortDropdown?.style.display === 'none') {
-        document.removeEventListener('click', closeDropdowns);
-      }
-    });
+    };
+    document.addEventListener('click', this._closeDropdownsHandler);
 
     // 적용 버튼
     content.querySelector('#filter-apply')?.addEventListener('click', () => {
@@ -891,7 +891,7 @@ const TasksView = {
               </div>
               <div>
                 <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">작성자</div>
-                <div style="font-size:13px;">${escHtml(task.creator_name || '-')}</div>
+                <div style="font-size:13px;">${escHtml(task.created_by_name || '-')}</div>
               </div>
               <div>
                 <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">생성일</div>
@@ -917,7 +917,7 @@ const TasksView = {
               <div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:12px;">불러오는 중...</div>
             </div>
             <div class="comment-add">
-              <textarea placeholder="댓글을 입력하세요..." id="new-comment" rows="3"></textarea>
+              <textarea placeholder="댓글을 입력하세요... (@이름으로 멘션)" id="new-comment" rows="3"></textarea>
               <button class="btn btn-primary" id="btn-add-comment">등록</button>
             </div>
           </div>
@@ -1039,7 +1039,7 @@ const TasksView = {
       const body = textarea?.value.trim();
       if (!body) return;
       try {
-        await API.post(`/tasks/${task.id}/comments`, { body });
+        await API.post(`/tasks/${task.id}/comments`, { content: body });
         textarea.value = '';
         commentsLoaded = false;
         await this._loadComments(task.id, overlay);
@@ -1101,8 +1101,8 @@ const TasksView = {
         return;
       }
       container.innerHTML = subtasks.map(s => `
-        <div class="subtask-item${s.is_done ? ' done' : ''}" data-subtask-id="${s.id}">
-          <input type="checkbox" class="subtask-check" ${s.is_done ? 'checked' : ''}>
+        <div class="subtask-item${s.done ? ' done' : ''}" data-subtask-id="${s.id}">
+          <input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''}>
           <span class="subtask-title">${escHtml(s.title)}</span>
           <button class="subtask-delete" title="삭제">✕</button>
         </div>
@@ -1113,7 +1113,7 @@ const TasksView = {
         cb.addEventListener('change', async () => {
           const id = cb.closest('.subtask-item').dataset.subtaskId;
           try {
-            await API.patch(`/tasks/${taskId}/subtasks/${id}`, { is_done: cb.checked });
+            await API.patch(`/tasks/${taskId}/subtasks/${id}/toggle`, {});
             const item = cb.closest('.subtask-item');
             item.classList.toggle('done', cb.checked);
           } catch (e) {
@@ -1161,7 +1161,7 @@ const TasksView = {
               <strong>${escHtml(c.user_name || '-')}</strong>
               <span class="comment-time">${timeAgo}</span>
             </div>
-            <div class="comment-body">${escHtml(c.body)}</div>
+            <div class="comment-body">${escHtml(c.content)}</div>
           </div>
         `;
       }).join('');
@@ -1235,7 +1235,7 @@ const TasksView = {
       // 첫 번째 체크리스트 사용 (단일 체크리스트 모델)
       const cl = checklists[0];
       const items = cl.items || [];
-      const done = items.filter(i => i.is_done).length;
+      const done = items.filter(i => i.done).length;
       const total = items.length;
 
       section.innerHTML = `
@@ -1246,8 +1246,8 @@ const TasksView = {
           </div>
           <div class="checklist-items" id="checklist-items-${cl.id}">
             ${items.map(item => `
-              <div class="checklist-item${item.is_done ? ' done' : ''}" data-item-id="${item.id}">
-                <input type="checkbox" class="checklist-item-check" ${item.is_done ? 'checked' : ''}>
+              <div class="checklist-item${item.done ? ' done' : ''}" data-item-id="${item.id}">
+                <input type="checkbox" class="checklist-item-check" ${item.done ? 'checked' : ''}>
                 <span>${escHtml(item.content)}</span>
                 <button class="checklist-item-del" title="삭제">✕</button>
               </div>
@@ -1368,11 +1368,11 @@ const TasksView = {
         return;
       }
       list.innerHTML = attachments.map(a => {
-        const size = a.file_size ? this._formatFileSize(a.file_size) : '';
+        const size = a.filesize ? this._formatFileSize(a.filesize) : '';
         return `
           <div class="attachment-item" data-attach-id="${a.id}">
             <span class="attachment-icon">📎</span>
-            <a href="/task/uploads/${escHtml(a.stored_name || a.original_name)}" target="_blank" class="attachment-name">${escHtml(a.original_name)}</a>
+            <a href="/task/api/attachments/download/${a.id}" target="_blank" class="attachment-name">${escHtml(a.filename)}</a>
             ${size ? `<span class="attachment-size">${size}</span>` : ''}
             <button class="attachment-del" title="삭제">✕</button>
           </div>

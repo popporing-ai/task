@@ -56,6 +56,7 @@ const App = {
     name.textContent = this.user.name;
 
     document.getElementById('btn-logout').addEventListener('click', async () => {
+      clearInterval(this._notifTimer);
       await API.post('/auth/logout');
       window.location.href = '/task/login.html';
     });
@@ -221,8 +222,8 @@ const App = {
       const data = res.data || {};
       const groups = [
         { key: 'tasks',    label: '업무',      view: 'tasks' },
-        { key: 'content',  label: '콘텐츠',    view: 'content' },
-        { key: 'timeline', label: '타임라인',  view: 'timeline' },
+        { key: 'content_items',  label: '콘텐츠',    view: 'content' },
+        { key: 'timeline_items', label: '타임라인',  view: 'timeline' },
         { key: 'comments', label: '댓글',      view: 'tasks' },
       ];
 
@@ -235,7 +236,7 @@ const App = {
         html += `<div class="search-results-group-label">${escHtml(g.label)}</div>`;
         html += items.slice(0, 5).map(item => `
           <div class="search-result-item" data-view="${g.view}" data-id="${item.id || ''}" data-type="${g.key}">
-            <span class="search-result-title">${escHtml(item.title || item.body || item.name || '')}</span>
+            <span class="search-result-title">${escHtml(item.title || item.content || item.body || item.name || '')}</span>
             ${item.category_name ? `<span class="search-result-sub">${escHtml(item.category_name)}</span>` : ''}
           </div>
         `).join('');
@@ -432,7 +433,13 @@ const App = {
       }
     });
 
+    // 브라우저 푸시 알림 권한 요청
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     // 최초 배지 갱신 + 30초 주기 폴링
+    this._prevUnreadCount = 0;
     this._fetchUnreadCount();
     this._notifTimer = setInterval(() => this._fetchUnreadCount(), 30000);
   },
@@ -450,6 +457,13 @@ const App = {
       } else {
         badge.style.display = 'none';
       }
+      // 새 알림 발생 시 브라우저 푸시 알림 표시
+      if (count > (this._prevUnreadCount || 0)) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('마케팅 업무 현황', { body: `${count}개의 새 알림이 있습니다` });
+        }
+      }
+      this._prevUnreadCount = count;
     } catch {
       // 백엔드 미구현 시 무시
     }

@@ -200,12 +200,16 @@ const TimelineView = {
       const isOpen = tlGearDropdown.style.display !== 'none';
       tlGearDropdown.style.display = isOpen ? 'none' : 'block';
     });
-    document.addEventListener('click', function closeTlGear(e) {
+    // 이전 리스너 제거 후 재등록 (이벤트 누수 방지)
+    if (this._closeTlGearHandler) {
+      document.removeEventListener('click', this._closeTlGearHandler);
+    }
+    this._closeTlGearHandler = (e) => {
       if (tlGearDropdown && !tlGearDropdown.contains(e.target) && e.target !== tlGearBtn) {
         tlGearDropdown.style.display = 'none';
-        document.removeEventListener('click', closeTlGear);
       }
-    });
+    };
+    document.addEventListener('click', this._closeTlGearHandler);
     content.querySelectorAll('[data-tl-gear-cat]').forEach(cb => {
       cb.addEventListener('change', () => {
         const current = this._getQuickFilterButtons();

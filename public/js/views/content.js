@@ -185,6 +185,7 @@ const ContentView = {
     document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
       this.filterChannel = null;
       this.filterAssignee = null;
+      this.month = new Date().toISOString().slice(0, 7);
       this.render();
     });
 

@@ -10,6 +10,7 @@ const router = express.Router();
 
 // 업로드 디렉토리 설정
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // multer 스토리지 설정
 const storage = multer.diskStorage({
@@ -26,7 +27,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB 제한
+  limits: { fileSize: 200 * 1024 * 1024 } // 200MB 제한
 });
 
 router.use(authMiddleware);

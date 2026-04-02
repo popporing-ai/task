@@ -42,6 +42,8 @@ router.get('/', async (req, res, next) => {
              (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)::int AS subtask_count,
              (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.done = true)::int AS subtask_done_count,
              (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id)::int AS comment_count,
+             (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id)::int AS checklist_count,
+             (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id AND ci.done = true)::int AS checklist_done,
              COALESCE((
                SELECT json_agg(json_build_object('id', tg.id, 'name', tg.name, 'color', tg.color))
                FROM task_tags tt JOIN tags tg ON tg.id = tt.tag_id

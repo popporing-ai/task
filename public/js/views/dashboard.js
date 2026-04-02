@@ -327,7 +327,7 @@ const DashboardView = {
 
   // 담당자별 업무 부하 (수평 막대)
   _renderWorkload(d) {
-    const tasks = [...(d.weekTasks || []), ...(d.myTasks || [])];
+    const tasks = d.weekTasks || [];
     if (!tasks.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
 
     const userMap = {};
@@ -456,8 +456,7 @@ const DashboardView = {
       return stats.map((s, i) => ({ label: s.channel, count: parseInt(s.count), color: COLORS[i % COLORS.length] }));
     }
     if (widgetId === 'status-chart') {
-      const weekTasks = d.weekTasks || [];
-      const all = [...weekTasks, ...(d.myTasks || [])];
+      const all = d.weekTasks || [];
       const counts = { todo: 0, in_progress: 0, done: 0, blocked: 0 };
       all.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
       return [
@@ -607,10 +606,9 @@ const DashboardView = {
 
   // 기존 status-chart 막대 스타일 (분할 바)
   _renderStatusChartBar(d) {
-    const weekTasks = d.weekTasks || [];
-    const all = [...weekTasks, ...(d.myTasks || [])];
+    const tasks = d.weekTasks || [];
     const counts = { todo: 0, in_progress: 0, done: 0, blocked: 0 };
-    all.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
+    tasks.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     if (total === 0) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">업무 데이터가 없습니다</div></div>';
 

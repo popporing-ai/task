@@ -80,6 +80,19 @@ router.delete('/:taskId/subtasks/:id', auditMiddleware('subtasks'), async (req, 
   } catch (err) { next(err); }
 });
 
+// 업무에 연결된 태그 목록
+router.get('/:taskId/tags', async (req, res, next) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT t.* FROM tags t
+      JOIN task_tags tt ON tt.tag_id = t.id
+      WHERE tt.task_id = $1
+      ORDER BY t.name
+    `, [req.params.taskId]);
+    res.json({ data: rows });
+  } catch (err) { next(err); }
+});
+
 // 업무에 태그 연결
 router.post('/:taskId/tags', auditMiddleware('task_tags'), async (req, res, next) => {
   try {

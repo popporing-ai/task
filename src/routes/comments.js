@@ -63,6 +63,25 @@ router.post('/:taskId/comments', auditMiddleware('comments'), async (req, res, n
       );
     }
 
+    // @멘션 처리: 댓글 내용에서 @이름 패턴을 찾아 해당 사용자에게 알림 발송
+    const mentionPattern = /@(\S+)/g;
+    let match;
+    while ((match = mentionPattern.exec(content)) !== null) {
+      const mentionedName = match[1];
+      const { rows: mentionedUsers } = await db.query(
+        'SELECT id FROM users WHERE name = $1', [mentionedName]
+      );
+      if (mentionedUsers.length > 0 && mentionedUsers[0].id !== req.user.id) {
+        createNotification(
+          mentionedUsers[0].id,
+          'mention',
+          `${req.user.name}님이 댓글에서 회원님을 멘션했습니다`,
+          'tasks',
+          parseInt(taskId, 10)
+        );
+      }
+    }
+
     res.status(201).json({ data: comment, message: '댓글이 등록되었습니다.' });
   } catch (err) { next(err); }
 });
