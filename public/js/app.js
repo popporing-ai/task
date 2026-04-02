@@ -26,6 +26,7 @@ const App = {
     this.bindDialog();
     this.bindGlobalKeys();
     this.bindGlobalSearch();
+    this.initNotifications();
 
     // 초기 뷰 렌더링
     this.navigate('dashboard');
@@ -402,6 +403,131 @@ const App = {
     };
     const s = map[status] || { label: status, cls: '' };
     return `<span class="badge ${s.cls}">${s.label}</span>`;
+  },
+
+  // 알림 초기화 — init()에서 호출
+  initNotifications() {
+    const bell = document.getElementById('notif-bell');
+    const dropdown = document.getElementById('notif-dropdown');
+    const readAllBtn = document.getElementById('notif-read-all');
+
+    if (!bell || !dropdown) return;
+
+    // 벨 클릭 → 드롭다운 토글
+    bell.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._toggleNotifDropdown();
+    });
+
+    // 모두 읽음 버튼
+    readAllBtn?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await this._markAllRead();
+    });
+
+    // 외부 클릭 닫기
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#notif-wrap')) {
+        dropdown.style.display = 'none';
+      }
+    });
+
+    // 최초 배지 갱신 + 30초 주기 폴링
+    this._fetchUnreadCount();
+    this._notifTimer = setInterval(() => this._fetchUnreadCount(), 30000);
+  },
+
+  // 미읽음 수 조회 → 배지 업데이트
+  async _fetchUnreadCount() {
+    try {
+      const res = await API.get('/notifications/unread-count');
+      const count = res.data?.count ?? 0;
+      const badge = document.getElementById('notif-badge');
+      if (!badge) return;
+      if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    } catch {
+      // 백엔드 미구현 시 무시
+    }
+  },
+
+  // 드롭다운 표시/숨김 토글
+  _toggleNotifDropdown() {
+    const dropdown = document.getElementById('notif-dropdown');
+    if (!dropdown) return;
+    const isOpen = dropdown.style.display !== 'none';
+    if (isOpen) {
+      dropdown.style.display = 'none';
+    } else {
+      dropdown.style.display = 'block';
+      this._loadNotifications();
+    }
+  },
+
+  // 알림 목록 로드 및 렌더
+  async _loadNotifications() {
+    const list = document.getElementById('notif-list');
+    if (!list) return;
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--color-text-muted);font-size:12px;">불러오는 중...</div>';
+    try {
+      const res = await API.get('/notifications');
+      const notifs = res.data || [];
+      if (notifs.length === 0) {
+        list.innerHTML = '<div class="notif-empty">알림이 없습니다</div>';
+        return;
+      }
+      list.innerHTML = notifs.map(n => `
+        <div class="notif-item ${n.is_read ? '' : 'unread'}" data-notif-id="${n.id}" data-link-view="${escHtml(n.link_view || '')}" data-link-id="${n.link_id || ''}">
+          <div class="notif-message">${escHtml(n.message)}</div>
+          <div class="notif-time">${this._timeAgoNotif(n.created_at)}</div>
+        </div>
+      `).join('');
+
+      // 클릭 → 이동 + 읽음 처리
+      list.querySelectorAll('.notif-item').forEach(item => {
+        item.addEventListener('click', async () => {
+          const id = item.dataset.notifId;
+          const view = item.dataset.linkView;
+          await this._markRead(id);
+          item.classList.remove('unread');
+          if (view) this.navigate(view);
+          document.getElementById('notif-dropdown').style.display = 'none';
+        });
+      });
+    } catch {
+      list.innerHTML = '<div class="notif-empty">불러오기 실패</div>';
+    }
+  },
+
+  // 개별 읽음 처리
+  async _markRead(id) {
+    try {
+      await API.patch(`/notifications/${id}/read`, {});
+      await this._fetchUnreadCount();
+    } catch {}
+  },
+
+  // 전체 읽음 처리
+  async _markAllRead() {
+    try {
+      await API.patch('/notifications/read-all', {});
+      await this._fetchUnreadCount();
+      await this._loadNotifications();
+    } catch {}
+  },
+
+  // 상대 시간 포맷 (알림용)
+  _timeAgoNotif(dateStr) {
+    if (!dateStr) return '';
+    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (diff < 60) return `${diff}초 전`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+    return new Date(dateStr).toLocaleDateString('ko-KR');
   },
 };
 

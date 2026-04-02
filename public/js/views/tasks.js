@@ -805,6 +805,11 @@ const TasksView = {
       ? `<span class="comment-count">💬 ${t.comment_count}</span>`
       : '';
 
+    // 체크리스트 진행 상황
+    const checklistBadge = t.checklist_count > 0
+      ? `<span class="checklist-progress-badge">☑ ${t.checklist_done}/${t.checklist_count}</span>`
+      : '';
+
     return `
       <div class="kanban-card" draggable="true" data-id="${t.id}">
         <div class="card-actions">
@@ -815,7 +820,7 @@ const TasksView = {
         ${t.category_name ? categoryTag(t.category_name) : ''}
         ${tagPills ? `<div class="card-tags">${tagPills}</div>` : ''}
         <div class="card-title">${escHtml(t.title)}</div>
-        ${subtaskBadge || commentBadge ? `<div class="card-indicators">${subtaskBadge}${commentBadge}</div>` : ''}
+        ${subtaskBadge || commentBadge || checklistBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}</div>` : ''}
         <div class="card-footer">
           ${assignee}
           <span style="margin-left:auto">${App.dday(t.due_date, t.status)}</span>
@@ -860,6 +865,8 @@ const TasksView = {
           <button class="detail-tab" data-tab="subtasks">서브태스크</button>
           <button class="detail-tab" data-tab="comments">댓글</button>
           <button class="detail-tab" data-tab="tags">태그</button>
+          <button class="detail-tab" data-tab="checklist">체크리스트</button>
+          <button class="detail-tab" data-tab="attachments">첨부파일</button>
         </div>
 
         <!-- 탭 콘텐츠 -->
@@ -928,6 +935,26 @@ const TasksView = {
             </div>
           </div>
 
+          <!-- 체크리스트 탭 -->
+          <div class="detail-tab-pane" data-pane="checklist" style="display:none;">
+            <div class="checklist-section" id="checklist-section">
+              <div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:12px;">불러오는 중...</div>
+            </div>
+          </div>
+
+          <!-- 첨부파일 탭 -->
+          <div class="detail-tab-pane" data-pane="attachments" style="display:none;">
+            <div class="attachment-section">
+              <div class="attachment-upload">
+                <input type="file" id="attachment-input" style="display:none" multiple>
+                <button class="btn btn-default" id="attachment-btn">파일 첨부</button>
+              </div>
+              <div class="attachment-list" id="attachment-list">
+                <div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:12px;">불러오는 중...</div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:16px;border-top:1px solid var(--color-border);flex-shrink:0;margin-top:4px;">
@@ -954,6 +981,8 @@ const TasksView = {
     let subtasksLoaded = false;
     let commentsLoaded = false;
     let tagsLoaded = false;
+    let checklistLoaded = false;
+    let attachmentsLoaded = false;
 
     tabBtns.forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -974,6 +1003,14 @@ const TasksView = {
         if (btn.dataset.tab === 'tags' && !tagsLoaded) {
           tagsLoaded = true;
           await this._loadTags(task.id, overlay);
+        }
+        if (btn.dataset.tab === 'checklist' && !checklistLoaded) {
+          checklistLoaded = true;
+          await this._loadChecklist(task.id, overlay);
+        }
+        if (btn.dataset.tab === 'attachments' && !attachmentsLoaded) {
+          attachmentsLoaded = true;
+          await this._loadAttachments(task.id, overlay);
         }
       });
     });
@@ -1023,6 +1060,31 @@ const TasksView = {
         await this._loadTags(task.id, overlay);
       } catch (e) {
         App.toast('태그 추가 실패', 'error');
+      }
+    });
+
+    // 첨부파일 버튼 클릭 → file input 트리거
+    overlay.querySelector('#attachment-btn')?.addEventListener('click', () => {
+      overlay.querySelector('#attachment-input')?.click();
+    });
+
+    // 파일 선택 → 업로드
+    overlay.querySelector('#attachment-input')?.addEventListener('change', async (e) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+      try {
+        for (const file of files) {
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('task_id', task.id);
+          await API.upload('/attachments/upload', fd);
+        }
+        e.target.value = '';
+        attachmentsLoaded = false;
+        await this._loadAttachments(task.id, overlay);
+        App.toast('파일이 첨부되었습니다.', 'success');
+      } catch {
+        App.toast('업로드 실패', 'error');
       }
     });
   },
@@ -1153,6 +1215,195 @@ const TasksView = {
     } catch (e) {
       container.innerHTML = '<div style="font-size:12px;color:var(--color-warn-text);">불러오기 실패</div>';
     }
+  },
+
+  // 체크리스트 로드 및 렌더
+  async _loadChecklist(taskId, overlay) {
+    const section = overlay.querySelector('#checklist-section');
+    if (!section) return;
+    try {
+      const res = await API.get(`/checklists/task/${taskId}`);
+      const checklists = res.data || [];
+
+      if (checklists.length === 0) {
+        // 체크리스트 없음 → 새 체크리스트 생성 UI만 표시
+        section.innerHTML = this._renderChecklistEmpty(taskId, overlay);
+        this._bindChecklistCreateEvents(taskId, overlay, section);
+        return;
+      }
+
+      // 첫 번째 체크리스트 사용 (단일 체크리스트 모델)
+      const cl = checklists[0];
+      const items = cl.items || [];
+      const done = items.filter(i => i.is_done).length;
+      const total = items.length;
+
+      section.innerHTML = `
+        <div class="checklist-section-inner">
+          <div class="checklist-header">
+            <strong>${escHtml(cl.title)}</strong>
+            <span class="checklist-progress">${done}/${total}</span>
+          </div>
+          <div class="checklist-items" id="checklist-items-${cl.id}">
+            ${items.map(item => `
+              <div class="checklist-item${item.is_done ? ' done' : ''}" data-item-id="${item.id}">
+                <input type="checkbox" class="checklist-item-check" ${item.is_done ? 'checked' : ''}>
+                <span>${escHtml(item.content)}</span>
+                <button class="checklist-item-del" title="삭제">✕</button>
+              </div>
+            `).join('')}
+            <div class="checklist-item-add">
+              <input type="text" placeholder="항목 추가..." id="new-checklist-item-${cl.id}">
+              <button class="btn btn-primary" id="btn-add-checklist-item-${cl.id}" style="padding:5px 10px;font-size:12px;">추가</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // 체크박스 토글
+      section.querySelectorAll('.checklist-item-check').forEach(cb => {
+        cb.addEventListener('change', async () => {
+          const itemEl = cb.closest('.checklist-item');
+          const itemId = itemEl.dataset.itemId;
+          try {
+            await API.patch(`/checklists/items/${itemId}/toggle`, {});
+            itemEl.classList.toggle('done', cb.checked);
+            // 진행률 업데이트
+            const allItems = section.querySelectorAll('.checklist-item');
+            const doneCount = [...allItems].filter(el => el.querySelector('input[type=checkbox]')?.checked).length;
+            section.querySelector('.checklist-progress').textContent = `${doneCount}/${allItems.length}`;
+          } catch {
+            App.toast('업데이트 실패', 'error');
+            cb.checked = !cb.checked;
+          }
+        });
+      });
+
+      // 항목 삭제
+      section.querySelectorAll('.checklist-item-del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const itemEl = btn.closest('.checklist-item');
+          const itemId = itemEl.dataset.itemId;
+          try {
+            await API.del(`/checklists/items/${itemId}`);
+            itemEl.remove();
+            // 진행률 업데이트
+            const allItems = section.querySelectorAll('.checklist-item');
+            const doneCount = [...allItems].filter(el => el.querySelector('input[type=checkbox]')?.checked).length;
+            section.querySelector('.checklist-progress').textContent = `${doneCount}/${allItems.length}`;
+          } catch {
+            App.toast('삭제 실패', 'error');
+          }
+        });
+      });
+
+      // 항목 추가
+      const addInput = section.querySelector(`#new-checklist-item-${cl.id}`);
+      const addBtn = section.querySelector(`#btn-add-checklist-item-${cl.id}`);
+      const addItem = async () => {
+        const content = addInput?.value.trim();
+        if (!content) return;
+        try {
+          await API.post(`/checklists/${cl.id}/items`, { content });
+          addInput.value = '';
+          // 리로드
+          const res2 = await API.get(`/checklists/task/${taskId}`);
+          const cl2 = (res2.data || [])[0];
+          if (cl2) {
+            // 재렌더
+            const tmpOverlay = { querySelector: (sel) => overlay.querySelector(sel) };
+            await this._loadChecklist(taskId, overlay);
+          }
+        } catch {
+          App.toast('항목 추가 실패', 'error');
+        }
+      };
+      addBtn?.addEventListener('click', addItem);
+      addInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItem(); });
+
+    } catch {
+      section.innerHTML = '<div style="padding:12px;color:var(--color-warn-text);font-size:12px;">불러오기 실패</div>';
+    }
+  },
+
+  // 체크리스트 없을 때 생성 UI
+  _renderChecklistEmpty(taskId, overlay, section) {
+    return `
+      <div style="text-align:center;padding:12px 0 16px;">
+        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:12px;">체크리스트가 없습니다</div>
+        <div style="display:flex;gap:8px;align-items:center;max-width:320px;margin:0 auto;">
+          <input type="text" id="new-checklist-title" placeholder="체크리스트 이름..." style="flex:1;background:var(--color-bg-secondary);border:0.5px solid var(--color-border);border-radius:6px;color:var(--color-text-primary);font-family:inherit;font-size:12px;padding:6px 10px;outline:none;">
+          <button class="btn btn-primary" id="btn-create-checklist" style="padding:5px 10px;font-size:12px;">만들기</button>
+        </div>
+      </div>
+    `;
+  },
+
+  // 체크리스트 생성 이벤트 바인딩
+  _bindChecklistCreateEvents(taskId, overlay, section) {
+    const createBtn = section.querySelector('#btn-create-checklist');
+    const titleInput = section.querySelector('#new-checklist-title');
+    const doCreate = async () => {
+      const title = titleInput?.value.trim() || '체크리스트';
+      try {
+        await API.post('/checklists', { task_id: taskId, title });
+        await this._loadChecklist(taskId, overlay);
+      } catch {
+        App.toast('체크리스트 생성 실패', 'error');
+      }
+    };
+    createBtn?.addEventListener('click', doCreate);
+    titleInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCreate(); });
+  },
+
+  // 첨부파일 로드 및 렌더
+  async _loadAttachments(taskId, overlay) {
+    const list = overlay.querySelector('#attachment-list');
+    if (!list) return;
+    try {
+      const res = await API.get(`/attachments/task/${taskId}`);
+      const attachments = res.data || [];
+      if (attachments.length === 0) {
+        list.innerHTML = '<div style="padding:12px;color:var(--color-text-muted);font-size:12px;text-align:center;">첨부파일이 없습니다</div>';
+        return;
+      }
+      list.innerHTML = attachments.map(a => {
+        const size = a.file_size ? this._formatFileSize(a.file_size) : '';
+        return `
+          <div class="attachment-item" data-attach-id="${a.id}">
+            <span class="attachment-icon">📎</span>
+            <a href="/task/uploads/${escHtml(a.stored_name || a.original_name)}" target="_blank" class="attachment-name">${escHtml(a.original_name)}</a>
+            ${size ? `<span class="attachment-size">${size}</span>` : ''}
+            <button class="attachment-del" title="삭제">✕</button>
+          </div>
+        `;
+      }).join('');
+
+      // 삭제 버튼
+      list.querySelectorAll('.attachment-del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const item = btn.closest('.attachment-item');
+          const attachId = item.dataset.attachId;
+          const confirmed = await App.confirm('이 파일을 삭제하시겠습니까?');
+          if (!confirmed) return;
+          try {
+            await API.del(`/attachments/${attachId}`);
+            item.remove();
+          } catch {
+            App.toast('삭제 실패', 'error');
+          }
+        });
+      });
+    } catch {
+      list.innerHTML = '<div style="padding:12px;color:var(--color-warn-text);font-size:12px;">불러오기 실패</div>';
+    }
+  },
+
+  // 파일 크기 포맷
+  _formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   },
 
   // 상대 시간 포맷 (댓글용)

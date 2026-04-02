@@ -16,6 +16,9 @@ app.use(cookieParser());
 // 정적 파일 (login.html은 인증 없이 접근)
 app.use('/task', express.static(path.join(__dirname, '..', 'public')));
 
+// 업로드 파일 정적 제공
+app.use('/task/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
 // API 라우트
 app.use('/task/api/auth', require('./routes/auth'));
 app.use('/task/api/tasks', require('./routes/tasks'));
@@ -27,6 +30,9 @@ app.use('/task/api/categories', require('./routes/categories'));
 app.use('/task/api/tasks', require('./routes/subtasks'));
 app.use('/task/api/tasks', require('./routes/comments'));
 app.use('/task/api/tags', require('./routes/tags'));
+app.use('/task/api/notifications', require('./routes/notifications'));
+app.use('/task/api/attachments', require('./routes/attachments'));
+app.use('/task/api/checklists', require('./routes/checklists'));
 
 // 메타 API (카테고리, 제품, 유저 목록, 대시보드)
 const authMiddleware = require('./middleware/auth');

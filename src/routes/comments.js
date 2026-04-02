@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const auditMiddleware = require('../middleware/audit');
+const { createNotification } = require('./notifications');
 
 const router = express.Router({ mergeParams: true });
 
@@ -44,7 +45,25 @@ router.post('/:taskId/comments', auditMiddleware('comments'), async (req, res, n
       JOIN users u ON u.id = c.user_id
       WHERE c.id = $1
     `, [rows[0].id]);
-    res.status(201).json({ data: full[0], message: '댓글이 등록되었습니다.' });
+    // 업무 담당자에게 댓글 알림 발송 (본인 제외)
+    const comment = full[0];
+    const { rows: taskRows } = await db.query(
+      'SELECT assignee_id, title FROM tasks WHERE id = $1', [taskId]
+    );
+    if (taskRows.length && taskRows[0].assignee_id && taskRows[0].assignee_id !== req.user.id) {
+      const preview = content.trim().length > 50
+        ? content.trim().slice(0, 50) + '...'
+        : content.trim();
+      createNotification(
+        taskRows[0].assignee_id,
+        'comment_added',
+        `새 댓글이 달렸습니다: ${preview}`,
+        'tasks',
+        parseInt(taskId, 10)
+      );
+    }
+
+    res.status(201).json({ data: comment, message: '댓글이 등록되었습니다.' });
   } catch (err) { next(err); }
 });
 

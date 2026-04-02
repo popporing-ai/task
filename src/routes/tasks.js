@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const auditMiddleware = require('../middleware/audit');
+const { createNotification } = require('./notifications');
 
 const router = express.Router();
 
@@ -74,7 +75,19 @@ router.post('/', auditMiddleware('tasks'), async (req, res, next) => {
     `, [title, description || null, category_id || null, assignee_id || null,
         status || 'todo', due_date || null, req.user.id]);
 
-    res.json({ data: rows[0], message: '업무가 추가되었습니다.' });
+    // 담당자에게 배정 알림 발송 (본인 제외)
+    const task = rows[0];
+    if (task.assignee_id && task.assignee_id !== req.user.id) {
+      createNotification(
+        task.assignee_id,
+        'task_assigned',
+        `새 업무가 배정되었습니다: ${task.title}`,
+        'tasks',
+        task.id
+      );
+    }
+
+    res.json({ data: task, message: '업무가 추가되었습니다.' });
   } catch (err) { next(err); }
 });
 
@@ -142,7 +155,19 @@ router.patch('/:id/status', auditMiddleware('tasks'), async (req, res, next) => 
       return res.status(404).json({ error: '업무를 찾을 수 없습니다.' });
     }
 
-    res.json({ data: rows[0] });
+    // 담당자에게 상태 변경 알림 발송 (본인 제외)
+    const updatedTask = rows[0];
+    if (updatedTask.assignee_id && updatedTask.assignee_id !== req.user.id) {
+      createNotification(
+        updatedTask.assignee_id,
+        'task_updated',
+        `업무 상태가 변경되었습니다: ${updatedTask.title}`,
+        'tasks',
+        updatedTask.id
+      );
+    }
+
+    res.json({ data: updatedTask });
   } catch (err) { next(err); }
 });
 
