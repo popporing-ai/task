@@ -37,7 +37,15 @@ router.get('/', async (req, res, next) => {
     const { rows } = await db.query(`
       SELECT t.*, u.name AS assignee_name, u.avatar_bg, u.avatar_text,
              tc.name AS category_name, tc.color AS category_color,
-             cu.name AS created_by_name
+             cu.name AS created_by_name,
+             (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)::int AS subtask_count,
+             (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.done = true)::int AS subtask_done_count,
+             (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id)::int AS comment_count,
+             COALESCE((
+               SELECT json_agg(json_build_object('id', tg.id, 'name', tg.name, 'color', tg.color))
+               FROM task_tags tt JOIN tags tg ON tg.id = tt.tag_id
+               WHERE tt.task_id = t.id
+             ), '[]'::json) AS tags
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assignee_id
       LEFT JOIN task_categories tc ON tc.id = t.category_id

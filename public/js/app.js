@@ -25,6 +25,7 @@ const App = {
     this.bindPanel();
     this.bindDialog();
     this.bindGlobalKeys();
+    this.bindGlobalSearch();
 
     // 초기 뷰 렌더링
     this.navigate('dashboard');
@@ -181,6 +182,83 @@ const App = {
         resolve(false);
       }, { once: true });
     });
+  },
+
+  // 글로벌 검색
+  bindGlobalSearch() {
+    const input = document.getElementById('global-search');
+    const results = document.getElementById('search-results');
+    if (!input || !results) return;
+
+    let debounceTimer = null;
+
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      const q = input.value.trim();
+      if (!q) { results.style.display = 'none'; return; }
+      debounceTimer = setTimeout(() => this._runSearch(q, input, results), 300);
+    });
+
+    // 외부 클릭 닫기
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#global-search-wrap')) {
+        results.style.display = 'none';
+      }
+    });
+
+    // 포커스 시 다시 표시
+    input.addEventListener('focus', () => {
+      if (input.value.trim() && results.children.length > 0) {
+        results.style.display = 'block';
+      }
+    });
+  },
+
+  async _runSearch(q, input, results) {
+    try {
+      const res = await API.get(`/search?q=${encodeURIComponent(q)}`);
+      const data = res.data || {};
+      const groups = [
+        { key: 'tasks',    label: '업무',      view: 'tasks' },
+        { key: 'content',  label: '콘텐츠',    view: 'content' },
+        { key: 'timeline', label: '타임라인',  view: 'timeline' },
+        { key: 'comments', label: '댓글',      view: 'tasks' },
+      ];
+
+      let html = '';
+      let total = 0;
+      for (const g of groups) {
+        const items = data[g.key] || [];
+        if (!items.length) continue;
+        total += items.length;
+        html += `<div class="search-results-group-label">${escHtml(g.label)}</div>`;
+        html += items.slice(0, 5).map(item => `
+          <div class="search-result-item" data-view="${g.view}" data-id="${item.id || ''}" data-type="${g.key}">
+            <span class="search-result-title">${escHtml(item.title || item.body || item.name || '')}</span>
+            ${item.category_name ? `<span class="search-result-sub">${escHtml(item.category_name)}</span>` : ''}
+          </div>
+        `).join('');
+      }
+
+      if (total === 0) {
+        html = `<div class="search-results-empty">검색 결과가 없습니다</div>`;
+      }
+
+      results.innerHTML = html;
+      results.style.display = 'block';
+
+      // 결과 클릭 → 해당 뷰로 이동
+      results.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+          results.style.display = 'none';
+          input.value = '';
+          this.navigate(item.dataset.view);
+        });
+      });
+    } catch (e) {
+      results.innerHTML = '<div class="search-results-empty">검색 실패</div>';
+      results.style.display = 'block';
+    }
   },
 
   // 글로벌 키보드 단축키

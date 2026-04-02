@@ -8,6 +8,8 @@ const TasksView = {
   filterDropdownOpen: false,
   showArchived: false,   // 아카이브 보기 모드
   sortBy: 'default',     // 정렬 기준: default | due_date | created_at | title
+  viewMode: localStorage.getItem('task_view_mode') || 'kanban', // 'kanban' | 'list'
+  selectedTaskIds: [],   // 리스트 뷰 다중 선택
 
   async render() {
     const content = document.getElementById('content');
@@ -142,6 +144,20 @@ const TasksView = {
 
     const hasFilters = this.filterCategories.length || this.filterAssignees.length || this.filterDateFrom || this.filterDateTo;
 
+    // 뷰 토글 버튼
+    const viewToggleHtml = `
+      <div class="view-toggle-group">
+        <button class="view-toggle-btn ${this.viewMode === 'kanban' ? 'active' : ''}" id="view-kanban-btn" title="칸반 보기">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="4" height="14" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="6" y="1" width="4" height="14" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="1" width="4" height="14" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+          칸반
+        </button>
+        <button class="view-toggle-btn ${this.viewMode === 'list' ? 'active' : ''}" id="view-list-btn" title="리스트 보기">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          리스트
+        </button>
+      </div>
+    `;
+
     // 빠른 필터 카테고리 버튼 (localStorage 기반)
     const quickCatIds = this._getQuickFilterButtons();
     const quickCatBtns = quickCatIds.map(id => {
@@ -172,6 +188,7 @@ const TasksView = {
     // 필터 바
     const filterHtml = `
       <div class="filter-bar" style="position:relative;">
+        ${viewToggleHtml}
         <button class="filter-btn ${!hasFilters && !this.showArchived ? 'active' : ''}" id="filter-all">전체</button>
         <div style="position:relative;">
           <button class="filter-btn ${hasFilters ? 'active' : ''}" id="filter-toggle-btn">필터 ▼</button>
@@ -257,6 +274,75 @@ const TasksView = {
       });
 
       this._bindFilterBarEvents(content);
+      return;
+    }
+
+    // 리스트 뷰
+    if (this.viewMode === 'list') {
+      const sorted = this.getSorted(filtered);
+      const allChecked = sorted.length > 0 && sorted.every(t => this.selectedTaskIds.includes(t.id));
+      const someChecked = this.selectedTaskIds.length > 0;
+
+      const listHtml = `
+        <div class="list-view-wrap">
+          ${someChecked ? `
+            <div class="bulk-action-bar">
+              <span style="font-size:13px;color:var(--color-text-muted);">${this.selectedTaskIds.length}개 선택됨</span>
+              <button class="btn" id="bulk-status-btn">상태 변경</button>
+              <button class="btn" id="bulk-assignee-btn">담당자 변경</button>
+              <button class="btn btn-danger" id="bulk-delete-btn">삭제</button>
+              <button class="btn" id="bulk-cancel-btn">취소</button>
+              <div id="bulk-status-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--color-bg-primary);border:0.5px solid var(--color-border);border-radius:8px;padding:6px;z-index:90;box-shadow:var(--shadow-md);">
+                ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'미진행'}].map(s=>`<button class="bulk-status-opt" data-status="${s.v}" style="display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;border:none;background:transparent;color:var(--color-text-primary);border-radius:6px;cursor:pointer;">${s.l}</button>`).join('')}
+              </div>
+              <div id="bulk-assignee-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--color-bg-primary);border:0.5px solid var(--color-border);border-radius:8px;padding:6px;z-index:90;box-shadow:var(--shadow-md);">
+                ${App.users.map(u=>`<button class="bulk-assignee-opt" data-user-id="${u.id}" style="display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;border:none;background:transparent;color:var(--color-text-primary);border-radius:6px;cursor:pointer;">${escHtml(u.name)}</button>`).join('')}
+              </div>
+            </div>
+          ` : ''}
+          <table class="list-view-table">
+            <thead>
+              <tr>
+                <th style="width:32px;"><input type="checkbox" id="list-check-all" ${allChecked ? 'checked' : ''}></th>
+                <th>업무명</th>
+                <th>분류</th>
+                <th>담당자</th>
+                <th>마감일</th>
+                <th>상태</th>
+                <th>태그</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sorted.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--color-text-muted);">업무가 없습니다</td></tr>` :
+                sorted.map(t => `
+                  <tr class="list-row" data-id="${t.id}" ${t.status==='done' ? 'style="opacity:0.65"' : ''}>
+                    <td><input type="checkbox" class="list-row-check" data-id="${t.id}" ${this.selectedTaskIds.includes(t.id) ? 'checked' : ''}></td>
+                    <td class="list-cell-title" data-field="title" data-id="${t.id}">
+                      <span class="list-cell-display">${escHtml(t.title)}</span>
+                    </td>
+                    <td>${t.category_name ? categoryTag(t.category_name) : '<span style="color:var(--color-text-hint)">-</span>'}</td>
+                    <td class="list-cell-assignee" data-field="assignee_id" data-id="${t.id}">
+                      <span class="list-cell-display">${t.assignee_name ? `${App.avatar({name:t.assignee_name,avatar_bg:t.avatar_bg,avatar_text:t.avatar_text})} ${escHtml(t.assignee_name)}` : '<span style="color:var(--color-text-hint)">-</span>'}</span>
+                    </td>
+                    <td class="list-cell-due" data-field="due_date" data-id="${t.id}">
+                      <span class="list-cell-display">${t.due_date ? t.due_date.slice(0,10) : '<span style="color:var(--color-text-hint)">-</span>'} ${App.dday(t.due_date, t.status)}</span>
+                    </td>
+                    <td>
+                      <select class="list-status-select" data-id="${t.id}" style="font-size:11px;padding:2px 6px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;cursor:pointer;">
+                        ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'미진행'}].map(s=>`<option value="${s.v}" ${t.status===s.v?'selected':''}>${s.l}</option>`).join('')}
+                      </select>
+                    </td>
+                    <td>${(t.tags||[]).map(tag=>`<span class="tag-pill" style="background:${tag.color}20;color:${tag.color}">${escHtml(tag.name)}</span>`).join('')}</td>
+                  </tr>
+                `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      content.innerHTML = filterHtml + listHtml;
+      this._bindFilterBarEvents(content);
+      this._bindListViewEvents(content);
       return;
     }
 
@@ -352,12 +438,174 @@ const TasksView = {
     this._bindFilterBarEvents(content);
   },
 
+  // 리스트 뷰 이벤트 바인딩
+  _bindListViewEvents(content) {
+    // 전체 선택
+    content.querySelector('#list-check-all')?.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      const filtered = this.getFiltered();
+      this.selectedTaskIds = checked ? filtered.map(t => t.id) : [];
+      this.renderBoard(content);
+    });
+
+    // 개별 행 선택
+    content.querySelectorAll('.list-row-check').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = parseInt(cb.dataset.id);
+        if (cb.checked) {
+          if (!this.selectedTaskIds.includes(id)) this.selectedTaskIds.push(id);
+        } else {
+          this.selectedTaskIds = this.selectedTaskIds.filter(x => x !== id);
+        }
+        this.renderBoard(content);
+      });
+    });
+
+    // 행 클릭 → 상세
+    content.querySelectorAll('.list-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('input') || e.target.closest('select') || e.target.closest('.list-cell-edit')) return;
+        const task = this.tasks.find(t => t.id == row.dataset.id);
+        if (task) this.openDetail(task);
+      });
+    });
+
+    // 인라인 상태 변경
+    content.querySelectorAll('.list-status-select').forEach(sel => {
+      sel.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const id = sel.dataset.id;
+        try {
+          await API.patch(`/tasks/${id}/status`, { status: sel.value });
+          await this.loadTasks();
+          this.renderBoard(content);
+        } catch {
+          App.toast('상태 변경 실패', 'error');
+        }
+      });
+    });
+
+    // 인라인 제목 편집 (클릭 → input)
+    content.querySelectorAll('.list-cell-title').forEach(cell => {
+      cell.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        const id = cell.dataset.id;
+        const display = cell.querySelector('.list-cell-display');
+        const task = this.tasks.find(t => t.id == id);
+        if (!task) return;
+        const input = document.createElement('input');
+        input.value = task.title;
+        input.style.cssText = 'width:100%;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-primary);border-radius:4px;padding:2px 6px;font-size:13px;font-family:inherit;';
+        display.replaceWith(input);
+        input.focus();
+        const save = async () => {
+          const newTitle = input.value.trim();
+          if (newTitle && newTitle !== task.title) {
+            try {
+              await API.put(`/tasks/${id}`, { ...task, title: newTitle });
+              await this.loadTasks();
+              this.renderBoard(content);
+              return;
+            } catch {
+              App.toast('수정 실패', 'error');
+            }
+          }
+          input.replaceWith(display);
+        };
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); save(); }
+          if (e.key === 'Escape') input.replaceWith(display);
+        });
+      });
+    });
+
+    // 일괄 취소
+    content.querySelector('#bulk-cancel-btn')?.addEventListener('click', () => {
+      this.selectedTaskIds = [];
+      this.renderBoard(content);
+    });
+
+    // 일괄 삭제
+    content.querySelector('#bulk-delete-btn')?.addEventListener('click', async () => {
+      const confirmed = await App.confirm(`선택한 ${this.selectedTaskIds.length}개 업무를 삭제하시겠습니까?`);
+      if (!confirmed) return;
+      try {
+        await Promise.all(this.selectedTaskIds.map(id => API.del(`/tasks/${id}`)));
+        this.selectedTaskIds = [];
+        await this.loadTasks();
+        this.renderBoard(content);
+        App.toast('삭제되었습니다.', 'success');
+      } catch {
+        App.toast('일부 삭제 실패', 'error');
+      }
+    });
+
+    // 일괄 상태 변경 드롭다운
+    const bulkStatusBtn = content.querySelector('#bulk-status-btn');
+    const bulkStatusDD = content.querySelector('#bulk-status-dropdown');
+    bulkStatusBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (bulkStatusDD) bulkStatusDD.style.display = bulkStatusDD.style.display === 'none' ? 'block' : 'none';
+    });
+    content.querySelectorAll('.bulk-status-opt').forEach(opt => {
+      opt.addEventListener('click', async () => {
+        const status = opt.dataset.status;
+        try {
+          await Promise.all(this.selectedTaskIds.map(id => API.patch(`/tasks/${id}/status`, { status })));
+          this.selectedTaskIds = [];
+          await this.loadTasks();
+          this.renderBoard(content);
+          App.toast('상태가 변경되었습니다.', 'success');
+        } catch {
+          App.toast('일부 변경 실패', 'error');
+        }
+      });
+    });
+
+    // 일괄 담당자 변경 드롭다운
+    const bulkAssigneeBtn = content.querySelector('#bulk-assignee-btn');
+    const bulkAssigneeDD = content.querySelector('#bulk-assignee-dropdown');
+    bulkAssigneeBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (bulkAssigneeDD) bulkAssigneeDD.style.display = bulkAssigneeDD.style.display === 'none' ? 'block' : 'none';
+    });
+    content.querySelectorAll('.bulk-assignee-opt').forEach(opt => {
+      opt.addEventListener('click', async () => {
+        const assigneeId = opt.dataset.userId;
+        const tasks = this.tasks.filter(t => this.selectedTaskIds.includes(t.id));
+        try {
+          await Promise.all(tasks.map(t => API.put(`/tasks/${t.id}`, { ...t, assignee_id: assigneeId })));
+          this.selectedTaskIds = [];
+          await this.loadTasks();
+          this.renderBoard(content);
+          App.toast('담당자가 변경되었습니다.', 'success');
+        } catch {
+          App.toast('일부 변경 실패', 'error');
+        }
+      });
+    });
+  },
+
   // 필터바 공통 이벤트 바인딩
   _bindFilterBarEvents(content) {
     const dropdown = content.querySelector('#filter-dropdown');
     const toggleBtn = content.querySelector('#filter-toggle-btn');
     const sortDropdown = content.querySelector('#sort-dropdown');
     const sortToggleBtn = content.querySelector('#sort-toggle-btn');
+
+    // 뷰 토글
+    content.querySelector('#view-kanban-btn')?.addEventListener('click', () => {
+      this.viewMode = 'kanban';
+      localStorage.setItem('task_view_mode', 'kanban');
+      this.selectedTaskIds = [];
+      this.renderBoard(content);
+    });
+    content.querySelector('#view-list-btn')?.addEventListener('click', () => {
+      this.viewMode = 'list';
+      localStorage.setItem('task_view_mode', 'list');
+      this.renderBoard(content);
+    });
 
     // 전체 버튼
     content.querySelector('#filter-all')?.addEventListener('click', () => {
@@ -542,6 +790,21 @@ const TasksView = {
     // 아카이브 아이콘 (박스에 아래 화살표)
     const archiveIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 5v7a1 1 0 001 1h9a1 1 0 001-1V5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M6 9l2 2 2-2M8 7v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
+    // 태그 필 표시
+    const tagPills = (t.tags || []).map(tag =>
+      `<span class="tag-pill" style="background:${tag.color}20;color:${tag.color}">${escHtml(tag.name)}</span>`
+    ).join('');
+
+    // 서브태스크 진행 상황
+    const subtaskBadge = t.subtask_count > 0
+      ? `<span class="subtask-progress">✓ ${t.subtask_done_count || 0}/${t.subtask_count}</span>`
+      : '';
+
+    // 댓글 수
+    const commentBadge = t.comment_count > 0
+      ? `<span class="comment-count">💬 ${t.comment_count}</span>`
+      : '';
+
     return `
       <div class="kanban-card" draggable="true" data-id="${t.id}">
         <div class="card-actions">
@@ -550,7 +813,9 @@ const TasksView = {
           <button class="card-action-btn card-delete" title="삭제">${deleteIcon}</button>
         </div>
         ${t.category_name ? categoryTag(t.category_name) : ''}
+        ${tagPills ? `<div class="card-tags">${tagPills}</div>` : ''}
         <div class="card-title">${escHtml(t.title)}</div>
+        ${subtaskBadge || commentBadge ? `<div class="card-indicators">${subtaskBadge}${commentBadge}</div>` : ''}
         <div class="card-footer">
           ${assignee}
           <span style="margin-left:auto">${App.dday(t.due_date, t.status)}</span>
@@ -576,8 +841,8 @@ const TasksView = {
     const overlay = document.createElement('div');
     overlay.className = 'popover-overlay';
     overlay.innerHTML = `
-      <div class="popover task-detail-popover" style="max-width:480px;width:90%;" role="dialog" aria-modal="true">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
+      <div class="popover task-detail-popover" style="max-width:560px;width:90%;max-height:85vh;display:flex;flex-direction:column;" role="dialog" aria-modal="true">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-shrink:0;">
           <div style="flex:1;padding-right:16px;">
             ${task.category_name ? `<div style="margin-bottom:8px;">${categoryTag(task.category_name)}</div>` : ''}
             <div style="font-size:18px;font-weight:700;line-height:1.4;color:var(--color-text-primary);">${escHtml(task.title)}</div>
@@ -585,37 +850,87 @@ const TasksView = {
           <button class="popover-close" id="detail-close" style="flex-shrink:0;margin-top:2px;" aria-label="닫기">×</button>
         </div>
 
-        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;flex-shrink:0;">
           <span class="badge ${statusClass}">${statusLabel}</span>
         </div>
 
-        ${task.description ? `
-          <div style="margin-bottom:20px;">
-            <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">업무 상세</div>
-            <div style="font-size:13px;line-height:1.6;color:var(--color-text-primary);white-space:pre-wrap;background:var(--color-bg-secondary);padding:12px;border-radius:8px;">${escHtml(task.description)}</div>
-          </div>
-        ` : ''}
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-          <div>
-            <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">담당자</div>
-            <div style="font-size:13px;">${assigneeHtml}</div>
-          </div>
-          <div>
-            <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">마감일</div>
-            <div style="font-size:13px;display:flex;align-items:center;gap:6px;">${dueHtml}</div>
-          </div>
-          <div>
-            <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">작성자</div>
-            <div style="font-size:13px;">${escHtml(task.creator_name || '-')}</div>
-          </div>
-          <div>
-            <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">생성일</div>
-            <div style="font-size:13px;">${createdAt}</div>
-          </div>
+        <!-- 탭 헤더 -->
+        <div class="detail-tabs" style="flex-shrink:0;">
+          <button class="detail-tab active" data-tab="info">상세</button>
+          <button class="detail-tab" data-tab="subtasks">서브태스크</button>
+          <button class="detail-tab" data-tab="comments">댓글</button>
+          <button class="detail-tab" data-tab="tags">태그</button>
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:16px;border-top:1px solid var(--color-border);">
+        <!-- 탭 콘텐츠 -->
+        <div class="detail-tab-content" style="flex:1;overflow-y:auto;padding-top:16px;">
+
+          <!-- 상세 탭 -->
+          <div class="detail-tab-pane active" data-pane="info">
+            ${task.description ? `
+              <div style="margin-bottom:20px;">
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">업무 상세</div>
+                <div style="font-size:13px;line-height:1.6;color:var(--color-text-primary);white-space:pre-wrap;background:var(--color-bg-secondary);padding:12px;border-radius:8px;">${escHtml(task.description)}</div>
+              </div>
+            ` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">담당자</div>
+                <div style="font-size:13px;">${assigneeHtml}</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">마감일</div>
+                <div style="font-size:13px;display:flex;align-items:center;gap:6px;">${dueHtml}</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">작성자</div>
+                <div style="font-size:13px;">${escHtml(task.creator_name || '-')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">생성일</div>
+                <div style="font-size:13px;">${createdAt}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 서브태스크 탭 -->
+          <div class="detail-tab-pane" data-pane="subtasks" style="display:none;">
+            <div class="subtask-list" id="subtask-list">
+              <div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:12px;">불러오는 중...</div>
+            </div>
+            <div class="subtask-add">
+              <input type="text" placeholder="서브태스크 추가..." id="new-subtask">
+              <button class="btn btn-primary" id="btn-add-subtask" style="padding:6px 12px;font-size:12px;">추가</button>
+            </div>
+          </div>
+
+          <!-- 댓글 탭 -->
+          <div class="detail-tab-pane" data-pane="comments" style="display:none;">
+            <div class="comment-list" id="comment-list">
+              <div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:12px;">불러오는 중...</div>
+            </div>
+            <div class="comment-add">
+              <textarea placeholder="댓글을 입력하세요..." id="new-comment" rows="3"></textarea>
+              <button class="btn btn-primary" id="btn-add-comment">등록</button>
+            </div>
+          </div>
+
+          <!-- 태그 탭 -->
+          <div class="detail-tab-pane" data-pane="tags" style="display:none;">
+            <div id="task-tags-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+              <div style="font-size:12px;color:var(--color-text-muted);">불러오는 중...</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="tag-add-select" style="flex:1;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:6px 8px;font-size:12px;">
+                <option value="">태그 선택...</option>
+              </select>
+              <button class="btn btn-primary" id="btn-add-tag" style="padding:6px 12px;font-size:12px;">추가</button>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:16px;border-top:1px solid var(--color-border);flex-shrink:0;margin-top:4px;">
           <button class="btn" id="detail-close-btn">닫기</button>
           <button class="btn btn-primary" id="detail-edit-btn">수정</button>
         </div>
@@ -632,6 +947,222 @@ const TasksView = {
       close();
       this.openForm(task);
     });
+
+    // 탭 전환
+    const tabBtns = overlay.querySelectorAll('.detail-tab');
+    const tabPanes = overlay.querySelectorAll('.detail-tab-pane');
+    let subtasksLoaded = false;
+    let commentsLoaded = false;
+    let tagsLoaded = false;
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', async () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabPanes.forEach(p => { p.style.display = 'none'; p.classList.remove('active'); });
+        btn.classList.add('active');
+        const pane = overlay.querySelector(`.detail-tab-pane[data-pane="${btn.dataset.tab}"]`);
+        if (pane) { pane.style.display = ''; pane.classList.add('active'); }
+
+        if (btn.dataset.tab === 'subtasks' && !subtasksLoaded) {
+          subtasksLoaded = true;
+          await this._loadSubtasks(task.id, overlay);
+        }
+        if (btn.dataset.tab === 'comments' && !commentsLoaded) {
+          commentsLoaded = true;
+          await this._loadComments(task.id, overlay);
+        }
+        if (btn.dataset.tab === 'tags' && !tagsLoaded) {
+          tagsLoaded = true;
+          await this._loadTags(task.id, overlay);
+        }
+      });
+    });
+
+    // 서브태스크 추가
+    overlay.querySelector('#btn-add-subtask')?.addEventListener('click', async () => {
+      const input = overlay.querySelector('#new-subtask');
+      const title = input?.value.trim();
+      if (!title) return;
+      try {
+        await API.post(`/tasks/${task.id}/subtasks`, { title });
+        input.value = '';
+        subtasksLoaded = false;
+        await this._loadSubtasks(task.id, overlay);
+      } catch (e) {
+        App.toast('서브태스크 추가 실패', 'error');
+      }
+    });
+    overlay.querySelector('#new-subtask')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') overlay.querySelector('#btn-add-subtask')?.click();
+    });
+
+    // 댓글 추가
+    overlay.querySelector('#btn-add-comment')?.addEventListener('click', async () => {
+      const textarea = overlay.querySelector('#new-comment');
+      const body = textarea?.value.trim();
+      if (!body) return;
+      try {
+        await API.post(`/tasks/${task.id}/comments`, { body });
+        textarea.value = '';
+        commentsLoaded = false;
+        await this._loadComments(task.id, overlay);
+      } catch (e) {
+        App.toast('댓글 등록 실패', 'error');
+      }
+    });
+
+    // 태그 추가
+    overlay.querySelector('#btn-add-tag')?.addEventListener('click', async () => {
+      const select = overlay.querySelector('#tag-add-select');
+      const tagId = select?.value;
+      if (!tagId) return;
+      try {
+        await API.post(`/tasks/${task.id}/tags`, { tag_id: tagId });
+        select.value = '';
+        tagsLoaded = false;
+        await this._loadTags(task.id, overlay);
+      } catch (e) {
+        App.toast('태그 추가 실패', 'error');
+      }
+    });
+  },
+
+  // 서브태스크 로드 및 렌더
+  async _loadSubtasks(taskId, overlay) {
+    const container = overlay.querySelector('#subtask-list');
+    if (!container) return;
+    try {
+      const res = await API.get(`/tasks/${taskId}/subtasks`);
+      const subtasks = res.data || [];
+      if (subtasks.length === 0) {
+        container.innerHTML = '<div style="padding:12px;color:var(--color-text-muted);font-size:12px;text-align:center;">서브태스크가 없습니다</div>';
+        return;
+      }
+      container.innerHTML = subtasks.map(s => `
+        <div class="subtask-item${s.is_done ? ' done' : ''}" data-subtask-id="${s.id}">
+          <input type="checkbox" class="subtask-check" ${s.is_done ? 'checked' : ''}>
+          <span class="subtask-title">${escHtml(s.title)}</span>
+          <button class="subtask-delete" title="삭제">✕</button>
+        </div>
+      `).join('');
+
+      // 체크박스 토글
+      container.querySelectorAll('.subtask-check').forEach(cb => {
+        cb.addEventListener('change', async () => {
+          const id = cb.closest('.subtask-item').dataset.subtaskId;
+          try {
+            await API.patch(`/tasks/${taskId}/subtasks/${id}`, { is_done: cb.checked });
+            const item = cb.closest('.subtask-item');
+            item.classList.toggle('done', cb.checked);
+          } catch (e) {
+            App.toast('업데이트 실패', 'error');
+            cb.checked = !cb.checked;
+          }
+        });
+      });
+
+      // 삭제 버튼
+      container.querySelectorAll('.subtask-delete').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.closest('.subtask-item').dataset.subtaskId;
+          try {
+            await API.del(`/tasks/${taskId}/subtasks/${id}`);
+            btn.closest('.subtask-item').remove();
+          } catch (e) {
+            App.toast('삭제 실패', 'error');
+          }
+        });
+      });
+    } catch (e) {
+      container.innerHTML = '<div style="padding:12px;color:var(--color-warn-text);font-size:12px;">불러오기 실패</div>';
+    }
+  },
+
+  // 댓글 로드 및 렌더
+  async _loadComments(taskId, overlay) {
+    const container = overlay.querySelector('#comment-list');
+    if (!container) return;
+    try {
+      const res = await API.get(`/tasks/${taskId}/comments`);
+      const comments = res.data || [];
+      if (comments.length === 0) {
+        container.innerHTML = '<div style="padding:12px;color:var(--color-text-muted);font-size:12px;text-align:center;">댓글이 없습니다</div>';
+        return;
+      }
+      container.innerHTML = comments.map(c => {
+        const timeAgo = this._timeAgo(c.created_at);
+        const initial = (c.user_name || '?').charAt(0);
+        return `
+          <div class="comment-item">
+            <div class="comment-header">
+              <span class="avatar" style="background:${escHtml(c.avatar_bg||'#4F6EF7')};color:${escHtml(c.avatar_text||'#fff')};width:28px;height:28px;font-size:12px;">${escHtml(initial)}</span>
+              <strong>${escHtml(c.user_name || '-')}</strong>
+              <span class="comment-time">${timeAgo}</span>
+            </div>
+            <div class="comment-body">${escHtml(c.body)}</div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      container.innerHTML = '<div style="padding:12px;color:var(--color-warn-text);font-size:12px;">불러오기 실패</div>';
+    }
+  },
+
+  // 태그 로드 및 렌더
+  async _loadTags(taskId, overlay) {
+    const container = overlay.querySelector('#task-tags-list');
+    const select = overlay.querySelector('#tag-add-select');
+    if (!container) return;
+    try {
+      const [taskTagsRes, allTagsRes] = await Promise.all([
+        API.get(`/tasks/${taskId}/tags`),
+        API.get('/tags'),
+      ]);
+      const taskTags = taskTagsRes.data || [];
+      const allTags = allTagsRes.data || [];
+
+      // 붙은 태그 표시
+      if (taskTags.length === 0) {
+        container.innerHTML = '<div style="font-size:12px;color:var(--color-text-muted);">태그 없음</div>';
+      } else {
+        container.innerHTML = taskTags.map(tag => `
+          <span class="tag-pill tag-pill-removable" data-tag-id="${tag.id}" style="background:${tag.color}20;color:${tag.color};cursor:pointer;" title="클릭하여 제거">
+            ${escHtml(tag.name)} ×
+          </span>
+        `).join('');
+        container.querySelectorAll('.tag-pill-removable').forEach(pill => {
+          pill.addEventListener('click', async () => {
+            const tid = pill.dataset.tagId;
+            try {
+              await API.del(`/tasks/${taskId}/tags/${tid}`);
+              pill.remove();
+            } catch (e) {
+              App.toast('태그 제거 실패', 'error');
+            }
+          });
+        });
+      }
+
+      // 드롭다운에 추가 가능한 태그만 표시
+      if (select) {
+        const attachedIds = taskTags.map(t => String(t.id));
+        const available = allTags.filter(t => !attachedIds.includes(String(t.id)));
+        select.innerHTML = '<option value="">태그 선택...</option>' +
+          available.map(t => `<option value="${t.id}">${escHtml(t.name)}</option>`).join('');
+      }
+    } catch (e) {
+      container.innerHTML = '<div style="font-size:12px;color:var(--color-warn-text);">불러오기 실패</div>';
+    }
+  },
+
+  // 상대 시간 포맷 (댓글용)
+  _timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (diff < 60) return `${diff}초 전`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+    return new Date(dateStr).toLocaleDateString('ko-KR');
   },
 
   bindDragDrop(content) {

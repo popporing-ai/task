@@ -1290,3 +1290,363 @@ input[type="month"] {
   font-size: 12px;
 }
 * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+
+/* === 글로벌 검색 === */
+.topbar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+}
+.global-search-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+}
+.global-search {
+  width: 100%;
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 7px 14px 7px 32px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='6.5' cy='6.5' r='4.5' stroke='%239A9BA3' stroke-width='1.4'/%3E%3Cpath d='M10 10l3 3' stroke='%239A9BA3' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+}
+.global-search:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-bg);
+}
+.global-search::placeholder { color: var(--color-text-hint); }
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.search-results-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 6px 8px 3px;
+}
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.search-result-item:hover { background: var(--color-bg-secondary); }
+.search-result-title {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-result-sub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+.search-results-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* === 서브태스크 === */
+.subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-bg-secondary);
+  border-radius: 6px;
+  border: 0.5px solid var(--color-border);
+  transition: opacity 0.15s;
+}
+.subtask-item.done .subtask-title {
+  text-decoration: line-through;
+  color: var(--color-text-hint);
+}
+.subtask-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+.subtask-delete {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.subtask-item:hover .subtask-delete { opacity: 1; }
+.subtask-delete:hover { color: var(--color-warn-text); }
+.subtask-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+.subtask-add input {
+  flex: 1;
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  outline: none;
+}
+.subtask-add input:focus { border-color: var(--color-primary); }
+
+/* === 댓글 === */
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.comment-item {
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  border: 0.5px solid var(--color-border);
+}
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.comment-header strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.comment-time {
+  font-size: 11px;
+  color: var(--color-text-hint);
+  margin-left: 2px;
+}
+.comment-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+}
+.comment-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.comment-add textarea {
+  width: 100%;
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 12px;
+  resize: vertical;
+  outline: none;
+  min-height: 72px;
+}
+.comment-add textarea:focus { border-color: var(--color-primary); }
+.comment-add button { align-self: flex-end; }
+
+/* === 태그 필 (카드 + 팝오버) === */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+
+/* === 카드 지표 (서브태스크, 댓글) === */
+.card-indicators {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.subtask-progress {
+  font-size: 11px;
+  color: var(--color-done-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.comment-count {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* === 리스트 뷰 === */
+.list-view-wrap {
+  position: relative;
+}
+.list-view-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.list-view-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.list-view-table td {
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--color-border);
+  vertical-align: middle;
+  color: var(--color-text-primary);
+}
+.list-row { transition: background 0.1s; cursor: pointer; }
+.list-row:hover { background: rgba(255,255,255,0.03); }
+.list-row:hover .list-cell-display { text-decoration: underline; text-underline-offset: 2px; }
+.list-cell-title { cursor: pointer; }
+
+/* 일괄 작업 바 */
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 12px;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+/* === 뷰 토글 === */
+.view-toggle-group {
+  display: flex;
+  align-items: center;
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+  margin-right: 4px;
+}
+.view-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.view-toggle-btn:hover { color: var(--color-text-primary); }
+.view-toggle-btn.active {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+/* === 팝오버 탭 === */
+.detail-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 0;
+}
+.detail-tab {
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s, border-color 0.12s;
+  margin-bottom: -1px;
+}
+.detail-tab:hover { color: var(--color-text-primary); }
+.detail-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+.detail-tab-content {
+  padding-top: 16px;
+}
+.detail-tab-pane {
+  display: none;
+}
+.detail-tab-pane.active {
+  display: block;
+}

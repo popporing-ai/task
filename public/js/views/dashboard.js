@@ -11,6 +11,10 @@ const DashboardView = {
     { id: 'status-chart',      title: '업무 상태 분포',     size: 'half' },
     { id: 'category-chart',    title: '분류별 업무 현황',   size: 'half' },
     { id: 'assignee-chart',    title: '담당자별 업무',      size: 'half' },
+    { id: 'burndown-chart',    title: '번다운 차트',        size: 'half' },
+    { id: 'workload',          title: '담당자별 업무 부하', size: 'half' },
+    { id: 'completion-rate',   title: '완료율 추이',        size: 'half' },
+    { id: 'overdue-tasks',     title: '마감 초과 업무',     size: 'half' },
   ],
 
   // 차트 타입을 지원하는 위젯 목록
@@ -241,8 +245,198 @@ const DashboardView = {
       case 'assignee-chart':
         return this._renderWithChartType('assignee-chart', d);
 
+      case 'burndown-chart':
+        return this._renderBurndown(d);
+
+      case 'workload':
+        return this._renderWorkload(d);
+
+      case 'completion-rate':
+        return this._renderCompletionRate(d);
+
+      case 'overdue-tasks':
+        return this._renderOverdueTasks(d);
+
       default: return '';
     }
+  },
+
+  // 번다운 차트 (완료 추이 vs 계획)
+  _renderBurndown(d) {
+    // weekTasks로 일별 완료 추이 시뮬레이션
+    const tasks = d.weekTasks || [];
+    const total = tasks.length;
+    if (total === 0) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
+
+    // 완료된 업무를 날짜별로 그룹핑
+    const doneTasks = tasks.filter(t => t.status === 'done' && t.due_date);
+    const dateMap = {};
+    doneTasks.forEach(t => {
+      const d = t.due_date.slice(0, 10);
+      dateMap[d] = (dateMap[d] || 0) + 1;
+    });
+
+    // 최근 7일 생성
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() - i);
+      days.push(dt.toISOString().slice(0, 10));
+    }
+
+    // 번다운: 남은 업무 수 (전체 - 누적 완료)
+    let remaining = total;
+    const actualPoints = [];
+    const idealPoints = [];
+    days.forEach((day, i) => {
+      const completedToday = dateMap[day] || 0;
+      remaining = Math.max(0, remaining - completedToday);
+      actualPoints.push({ x: i, y: remaining, label: day.slice(5) });
+      idealPoints.push({ x: i, y: Math.round(total * (6 - i) / 6) });
+    });
+
+    const W = 260, H = 90, padL = 28, padB = 18;
+    const innerW = W - padL - 4;
+    const innerH = H - padB;
+    const maxY = total;
+    const scaleX = i => padL + (innerW / 6) * i;
+    const scaleY = v => (innerH - (v / maxY) * (innerH - 4)) + 2;
+
+    const actualPolyline = actualPoints.map(p => `${scaleX(p.x).toFixed(1)},${scaleY(p.y).toFixed(1)}`).join(' ');
+    const idealPolyline = idealPoints.map(p => `${scaleX(p.x).toFixed(1)},${scaleY(p.y).toFixed(1)}`).join(' ');
+
+    const xLabels = actualPoints.map((p, i) =>
+      `<text x="${scaleX(i).toFixed(1)}" y="${H}" text-anchor="middle" font-size="8" fill="var(--color-text-muted)">${p.label}</text>`
+    ).join('');
+    const yLabel = `<text x="2" y="${scaleY(maxY).toFixed(1)}" font-size="8" fill="var(--color-text-muted)">${maxY}</text>
+      <text x="2" y="${scaleY(0).toFixed(1)}" font-size="8" fill="var(--color-text-muted)">0</text>`;
+
+    return `
+      <svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;overflow:visible;">
+        ${yLabel}
+        <polyline points="${idealPolyline}" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linecap="round"/>
+        <polyline points="${actualPolyline}" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${actualPoints.map(p => `<circle cx="${scaleX(p.x).toFixed(1)}" cy="${scaleY(p.y).toFixed(1)}" r="3" fill="var(--color-primary)" stroke="var(--color-bg-primary)" stroke-width="1.5"/>`).join('')}
+        ${xLabels}
+      </svg>
+      <div style="display:flex;gap:12px;margin-top:4px;font-size:11px;">
+        <span style="display:flex;align-items:center;gap:4px;color:var(--color-text-muted)"><span style="display:inline-block;width:14px;height:2px;background:var(--color-primary);border-radius:1px;"></span>실제</span>
+        <span style="display:flex;align-items:center;gap:4px;color:var(--color-text-muted)"><span style="display:inline-block;width:14px;height:2px;background:rgba(255,255,255,0.25);border-radius:1px;"></span>계획</span>
+      </div>`;
+  },
+
+  // 담당자별 업무 부하 (수평 막대)
+  _renderWorkload(d) {
+    const tasks = [...(d.weekTasks || []), ...(d.myTasks || [])];
+    if (!tasks.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
+
+    const userMap = {};
+    tasks.forEach(t => {
+      const name = t.assignee_name || '미배정';
+      if (!userMap[name]) userMap[name] = { total: 0, done: 0, in_progress: 0, todo: 0, blocked: 0 };
+      userMap[name].total++;
+      if (t.status === 'done') userMap[name].done++;
+      else if (t.status === 'in_progress') userMap[name].in_progress++;
+      else if (t.status === 'blocked') userMap[name].blocked++;
+      else userMap[name].todo++;
+    });
+
+    const entries = Object.entries(userMap).sort((a, b) => b[1].total - a[1].total);
+    const max = Math.max(...entries.map(([, v]) => v.total), 1);
+
+    return entries.map(([name, counts]) => `
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="font-size:12px;font-weight:500;">${escHtml(name)}</span>
+          <span style="font-size:11px;color:var(--color-text-muted);">${counts.total}건</span>
+        </div>
+        <div style="height:10px;border-radius:5px;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;">
+          ${counts.done > 0 ? `<div style="flex:${counts.done};background:var(--color-done-text);min-width:2px;" title="완료 ${counts.done}"></div>` : ''}
+          ${counts.in_progress > 0 ? `<div style="flex:${counts.in_progress};background:var(--color-primary);min-width:2px;" title="진행중 ${counts.in_progress}"></div>` : ''}
+          ${counts.todo > 0 ? `<div style="flex:${counts.todo};background:var(--color-plan-text);min-width:2px;" title="할일 ${counts.todo}"></div>` : ''}
+          ${counts.blocked > 0 ? `<div style="flex:${counts.blocked};background:var(--color-warn-text);min-width:2px;" title="미진행 ${counts.blocked}"></div>` : ''}
+          ${(max - counts.total) > 0 ? `<div style="flex:${max - counts.total};"></div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  },
+
+  // 완료율 추이 (일별)
+  _renderCompletionRate(d) {
+    const tasks = d.weekTasks || [];
+    if (!tasks.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
+
+    // 최근 7일 완료율 계산
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() - i);
+      days.push(dt.toISOString().slice(0, 10));
+    }
+
+    const points = days.map((day, i) => {
+      const dayTasks = tasks.filter(t => t.due_date && t.due_date.slice(0, 10) === day);
+      const done = dayTasks.filter(t => t.status === 'done').length;
+      const rate = dayTasks.length > 0 ? Math.round(done / dayTasks.length * 100) : 0;
+      return { x: i, y: rate, label: day.slice(5), count: dayTasks.length };
+    });
+
+    const W = 260, H = 80, padL = 28, padB = 18;
+    const innerW = W - padL - 4;
+    const innerH = H - padB;
+    const scaleX = i => padL + (innerW / 6) * i;
+    const scaleY = v => (innerH - (v / 100) * (innerH - 4)) + 2;
+
+    const polyline = points.map(p => `${scaleX(p.x).toFixed(1)},${scaleY(p.y).toFixed(1)}`).join(' ');
+    const dots = points.map(p => `
+      <circle cx="${scaleX(p.x).toFixed(1)}" cy="${scaleY(p.y).toFixed(1)}" r="3.5" fill="${p.count > 0 ? 'var(--color-done-text)' : 'var(--color-bg-secondary)'}" stroke="var(--color-bg-primary)" stroke-width="1.5">
+        <title>${p.label}: ${p.y}% (${p.count}건)</title>
+      </circle>`).join('');
+    const xLabels = points.map((p, i) =>
+      `<text x="${scaleX(i).toFixed(1)}" y="${H}" text-anchor="middle" font-size="8" fill="var(--color-text-muted)">${p.label}</text>`
+    ).join('');
+    const yLabels = [0, 50, 100].map(v =>
+      `<text x="2" y="${scaleY(v).toFixed(1)}" font-size="8" fill="var(--color-text-muted)">${v}%</text>`
+    ).join('');
+
+    // 100% 기준선
+    const baselineY = scaleY(100).toFixed(1);
+
+    return `
+      <svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;overflow:visible;">
+        <line x1="${padL}" y1="${baselineY}" x2="${W - 4}" y2="${baselineY}" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="3,3"/>
+        ${yLabels}
+        <polyline points="${polyline}" fill="none" stroke="var(--color-done-text)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dots}
+        ${xLabels}
+      </svg>`;
+  },
+
+  // 마감 초과 업무 목록
+  _renderOverdueTasks(d) {
+    const today = new Date().toISOString().slice(0, 10);
+    const tasks = (d.weekTasks || []).filter(t =>
+      t.due_date && t.due_date.slice(0, 10) < today && t.status !== 'done'
+    );
+    if (!tasks.length) return `
+      <div class="empty-state" style="padding:20px">
+        <span class="empty-state-icon" style="color:var(--color-done-text)">✓</span>
+        <div class="empty-state-title">마감 초과 업무 없음</div>
+      </div>`;
+
+    return `<div style="display:flex;flex-direction:column;gap:6px;">` +
+      tasks.slice(0, 8).map(t => {
+        const due = t.due_date.slice(0, 10);
+        const diff = Math.ceil((new Date(today) - new Date(due)) / (1000 * 60 * 60 * 24));
+        return `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--color-bg-secondary);border-radius:6px;border-left:3px solid var(--color-warn-text);">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.title)}</div>
+              <div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">${t.assignee_name ? escHtml(t.assignee_name) + ' · ' : ''}${due}</div>
+            </div>
+            <span style="font-size:11px;font-weight:600;color:var(--color-warn-text);white-space:nowrap;">D+${diff}</span>
+          </div>`;
+      }).join('') + `</div>`;
   },
 
   // 차트 타입 분기 렌더

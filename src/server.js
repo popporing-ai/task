@@ -24,6 +24,9 @@ app.use('/task/api/timeline', require('./routes/timeline'));
 app.use('/task/api/rrr', require('./routes/rrr'));
 app.use('/task/api/audit', require('./routes/audit'));
 app.use('/task/api/categories', require('./routes/categories'));
+app.use('/task/api/tasks', require('./routes/subtasks'));
+app.use('/task/api/tasks', require('./routes/comments'));
+app.use('/task/api/tags', require('./routes/tags'));
 
 // 메타 API (카테고리, 제품, 유저 목록, 대시보드)
 const authMiddleware = require('./middleware/auth');
@@ -201,6 +204,66 @@ app.get('/task/api/dashboard', authMiddleware, async (req, res, next) => {
         weekTasks: weekTaskList.rows,
         channelStats: channelStats.rows,
         myTasks: myTasks.rows,
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// 글로벌 검색
+app.get('/task/api/search', authMiddleware, async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) {
+      return res.json({ data: { tasks: [], content_items: [], timeline_items: [], comments: [] } });
+    }
+    const keyword = `%${q.trim()}%`;
+
+    const [tasks, contentItems, timelineItems, comments] = await Promise.all([
+      db.query(`
+        SELECT t.id, t.title, t.description, t.status, t.due_date,
+               u.name AS assignee_name, tc.name AS category_name
+        FROM tasks t
+        LEFT JOIN users u ON u.id = t.assignee_id
+        LEFT JOIN task_categories tc ON tc.id = t.category_id
+        WHERE (t.title ILIKE $1 OR t.description ILIKE $1)
+          AND t.archived = false
+        ORDER BY t.updated_at DESC LIMIT 20
+      `, [keyword]),
+      db.query(`
+        SELECT ci.id, ci.title, ci.memo, ci.status, ci.publish_date,
+               ci.channel, ci.content_type,
+               u.name AS assignee_name
+        FROM content_items ci
+        LEFT JOIN users u ON u.id = ci.assignee_id
+        WHERE ci.title ILIKE $1 OR ci.memo ILIKE $1
+        ORDER BY ci.updated_at DESC LIMIT 20
+      `, [keyword]),
+      db.query(`
+        SELECT ti.id, ti.title, ti.memo, ti.status, ti.start_month, ti.end_month,
+               tc.name AS category_name
+        FROM timeline_items ti
+        LEFT JOIN task_categories tc ON tc.id = ti.category_id
+        WHERE ti.title ILIKE $1 OR ti.memo ILIKE $1
+        ORDER BY ti.updated_at DESC LIMIT 20
+      `, [keyword]),
+      db.query(`
+        SELECT c.id, c.task_id, c.content, c.created_at,
+               u.name AS user_name,
+               t.title AS task_title
+        FROM comments c
+        JOIN users u ON u.id = c.user_id
+        JOIN tasks t ON t.id = c.task_id
+        WHERE c.content ILIKE $1
+        ORDER BY c.created_at DESC LIMIT 20
+      `, [keyword]),
+    ]);
+
+    res.json({
+      data: {
+        tasks: tasks.rows,
+        content_items: contentItems.rows,
+        timeline_items: timelineItems.rows,
+        comments: comments.rows,
       }
     });
   } catch (err) { next(err); }
