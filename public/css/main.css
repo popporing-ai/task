@@ -969,6 +969,23 @@ input[type="month"] {
   flex: 1;
   line-height: 1.4;
 }
+.app-toast-undo {
+  background: none;
+  border: none;
+  color: #7B9BFA;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+.app-toast-undo:hover {
+  background: rgba(79,110,247,0.15);
+  text-decoration: underline;
+}
 
 /* 필터 태그 */
 .filter-tag {
@@ -1011,6 +1028,15 @@ input[type="month"] {
   color: var(--color-text-primary);
   border-bottom: 1px solid rgba(255,255,255,0.05);
   vertical-align: middle;
+  white-space: nowrap;
+}
+.settings-table td:last-child {
+  text-align: right;
+  min-width: 150px;
+}
+.settings-table td .btn {
+  font-size: 12px;
+  padding: 4px 10px;
 }
 .settings-table tr:last-child td { border-bottom: none; }
 .settings-table tbody tr:hover td { background: rgba(79,110,247,0.06); transition: background 0.12s; }

@@ -288,18 +288,35 @@ const TasksView = {
         e.stopPropagation();
         const confirmed = await App.confirm('이 업무를 삭제하시겠습니까?');
         if (confirmed) {
-          await API.del(`/tasks/${card.dataset.id}`);
-          App.toast('업무가 삭제되었습니다.', 'info');
+          const taskId = card.dataset.id;
+          const task = this.tasks.find(t => t.id == taskId);
+          await API.del(`/tasks/${taskId}`);
           await this.loadTasks();
           this.renderBoard(content);
+          App.toast('업무가 삭제되었습니다.', 'info', async () => {
+            // 취소: 삭제된 업무 복원
+            if (task) {
+              await API.post('/tasks', { title: task.title, description: task.description, category_id: task.category_id, assignee_id: task.assignee_id, status: task.status, due_date: task.due_date });
+              App.toast('삭제가 취소되었습니다.', 'success');
+              await this.loadTasks();
+              this.renderBoard(document.getElementById('content'));
+            }
+          });
         }
       });
       card.querySelector('.card-archive')?.addEventListener('click', async (e) => {
         e.stopPropagation();
-        await API.patch(`/tasks/${card.dataset.id}/archive`, { archived: true });
-        App.toast('아카이브되었습니다.', 'info');
+        const taskId = card.dataset.id;
+        await API.patch(`/tasks/${taskId}/archive`, { archived: true });
         await this.loadTasks();
         this.renderBoard(content);
+        App.toast('아카이브되었습니다.', 'info', async () => {
+          // 취소: 아카이브 복원
+          await API.patch(`/tasks/${taskId}/archive`, { archived: false });
+          App.toast('아카이브가 취소되었습니다.', 'success');
+          await this.loadTasks();
+          this.renderBoard(document.getElementById('content'));
+        });
       });
     });
 

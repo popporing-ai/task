@@ -207,7 +207,8 @@ const App = {
   },
 
   // 토스트 알림
-  toast(message, type = 'info') {
+  // 토스트 알림 (onUndo 전달 시 취소 버튼 표시)
+  toast(message, type = 'info', onUndo = null) {
     const colors = {
       success: { bg: 'rgba(74,185,100,0.15)', border: 'rgba(74,185,100,0.35)', text: '#5DD984', icon: '✓' },
       error:   { bg: 'rgba(226,75,74,0.15)',  border: 'rgba(226,75,74,0.35)',  text: '#F07070', icon: '✕' },
@@ -220,30 +221,38 @@ const App = {
     el.innerHTML = `
       <span class="app-toast-icon" style="color:${c.text}">${c.icon}</span>
       <span class="app-toast-msg">${escHtml(message)}</span>
+      ${onUndo ? '<button class="app-toast-undo">취소</button>' : ''}
     `;
-    el.style.cssText = `
-      background:${c.bg};
-      border:0.5px solid ${c.border};
-    `;
+    el.style.cssText = `background:${c.bg};border:0.5px solid ${c.border};`;
 
-    // 토스트 컨테이너
     let container = document.getElementById('toast-container');
     if (!container) {
       container = document.createElement('div');
       container.id = 'toast-container';
       document.body.appendChild(container);
     }
-
     container.appendChild(el);
-
-    // 애니메이션 진입
     requestAnimationFrame(() => el.classList.add('show'));
 
-    // 3초 후 소멸
-    setTimeout(() => {
+    let dismissed = false;
+    const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
       el.classList.remove('show');
       el.addEventListener('transitionend', () => el.remove(), { once: true });
-    }, 3000);
+    };
+
+    // 취소 버튼 클릭
+    if (onUndo) {
+      el.querySelector('.app-toast-undo')?.addEventListener('click', async () => {
+        dismissed = true;
+        el.remove();
+        await onUndo();
+      });
+    }
+
+    // 3초 후 소멸
+    setTimeout(dismiss, 3000);
   },
 
   // 유틸리티
