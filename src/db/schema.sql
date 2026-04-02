@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS tasks (
               CHECK (status IN ('todo','in_progress','done','blocked')),
   due_date    DATE,
   sort_order  INTEGER DEFAULT 0,
+  archived    BOOLEAN NOT NULL DEFAULT false,
   created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW()

@@ -1077,4 +1077,131 @@ input[type="month"] {
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 3px; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.24); }
+
+/* === 대시보드 위젯 그리드 === */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.dashboard-widget {
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.18s, transform 0.18s, background 0.18s, opacity 0.18s;
+  overflow: hidden;
+}
+.dashboard-widget.span-1 { grid-column: span 1; }
+.dashboard-widget.span-2 { grid-column: span 2; }
+.dashboard-widget.span-4 { grid-column: span 4; }
+
+/* 편집 모드 위젯 */
+.dashboard-widget.edit-mode {
+  border: 1.5px dashed rgba(79,110,247,0.5);
+  opacity: 0.9;
+  cursor: grab;
+}
+.dashboard-widget.edit-mode:active { cursor: grabbing; }
+.dashboard-widget.dragging {
+  opacity: 0.45;
+  box-shadow: none;
+}
+.dashboard-widget.drag-over {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(79,110,247,0.3);
+}
+
+/* 위젯 헤더 */
+.widget-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 10px;
+  border-bottom: 0.5px solid var(--color-border);
+}
+.widget-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* 위젯 바디 */
+.widget-body {
+  padding: 16px;
+}
+/* 지표형 위젯 바디 (metric-card 내용과 통일) */
+.widget-body .metric-value { font-size: 22px; font-weight: 600; }
+.widget-body .metric-sub { font-size: 11px; color: var(--color-text-hint); margin-top: 4px; }
+
+/* 드래그 핸들 */
+.widget-drag-handle {
+  color: var(--color-text-hint);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.widget-drag-handle:hover {
+  color: var(--color-text-muted);
+  background: rgba(255,255,255,0.06);
+}
+
+/* 위젯 제거 버튼 */
+.widget-remove-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-hint);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  line-height: 1;
+}
+.widget-remove-btn:hover {
+  color: var(--color-danger, #F07070);
+  background: rgba(240,112,112,0.12);
+}
+
+/* 대시보드 편집 바 (위젯 추가) */
+.dashboard-edit-bar {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-start;
+}
+.widget-add-wrap {
+  position: relative;
+}
+.widget-add-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  min-width: 180px;
+  z-index: 100;
+  overflow: hidden;
+}
+.widget-add-item {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.widget-add-item:hover:not(.widget-add-empty) {
+  background: rgba(255,255,255,0.06);
+}
+.widget-add-item.widget-add-empty {
+  color: var(--color-text-hint);
+  cursor: default;
+  font-size: 12px;
+}
 * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }

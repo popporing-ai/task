@@ -3,7 +3,11 @@ const TasksView = {
   tasks: [],
   filterCategories: [],  // 다중 선택 배열
   filterAssignees: [],   // 다중 선택 배열
+  filterDateFrom: '',
+  filterDateTo: '',
   filterDropdownOpen: false,
+  showArchived: false,   // 아카이브 보기 모드
+  sortBy: 'default',     // 정렬 기준: default | due_date | created_at | title
 
   async render() {
     const content = document.getElementById('content');
@@ -25,7 +29,8 @@ const TasksView = {
 
   async loadTasks() {
     try {
-      const res = await API.get('/tasks');
+      const params = this.showArchived ? '?archived=true' : '';
+      const res = await API.get('/tasks' + params);
       this.tasks = res.data;
     } catch (e) {
       this.tasks = [];
@@ -36,8 +41,27 @@ const TasksView = {
     return this.tasks.filter(t => {
       if (this.filterCategories.length && !this.filterCategories.includes(String(t.category_id))) return false;
       if (this.filterAssignees.length && !this.filterAssignees.includes(String(t.assignee_id))) return false;
+      if (this.filterDateFrom && t.due_date && t.due_date.slice(0, 10) < this.filterDateFrom) return false;
+      if (this.filterDateTo && t.due_date && t.due_date.slice(0, 10) > this.filterDateTo) return false;
       return true;
     });
+  },
+
+  getSorted(tasks) {
+    const arr = [...tasks];
+    if (this.sortBy === 'due_date') {
+      arr.sort((a, b) => {
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return a.due_date.localeCompare(b.due_date);
+      });
+    } else if (this.sortBy === 'created_at') {
+      arr.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    } else if (this.sortBy === 'title') {
+      arr.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ko'));
+    }
+    return arr;
   },
 
   renderBoard(content) {
@@ -59,6 +83,7 @@ const TasksView = {
         const user = App.users.find(u => String(u.id) === id);
         return user ? `<span class="filter-tag" data-remove-user="${id}">${escHtml(user.name)} ×</span>` : '';
       }),
+      this.filterDateFrom || this.filterDateTo ? `<span class="filter-tag" data-remove-date="1">마감일 ${this.filterDateFrom || ''}~${this.filterDateTo || ''} ×</span>` : '',
     ].join('');
 
     // 필터 드롭다운 HTML — 다크 테마 색상 사용
@@ -82,6 +107,12 @@ const TasksView = {
             </label>
           `).join('')}
         </div>
+        <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">마감일 범위</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+          <input type="date" id="filter-date-from" value="${this.filterDateFrom}" style="flex:1;font-size:12px;padding:4px 8px;border-radius:6px;border:0.5px solid var(--color-border);background:var(--color-bg-secondary);color:var(--color-text-primary);">
+          <span style="color:var(--color-text-muted);font-size:12px;">~</span>
+          <input type="date" id="filter-date-to" value="${this.filterDateTo}" style="flex:1;font-size:12px;padding:4px 8px;border-radius:6px;border:0.5px solid var(--color-border);background:var(--color-bg-secondary);color:var(--color-text-primary);">
+        </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:8px;border-top:1px solid var(--color-border);">
           <button class="btn" id="filter-reset" style="font-size:12px;padding:5px 12px;">초기화</button>
           <button class="btn btn-primary" id="filter-apply" style="font-size:12px;padding:5px 12px;">적용</button>
@@ -89,19 +120,116 @@ const TasksView = {
       </div>
     `;
 
-    const hasFilters = this.filterCategories.length || this.filterAssignees.length;
+    // 정렬 드롭다운 HTML
+    const sortLabels = { default: '정렬 ▼', due_date: '마감일순 ▼', created_at: '최신순 ▼', title: '이름순 ▼' };
+    const sortDropdownHtml = `
+      <div style="position:relative;">
+        <button class="filter-btn ${this.sortBy !== 'default' ? 'active' : ''}" id="sort-toggle-btn">${sortLabels[this.sortBy] || '정렬 ▼'}</button>
+        <div id="sort-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:80;background:var(--color-bg-primary);border-radius:10px;padding:8px;min-width:140px;box-shadow:var(--shadow-lg);border:0.5px solid var(--color-border);">
+          ${[
+            { key: 'default', label: '기본순' },
+            { key: 'due_date', label: '마감일순' },
+            { key: 'created_at', label: '최신순' },
+            { key: 'title', label: '이름순' },
+          ].map(opt => `
+            <button data-sort="${opt.key}" style="display:block;width:100%;text-align:left;padding:7px 10px;font-size:12px;border:none;background:${this.sortBy === opt.key ? 'var(--color-primary-bg)' : 'transparent'};color:${this.sortBy === opt.key ? 'var(--color-primary)' : 'var(--color-text-primary)'};border-radius:6px;cursor:pointer;">
+              ${opt.label}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    const hasFilters = this.filterCategories.length || this.filterAssignees.length || this.filterDateFrom || this.filterDateTo;
 
     // 필터 바
     const filterHtml = `
       <div class="filter-bar" style="position:relative;">
-        <button class="filter-btn ${!hasFilters ? 'active' : ''}" id="filter-all">전체</button>
+        <button class="filter-btn ${!hasFilters && !this.showArchived ? 'active' : ''}" id="filter-all">전체</button>
         <div style="position:relative;">
           <button class="filter-btn ${hasFilters ? 'active' : ''}" id="filter-toggle-btn">필터 ▼</button>
           ${dropdownHtml}
         </div>
+        ${sortDropdownHtml}
+        <button class="filter-btn ${this.showArchived ? 'active' : ''}" id="archive-toggle-btn" style="margin-left:4px;">아카이브 보기</button>
         ${activeTags}
       </div>
     `;
+
+    // 아카이브 뷰
+    if (this.showArchived) {
+      const sorted = this.getSorted(filtered);
+      const archiveItemsHtml = sorted.length > 0
+        ? sorted.map(t => `
+          <div class="kanban-card" data-id="${t.id}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:6px;opacity:1;">
+            <div style="flex:1;min-width:0;">
+              ${t.category_name ? categoryTag(t.category_name) : ''}
+              <div class="card-title" style="margin-top:4px;">${escHtml(t.title)}</div>
+              <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">
+                ${t.assignee_name ? escHtml(t.assignee_name) : '담당자 없음'}
+                ${t.due_date ? ' · 마감 ' + t.due_date.slice(0, 10) : ''}
+              </div>
+            </div>
+            <button class="btn" data-restore-id="${t.id}" style="font-size:12px;padding:5px 12px;flex-shrink:0;">복원</button>
+          </div>
+        `).join('')
+        : `<div style="text-align:center;padding:48px;color:var(--color-text-muted);">아카이브된 업무가 없습니다.</div>`;
+
+      // 기간 필터 버튼
+      const now = new Date();
+      const periodBtns = [
+        { label: '이번 달', from: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`, to: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-31` },
+        { label: '이번 분기', from: this._quarterStart(now), to: this._quarterEnd(now) },
+        { label: '상반기', from: `${now.getFullYear()}-01-01`, to: `${now.getFullYear()}-06-30` },
+        { label: '하반기', from: `${now.getFullYear()}-07-01`, to: `${now.getFullYear()}-12-31` },
+        { label: '연간', from: `${now.getFullYear()}-01-01`, to: `${now.getFullYear()}-12-31` },
+      ];
+      const periodHtml = `
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+          <span style="font-size:11px;color:var(--color-text-muted);font-weight:600;">기간:</span>
+          ${periodBtns.map(p => `
+            <button class="filter-btn archive-period-btn" data-from="${p.from}" data-to="${p.to}" style="font-size:11px;padding:3px 8px;">${p.label}</button>
+          `).join('')}
+          <button class="filter-btn" id="archive-period-reset" style="font-size:11px;padding:3px 8px;">전체</button>
+        </div>
+      `;
+
+      content.innerHTML = filterHtml + `
+        <div style="max-width:720px;">
+          <div style="font-size:13px;font-weight:600;color:var(--color-text-muted);margin-bottom:10px;">아카이브된 업무 ${sorted.length}건</div>
+          ${periodHtml}
+          <div id="archive-list">${archiveItemsHtml}</div>
+        </div>
+      `;
+
+      // 복원 버튼 이벤트
+      content.querySelectorAll('[data-restore-id]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await API.patch(`/tasks/${btn.dataset.restoreId}/archive`, { archived: false });
+          App.toast('복원되었습니다.', 'success');
+          await this.loadTasks();
+          this.renderBoard(content);
+        });
+      });
+
+      // 기간 필터 버튼
+      content.querySelectorAll('.archive-period-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          this.filterDateFrom = btn.dataset.from;
+          this.filterDateTo = btn.dataset.to;
+          this.renderBoard(content);
+        });
+      });
+      content.querySelector('#archive-period-reset')?.addEventListener('click', () => {
+        this.filterDateFrom = '';
+        this.filterDateTo = '';
+        this.renderBoard(content);
+      });
+
+      this._bindFilterBarEvents(content);
+      return;
+    }
 
     // 칸반 컬럼별 빈 상태 메시지
     const colEmptyMessages = {
@@ -114,7 +242,7 @@ const TasksView = {
     content.innerHTML = filterHtml + `
       <div class="kanban-board">
         ${cols.map(col => {
-          const colTasks = filtered.filter(t => t.status === col.key);
+          const colTasks = this.getSorted(filtered.filter(t => t.status === col.key));
           const empty = colEmptyMessages[col.key];
           return `
             <div class="kanban-col col-${col.key}" data-status="${col.key}">
@@ -137,58 +265,6 @@ const TasksView = {
         }).join('')}
       </div>
     `;
-
-    // 전체 버튼
-    content.querySelector('#filter-all')?.addEventListener('click', () => {
-      this.filterCategories = [];
-      this.filterAssignees = [];
-      this.renderBoard(content);
-    });
-
-    // 필터 드롭다운 토글
-    const toggleBtn = content.querySelector('#filter-toggle-btn');
-    const dropdown = content.querySelector('#filter-dropdown');
-    toggleBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isOpen = dropdown.style.display !== 'none';
-      dropdown.style.display = isOpen ? 'none' : 'block';
-    });
-
-    // 드롭다운 외부 클릭 닫기
-    document.addEventListener('click', function closeDropdown(e) {
-      if (dropdown && !dropdown.contains(e.target) && e.target !== toggleBtn) {
-        dropdown.style.display = 'none';
-        document.removeEventListener('click', closeDropdown);
-      }
-    });
-
-    // 적용 버튼
-    content.querySelector('#filter-apply')?.addEventListener('click', () => {
-      this.filterCategories = [...content.querySelectorAll('[data-filter-cat]:checked')].map(cb => cb.dataset.filterCat);
-      this.filterAssignees = [...content.querySelectorAll('[data-filter-user]:checked')].map(cb => cb.dataset.filterUser);
-      this.renderBoard(content);
-    });
-
-    // 초기화 버튼
-    content.querySelector('#filter-reset')?.addEventListener('click', () => {
-      this.filterCategories = [];
-      this.filterAssignees = [];
-      this.renderBoard(content);
-    });
-
-    // 활성 태그 제거
-    content.querySelectorAll('[data-remove-cat]').forEach(tag => {
-      tag.addEventListener('click', () => {
-        this.filterCategories = this.filterCategories.filter(id => id !== tag.dataset.removeCat);
-        this.renderBoard(content);
-      });
-    });
-    content.querySelectorAll('[data-remove-user]').forEach(tag => {
-      tag.addEventListener('click', () => {
-        this.filterAssignees = this.filterAssignees.filter(id => id !== tag.dataset.removeUser);
-        this.renderBoard(content);
-      });
-    });
 
     // 칸반 빠른 추가 버튼
     content.querySelector('#kanban-quick-add')?.addEventListener('click', () => this.openForm());
@@ -218,7 +294,134 @@ const TasksView = {
           this.renderBoard(content);
         }
       });
+      card.querySelector('.card-archive')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await API.patch(`/tasks/${card.dataset.id}/archive`, { archived: true });
+        App.toast('아카이브되었습니다.', 'info');
+        await this.loadTasks();
+        this.renderBoard(content);
+      });
     });
+
+    this._bindFilterBarEvents(content);
+  },
+
+  // 필터바 공통 이벤트 바인딩
+  _bindFilterBarEvents(content) {
+    const dropdown = content.querySelector('#filter-dropdown');
+    const toggleBtn = content.querySelector('#filter-toggle-btn');
+    const sortDropdown = content.querySelector('#sort-dropdown');
+    const sortToggleBtn = content.querySelector('#sort-toggle-btn');
+
+    // 전체 버튼
+    content.querySelector('#filter-all')?.addEventListener('click', () => {
+      this.filterCategories = [];
+      this.filterAssignees = [];
+      this.filterDateFrom = '';
+      this.filterDateTo = '';
+      this.showArchived = false;
+      this.loadTasks().then(() => this.renderBoard(content));
+    });
+
+    // 아카이브 보기 토글
+    content.querySelector('#archive-toggle-btn')?.addEventListener('click', async () => {
+      this.showArchived = !this.showArchived;
+      await this.loadTasks();
+      this.renderBoard(content);
+    });
+
+    // 필터 드롭다운 토글
+    toggleBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (sortDropdown) sortDropdown.style.display = 'none';
+      const isOpen = dropdown.style.display !== 'none';
+      dropdown.style.display = isOpen ? 'none' : 'block';
+    });
+
+    // 정렬 드롭다운 토글
+    sortToggleBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (dropdown) dropdown.style.display = 'none';
+      const isOpen = sortDropdown.style.display !== 'none';
+      sortDropdown.style.display = isOpen ? 'none' : 'block';
+    });
+
+    // 정렬 선택
+    content.querySelectorAll('[data-sort]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.sortBy = btn.dataset.sort;
+        sortDropdown.style.display = 'none';
+        this.renderBoard(content);
+      });
+    });
+
+    // 드롭다운 외부 클릭 닫기
+    document.addEventListener('click', function closeDropdowns(e) {
+      if (dropdown && !dropdown.contains(e.target) && e.target !== toggleBtn) {
+        dropdown.style.display = 'none';
+      }
+      if (sortDropdown && !sortDropdown.contains(e.target) && e.target !== sortToggleBtn) {
+        sortDropdown.style.display = 'none';
+      }
+      // 두 드롭다운 모두 닫혔으면 리스너 제거
+      if (dropdown?.style.display === 'none' && sortDropdown?.style.display === 'none') {
+        document.removeEventListener('click', closeDropdowns);
+      }
+    });
+
+    // 적용 버튼
+    content.querySelector('#filter-apply')?.addEventListener('click', () => {
+      this.filterCategories = [...content.querySelectorAll('[data-filter-cat]:checked')].map(cb => cb.dataset.filterCat);
+      this.filterAssignees = [...content.querySelectorAll('[data-filter-user]:checked')].map(cb => cb.dataset.filterUser);
+      this.filterDateFrom = content.querySelector('#filter-date-from')?.value || '';
+      this.filterDateTo = content.querySelector('#filter-date-to')?.value || '';
+      this.renderBoard(content);
+    });
+
+    // 초기화 버튼
+    content.querySelector('#filter-reset')?.addEventListener('click', () => {
+      this.filterCategories = [];
+      this.filterAssignees = [];
+      this.filterDateFrom = '';
+      this.filterDateTo = '';
+      this.renderBoard(content);
+    });
+
+    // 활성 태그 제거
+    content.querySelectorAll('[data-remove-cat]').forEach(tag => {
+      tag.addEventListener('click', () => {
+        this.filterCategories = this.filterCategories.filter(id => id !== tag.dataset.removeCat);
+        this.renderBoard(content);
+      });
+    });
+    content.querySelectorAll('[data-remove-user]').forEach(tag => {
+      tag.addEventListener('click', () => {
+        this.filterAssignees = this.filterAssignees.filter(id => id !== tag.dataset.removeUser);
+        this.renderBoard(content);
+      });
+    });
+    content.querySelectorAll('[data-remove-date]').forEach(tag => {
+      tag.addEventListener('click', () => {
+        this.filterDateFrom = '';
+        this.filterDateTo = '';
+        this.renderBoard(content);
+      });
+    });
+  },
+
+  // 분기 시작일 계산
+  _quarterStart(date) {
+    const q = Math.floor(date.getMonth() / 3);
+    return `${date.getFullYear()}-${String(q * 3 + 1).padStart(2, '0')}-01`;
+  },
+
+  // 분기 종료일 계산
+  _quarterEnd(date) {
+    const q = Math.floor(date.getMonth() / 3);
+    const endMonth = q * 3 + 3;
+    const lastDay = new Date(date.getFullYear(), endMonth, 0).getDate();
+    return `${date.getFullYear()}-${String(endMonth).padStart(2, '0')}-${lastDay}`;
   },
 
   renderCard(t) {
@@ -229,11 +432,14 @@ const TasksView = {
 
     const editIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
     const deleteIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    // 아카이브 아이콘 (박스에 아래 화살표)
+    const archiveIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 5v7a1 1 0 001 1h9a1 1 0 001-1V5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M6 9l2 2 2-2M8 7v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
     return `
       <div class="kanban-card" draggable="true" data-id="${t.id}">
         <div class="card-actions">
           <button class="card-action-btn card-edit" title="수정">${editIcon}</button>
+          <button class="card-action-btn card-archive" title="아카이브">${archiveIcon}</button>
           <button class="card-action-btn card-delete" title="삭제">${deleteIcon}</button>
         </div>
         ${t.category_name ? categoryTag(t.category_name) : ''}

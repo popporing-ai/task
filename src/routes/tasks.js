@@ -10,22 +10,29 @@ router.use(authMiddleware);
 // 업무 목록
 router.get('/', async (req, res, next) => {
   try {
-    // 마감일 초과된 업무 자동 차단 처리
+    // 마감일 초과된 업무 자동 차단 처리 (아카이브되지 않은 업무만)
     await db.query(`
       UPDATE tasks SET status = 'blocked', updated_at = NOW()
-      WHERE due_date < CURRENT_DATE AND status IN ('todo', 'in_progress')
+      WHERE due_date < CURRENT_DATE AND status IN ('todo', 'in_progress') AND archived = false
     `);
 
-    const { status, category_id, assignee_id } = req.query;
+    const { status, category_id, assignee_id, archived, date_from, date_to } = req.query;
     let where = [];
     let params = [];
     let idx = 1;
 
+    // archived 파라미터: 'true'이면 아카이브된 것만, 기본값은 false (아카이브 제외)
+    const showArchived = archived === 'true';
+    where.push(`t.archived = $${idx++}`);
+    params.push(showArchived);
+
     if (status) { where.push(`t.status = $${idx++}`); params.push(status); }
     if (category_id) { where.push(`t.category_id = $${idx++}`); params.push(category_id); }
     if (assignee_id) { where.push(`t.assignee_id = $${idx++}`); params.push(assignee_id); }
+    if (date_from) { where.push(`t.due_date >= $${idx++}`); params.push(date_from); }
+    if (date_to) { where.push(`t.due_date <= $${idx++}`); params.push(date_to); }
 
-    const whereClause = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
+    const whereClause = 'WHERE ' + where.join(' AND ');
 
     const { rows } = await db.query(`
       SELECT t.*, u.name AS assignee_name, u.avatar_bg, u.avatar_text,
@@ -141,6 +148,19 @@ router.patch('/:id/order', auditMiddleware('tasks'), async (req, res, next) => {
     );
 
     res.json({ data: rows[0] });
+  } catch (err) { next(err); }
+});
+
+// 아카이브 토글
+router.patch('/:id/archive', auditMiddleware('tasks'), async (req, res, next) => {
+  try {
+    const { archived } = req.body;
+    const { rows } = await db.query(
+      'UPDATE tasks SET archived=$1, updated_at=NOW() WHERE id=$2 RETURNING *',
+      [archived, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: '업무를 찾을 수 없습니다.' });
+    res.json({ data: rows[0], message: archived ? '아카이브되었습니다.' : '복원되었습니다.' });
   } catch (err) { next(err); }
 });
 
