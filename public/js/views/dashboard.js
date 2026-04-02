@@ -13,10 +13,16 @@ const DashboardView = {
     { id: 'assignee-chart',    title: '담당자별 업무',      size: 'half' },
   ],
 
+  // 차트 타입을 지원하는 위젯 목록
+  CHART_WIDGETS: ['status-chart', 'category-chart', 'assignee-chart', 'channel-stats'],
+
   STORAGE_KEY: 'dashboard_layout',
   editMode: false,
   dragSrcIdx: null,
   _data: null,
+  // 전역 날짜 필터
+  _dateFrom: '',
+  _dateTo: '',
 
   loadLayout() {
     try {
@@ -34,6 +40,14 @@ const DashboardView = {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(ids));
   },
 
+  // 위젯별 차트 타입 (localStorage)
+  getChartType(widgetId) {
+    return localStorage.getItem(`dashboard_chart_type_${widgetId}`) || 'bar';
+  },
+  setChartType(widgetId, type) {
+    localStorage.setItem(`dashboard_chart_type_${widgetId}`, type);
+  },
+
   async render() {
     const content = document.getElementById('content');
     const actions = document.getElementById('topbar-actions');
@@ -43,13 +57,21 @@ const DashboardView = {
     content.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>대시보드 불러오는 중...</span></div>';
 
     try {
-      const res = await API.get('/dashboard');
-      this._data = res.data;
+      await this._fetchData();
       this.editMode = false;
       this.renderGrid();
     } catch (e) {
       content.innerHTML = '<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">대시보드를 불러올 수 없습니다</div></div>';
     }
+  },
+
+  async _fetchData() {
+    let url = '/dashboard';
+    if (this._dateFrom && this._dateTo) {
+      url += `?date_from=${encodeURIComponent(this._dateFrom)}&date_to=${encodeURIComponent(this._dateTo)}`;
+    }
+    const res = await API.get(url);
+    this._data = res.data;
   },
 
   toggleEditMode() {
@@ -69,6 +91,20 @@ const DashboardView = {
 
     const widgetsHtml = layout.map((id, idx) => this.renderWidgetShell(id, idx, d)).join('');
 
+    // 전역 날짜 필터 바
+    const dateFilterHtml = `
+      <div class="dashboard-date-filter">
+        <span style="font-size:12px;color:var(--color-text-muted);white-space:nowrap;">기간:</span>
+        <input type="date" id="dash-date-from" value="${escHtml(this._dateFrom)}"
+          style="background:var(--color-bg-secondary);color:var(--color-text-primary);border:1px solid var(--color-border);border-radius:6px;padding:4px 8px;font-size:12px;outline:none;">
+        <span style="font-size:12px;color:var(--color-text-muted);">~</span>
+        <input type="date" id="dash-date-to" value="${escHtml(this._dateTo)}"
+          style="background:var(--color-bg-secondary);color:var(--color-text-primary);border:1px solid var(--color-border);border-radius:6px;padding:4px 8px;font-size:12px;outline:none;">
+        <button class="btn btn-primary" id="btn-dash-apply" style="padding:4px 12px;font-size:12px;">적용</button>
+        ${(this._dateFrom || this._dateTo) ? `<button class="btn btn-default" id="btn-dash-reset" style="padding:4px 10px;font-size:12px;">초기화</button>` : ''}
+      </div>
+    `;
+
     let addBtnHtml = '';
     if (this.editMode) {
       const hidden = this.WIDGETS.filter(w => !layout.includes(w.id));
@@ -84,7 +120,7 @@ const DashboardView = {
       `;
     }
 
-    content.innerHTML = `<div class="dashboard-grid" id="dashboard-grid">${widgetsHtml}</div>${addBtnHtml}`;
+    content.innerHTML = dateFilterHtml + `<div class="dashboard-grid" id="dashboard-grid">${widgetsHtml}</div>${addBtnHtml}`;
     this.bindEvents(layout);
   },
 
@@ -95,11 +131,26 @@ const DashboardView = {
     const editClass = this.editMode ? 'edit-mode' : '';
     const draggable = this.editMode ? 'draggable="true"' : '';
 
+    // 차트 타입 토글 (차트 위젯이고 편집 모드 아닐 때)
+    const isChartWidget = this.CHART_WIDGETS.includes(widgetId);
+    let chartToggleHtml = '';
+    if (isChartWidget && !this.editMode) {
+      const currentType = this.getChartType(widgetId);
+      chartToggleHtml = `
+        <div class="chart-type-toggle" data-widget="${widgetId}">
+          <button class="chart-type-btn ${currentType === 'bar' ? 'active' : ''}" data-type="bar" title="막대 차트">바</button>
+          <button class="chart-type-btn ${currentType === 'donut' ? 'active' : ''}" data-type="donut" title="도넛 차트">도넛</button>
+          <button class="chart-type-btn ${currentType === 'list' ? 'active' : ''}" data-type="list" title="목록">리스트</button>
+        </div>
+      `;
+    }
+
     return `
       <div class="dashboard-widget ${spanClass} ${editClass}" data-widget-id="${widgetId}" data-idx="${idx}" ${draggable}>
         <div class="widget-header">
           ${this.editMode ? '<div class="widget-drag-handle" title="드래그하여 이동">⠿</div>' : ''}
           <span class="widget-title">${widget.title}</span>
+          ${chartToggleHtml}
           ${this.editMode ? `<button class="widget-remove-btn" data-remove-widget="${widgetId}" title="제거">✕</button>` : ''}
         </div>
         <div class="widget-body">${this.renderWidgetContent(widgetId, d)}</div>
@@ -135,19 +186,141 @@ const DashboardView = {
         return this._renderMyTasks(d.myTasks || []);
 
       case 'channel-stats':
-        return this._renderChannelStats(d.channelStats || []);
+        return this._renderWithChartType('channel-stats', d);
 
       case 'status-chart':
-        return this._renderStatusChart(d);
+        return this._renderWithChartType('status-chart', d);
 
       case 'category-chart':
-        return this._renderCategoryChart(d);
+        return this._renderWithChartType('category-chart', d);
 
       case 'assignee-chart':
-        return this._renderAssigneeChart(d);
+        return this._renderWithChartType('assignee-chart', d);
 
       default: return '';
     }
+  },
+
+  // 차트 타입 분기 렌더
+  _renderWithChartType(widgetId, d) {
+    const type = this.getChartType(widgetId);
+    if (type === 'donut') return this._renderDonut(widgetId, d);
+    if (type === 'list') return this._renderList(widgetId, d);
+    return this._renderBar(widgetId, d);
+  },
+
+  // 위젯별 데이터 추출 → [{label, count, color}]
+  _getChartData(widgetId, d) {
+    const COLORS = ['#4F6EF7','#5DD984','#F07070','#9A9BA3','#F0A050','#C07EF7','#50C8F0','#F7C84F'];
+    if (widgetId === 'channel-stats') {
+      const stats = d.channelStats || [];
+      return stats.map((s, i) => ({ label: s.channel, count: parseInt(s.count), color: COLORS[i % COLORS.length] }));
+    }
+    if (widgetId === 'status-chart') {
+      const weekTasks = d.weekTasks || [];
+      const all = [...weekTasks, ...(d.myTasks || [])];
+      const counts = { todo: 0, in_progress: 0, done: 0, blocked: 0 };
+      all.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
+      return [
+        { label: '할 일',   count: counts.todo,        color: 'var(--color-plan-text)' },
+        { label: '진행 중', count: counts.in_progress,  color: 'var(--color-primary)' },
+        { label: '완료',    count: counts.done,         color: 'var(--color-done-text)' },
+        { label: '미진행',  count: counts.blocked,      color: 'var(--color-warn-text)' },
+      ].filter(e => e.count > 0);
+    }
+    if (widgetId === 'category-chart') {
+      const tasks = d.weekTasks || [];
+      const catMap = {};
+      tasks.forEach(t => { const n = t.category_name || '미분류'; catMap[n] = (catMap[n] || 0) + 1; });
+      return Object.entries(catMap).sort((a, b) => b[1] - a[1])
+        .map(([label, count], i) => ({ label, count, color: COLORS[i % COLORS.length] }));
+    }
+    if (widgetId === 'assignee-chart') {
+      const tasks = d.weekTasks || [];
+      const userMap = {};
+      tasks.forEach(t => { const n = t.assignee_name || '미배정'; userMap[n] = (userMap[n] || 0) + 1; });
+      return Object.entries(userMap).sort((a, b) => b[1] - a[1])
+        .map(([label, count], i) => ({ label, count, color: COLORS[i % COLORS.length] }));
+    }
+    return [];
+  },
+
+  // 막대 차트 (기존 스타일 유지)
+  _renderBar(widgetId, d) {
+    const entries = this._getChartData(widgetId, d);
+    if (!entries.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
+    const max = Math.max(...entries.map(e => e.count), 1);
+    // status-chart는 기존 분할 바 스타일 사용
+    if (widgetId === 'status-chart') return this._renderStatusChartBar(d);
+    return entries.map(({ label, count, color }) => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="width:72px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(label)}</span>
+        <div style="flex:1;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
+          <div style="height:100%;background:${color};width:${Math.round(count/max*100)}%;border-radius:4px;transition:width 0.3s"></div>
+        </div>
+        <span style="font-size:12px;font-weight:600;min-width:24px;text-align:right;">${count}</span>
+      </div>`).join('');
+  },
+
+  // 도넛 차트 (SVG)
+  _renderDonut(widgetId, d) {
+    const entries = this._getChartData(widgetId, d);
+    if (!entries.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
+    const total = entries.reduce((s, e) => s + e.count, 0);
+    const R = 15.9155; // circumference ≈ 100
+    const circ = 2 * Math.PI * R; // ≈ 100
+
+    let offset = 0;
+    const segments = entries.map(({ label, count, color }) => {
+      const pct = (count / total) * circ;
+      const seg = `<circle cx="18" cy="18" r="${R}" fill="none"
+        stroke="${color}" stroke-width="3.5"
+        stroke-dasharray="${pct.toFixed(2)} ${(circ - pct).toFixed(2)}"
+        stroke-dashoffset="${(circ - offset).toFixed(2)}"
+        transform="rotate(-90 18 18)"
+        style="transition:stroke-dasharray 0.4s"/>`;
+      offset += pct;
+      return seg;
+    }).join('');
+
+    const legendHtml = entries.map(({ label, count, color }) => `
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:3px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+        <span style="color:var(--color-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;">${escHtml(label)}</span>
+        <span style="font-weight:600;margin-left:auto;">${count}</span>
+      </div>`).join('');
+
+    return `
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="donut-chart" style="position:relative;flex-shrink:0;">
+          <svg viewBox="0 0 36 36" class="donut-svg" style="width:90px;height:90px;">
+            <circle cx="18" cy="18" r="${R}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3.5"/>
+            ${segments}
+          </svg>
+          <div class="donut-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+            <span style="font-size:16px;font-weight:700;">${total}</span>
+            <span style="font-size:10px;color:var(--color-text-muted);">총 건</span>
+          </div>
+        </div>
+        <div style="flex:1;overflow:hidden;">${legendHtml}</div>
+      </div>`;
+  },
+
+  // 리스트 차트
+  _renderList(widgetId, d) {
+    const entries = this._getChartData(widgetId, d);
+    if (!entries.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
+    const total = entries.reduce((s, e) => s + e.count, 0);
+    return `<ol style="list-style:none;padding:0;margin:0;">` +
+      entries.map(({ label, count, color }, i) => `
+        <li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--color-border);">
+          <span style="font-size:11px;color:var(--color-text-hint);min-width:16px;">${i + 1}</span>
+          <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+          <span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(label)}</span>
+          <span style="font-size:12px;font-weight:600;">${count}</span>
+          <span style="font-size:11px;color:var(--color-text-muted);">${total > 0 ? Math.round(count/total*100) : 0}%</span>
+        </li>`).join('') +
+      `</ol>`;
   },
 
   _renderTaskTable(tasks, emptyTitle, emptyDesc) {
@@ -164,21 +337,8 @@ const DashboardView = {
       ${tasks.map(t => `<tr><td>${escHtml(t.title)}</td><td>${t.due_date ? t.due_date.slice(0,10) : '-'}</td><td>${App.statusBadge(t.status)}</td></tr>`).join('')}</tbody></table>`;
   },
 
-  _renderChannelStats(stats) {
-    if (!stats.length) return '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📊</span><div class="empty-state-title">발행 데이터가 없습니다</div></div>';
-    const max = Math.max(...stats.map(s => parseInt(s.count)), 1);
-    return stats.map(ch => `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <span style="width:28px;font-weight:600;font-size:12px;">${ch.channel}</span>
-        <span style="font-size:12px;color:var(--color-text-muted);width:32px;">${ch.count}건</span>
-        <div style="flex:1;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
-          <div style="height:100%;background:var(--color-primary);width:${Math.round(ch.count/max*100)}%;border-radius:4px;box-shadow:0 0 6px rgba(79,110,247,0.4);transition:width 0.3s"></div>
-        </div>
-      </div>`).join('');
-  },
-
-  // 업무 상태 분포 차트
-  _renderStatusChart(d) {
+  // 기존 status-chart 막대 스타일 (분할 바)
+  _renderStatusChartBar(d) {
     const weekTasks = d.weekTasks || [];
     const all = [...weekTasks, ...(d.myTasks || [])];
     const counts = { todo: 0, in_progress: 0, done: 0, blocked: 0 };
@@ -206,52 +366,64 @@ const DashboardView = {
       </div>`;
   },
 
-  // 분류별 업무 현황 차트
-  _renderCategoryChart(d) {
-    const tasks = d.weekTasks || [];
-    const catMap = {};
-    tasks.forEach(t => {
-      const name = t.category_name || '미분류';
-      catMap[name] = (catMap[name] || 0) + 1;
-    });
-    const entries = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
-    if (!entries.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">분류별 데이터가 없습니다</div></div>';
-    const max = Math.max(...entries.map(e => e[1]), 1);
-
-    return entries.map(([name, count]) => `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-        <span style="width:80px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(name)}</span>
-        <div style="flex:1;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
-          <div style="height:100%;background:var(--color-primary-muted);width:${Math.round(count/max*100)}%;border-radius:4px;transition:width 0.3s"></div>
-        </div>
-        <span style="font-size:12px;font-weight:600;min-width:24px;text-align:right;">${count}</span>
-      </div>`).join('');
-  },
-
-  // 담당자별 업무 차트
-  _renderAssigneeChart(d) {
-    const tasks = d.weekTasks || [];
-    const userMap = {};
-    tasks.forEach(t => {
-      const name = t.assignee_name || '미배정';
-      userMap[name] = (userMap[name] || 0) + 1;
-    });
-    const entries = Object.entries(userMap).sort((a, b) => b[1] - a[1]);
-    if (!entries.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">담당자별 데이터가 없습니다</div></div>';
-    const max = Math.max(...entries.map(e => e[1]), 1);
-
-    return entries.map(([name, count]) => `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-        <span style="width:60px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(name)}</span>
-        <div style="flex:1;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
-          <div style="height:100%;background:#5DD984;width:${Math.round(count/max*100)}%;border-radius:4px;transition:width 0.3s"></div>
-        </div>
-        <span style="font-size:12px;font-weight:600;min-width:24px;text-align:right;">${count}</span>
-      </div>`).join('');
-  },
-
   bindEvents(layout) {
+    const content = document.getElementById('content');
     const grid = document.getElementById('dashboard-grid');
+
+    // 날짜 필터 이벤트
+    const applyBtn = document.getElementById('btn-dash-apply');
+    if (applyBtn) {
+      applyBtn.addEventListener('click', async () => {
+        this._dateFrom = document.getElementById('dash-date-from').value;
+        this._dateTo   = document.getElementById('dash-date-to').value;
+        applyBtn.textContent = '불러오는 중...';
+        applyBtn.disabled = true;
+        try {
+          await this._fetchData();
+          this.renderGrid();
+        } catch {
+          App.toast('데이터를 불러올 수 없습니다.', 'error');
+          applyBtn.textContent = '적용';
+          applyBtn.disabled = false;
+        }
+      });
+    }
+    const resetBtn = document.getElementById('btn-dash-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', async () => {
+        this._dateFrom = '';
+        this._dateTo = '';
+        try {
+          await this._fetchData();
+          this.renderGrid();
+        } catch {
+          App.toast('데이터를 불러올 수 없습니다.', 'error');
+        }
+      });
+    }
+
+    // 차트 타입 토글 버튼
+    if (grid) {
+      grid.querySelectorAll('.chart-type-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const toggle = btn.closest('.chart-type-toggle');
+          const widgetId = toggle?.dataset.widget;
+          const type = btn.dataset.type;
+          if (!widgetId || !type) return;
+          this.setChartType(widgetId, type);
+          // 해당 위젯 body만 업데이트
+          const widgetEl = grid.querySelector(`[data-widget-id="${widgetId}"]`);
+          if (widgetEl) {
+            widgetEl.querySelector('.widget-body').innerHTML = this.renderWidgetContent(widgetId, this._data);
+            widgetEl.querySelectorAll('.chart-type-btn').forEach(b => {
+              b.classList.toggle('active', b.dataset.type === type);
+            });
+          }
+        });
+      });
+    }
+
     if (!grid) return;
 
     if (this.editMode) {

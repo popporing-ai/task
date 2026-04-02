@@ -3,6 +3,8 @@ const TimelineView = {
   items: [],
   year: new Date().getFullYear(),
   filterCategory: null,
+  sortBy: 'sort_order', // 'sort_order' | 'category' | 'start_month' | 'title'
+  _dragSrcId: null,
 
   async render() {
     const content = document.getElementById('content');
@@ -29,6 +31,22 @@ const TimelineView = {
     } catch { this.items = []; }
   },
 
+  // 정렬 기준에 따라 아이템 배열 반환
+  getSortedItems(items) {
+    const arr = [...items];
+    if (this.sortBy === 'category') {
+      arr.sort((a, b) => (a.category_name || '').localeCompare(b.category_name || '', 'ko'));
+    } else if (this.sortBy === 'start_month') {
+      arr.sort((a, b) => new Date(a.start_month) - new Date(b.start_month));
+    } else if (this.sortBy === 'title') {
+      arr.sort((a, b) => a.title.localeCompare(b.title, 'ko'));
+    } else {
+      // sort_order 기본: 서버에서 이미 정렬되어 있음
+      arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    }
+    return arr;
+  },
+
   renderTimeline(content) {
     const months = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
     const currentMonth = new Date().getMonth(); // 0-indexed
@@ -39,9 +57,12 @@ const TimelineView = {
       ? this.items.filter(i => i.category_id == this.filterCategory)
       : this.items;
 
-    // 카테고리별 그룹
+    // 정렬
+    const sortedItems = this.getSortedItems(filtered);
+
+    // 카테고리별 그룹 (정렬된 순서 유지를 위해 Map 사용)
     const groups = {};
-    for (const item of filtered) {
+    for (const item of sortedItems) {
       const catName = item.category_name || '미분류';
       if (!groups[catName]) groups[catName] = { color: item.category_color, items: [] };
       groups[catName].items.push(item);
@@ -58,6 +79,14 @@ const TimelineView = {
         <button class="filter-btn" id="btn-prev-year">◀</button>
         <span style="font-size:14px;font-weight:600;padding:0 8px;color:var(--color-text-primary)">${this.year}년</span>
         <button class="filter-btn" id="btn-next-year">▶</button>
+        <div class="filter-sep"></div>
+        <span style="font-size:12px;color:var(--color-text-muted);padding:0 4px 0 2px;">정렬:</span>
+        <select id="timeline-sort-select" style="background:var(--color-bg-secondary);color:var(--color-text-primary);border:1px solid var(--color-border);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;outline:none;">
+          <option value="sort_order" ${this.sortBy === 'sort_order' ? 'selected' : ''}>직접 정렬</option>
+          <option value="category"   ${this.sortBy === 'category'   ? 'selected' : ''}>분류</option>
+          <option value="start_month" ${this.sortBy === 'start_month' ? 'selected' : ''}>시작월</option>
+          <option value="title"      ${this.sortBy === 'title'      ? 'selected' : ''}>이름</option>
+        </select>
       </div>
     `;
 
@@ -73,41 +102,50 @@ const TimelineView = {
       // 타임라인 그리드
       const headerRow = `
         <div class="timeline-header">분류 / 업무</div>
-        ${months.map((m, i) =>
-          `<div class="timeline-header">${m}</div>`
-        ).join('')}
+        ${months.map(() => `<div class="timeline-header"></div>`).join('')}
+      `;
+      // 월 헤더 텍스트 복원
+      const headerRowFixed = `
+        <div class="timeline-header">분류 / 업무</div>
+        ${months.map((m) => `<div class="timeline-header">${m}</div>`).join('')}
       `;
 
       let rowsHtml = '';
-      for (const [catName, group] of Object.entries(groups)) {
-        for (const item of group.items) {
-          const startM = new Date(item.start_month).getMonth();
-          const endM = new Date(item.end_month).getMonth();
+      // 정렬된 flat 순서로 rows 생성 (드래그용 data-item-id 보존)
+      for (const item of sortedItems) {
+        const catName = item.category_name || '미분류';
+        const group = groups[catName];
+        const startM = new Date(item.start_month).getMonth();
+        const endM = new Date(item.end_month).getMonth();
+        const isDraggable = this.sortBy === 'sort_order';
 
+        rowsHtml += `
+          <div class="timeline-row-label${isDraggable ? ' tl-draggable' : ''}"
+               ${isDraggable ? 'draggable="true"' : ''}
+               data-item-id="${item.id}"
+               data-sort="${item.sort_order ?? 0}">
+            ${isDraggable ? `<span class="tl-drag-handle" title="드래그하여 순서 변경">⠿</span>` : ''}
+            <span class="category-dot" style="background:${escHtml(group.color || '#888')}"></span>
+            <span>${escHtml(item.title)}</span>
+          </div>
+        `;
+
+        for (let m = 0; m < 12; m++) {
+          const isCurrent = (this.year === currentYear && m === currentMonth);
+          const inRange = m >= startM && m <= endM;
+          const statusLabel = { planned: '예정', in_progress: '진행 중', done: '완료', tbd: 'TBD' }[item.status] || item.status;
+          const tooltip = inRange ? `title="${escHtml(item.title)} (${statusLabel})"` : '';
           rowsHtml += `
-            <div class="timeline-row-label">
-              <span class="category-dot" style="background:${escHtml(group.color)}"></span>
-              <span>${escHtml(item.title)}</span>
+            <div class="timeline-cell ${isCurrent ? 'current-month' : ''}"
+                 data-item-id="${item.id}" data-month="${m}" ${tooltip}>
+              ${inRange ? `<div class="timeline-bar ${item.status}"></div>` : ''}
             </div>
           `;
-
-          for (let m = 0; m < 12; m++) {
-            const isCurrent = (this.year === currentYear && m === currentMonth);
-            const inRange = m >= startM && m <= endM;
-            const statusLabel = { planned: '예정', in_progress: '진행 중', done: '완료', tbd: 'TBD' }[item.status] || item.status;
-            const tooltip = inRange ? `title="${escHtml(item.title)} (${statusLabel})"` : '';
-            rowsHtml += `
-              <div class="timeline-cell ${isCurrent ? 'current-month' : ''}"
-                   data-item-id="${item.id}" data-month="${m}" ${tooltip}>
-                ${inRange ? `<div class="timeline-bar ${item.status}"></div>` : ''}
-              </div>
-            `;
-          }
         }
       }
 
       content.innerHTML = filterHtml + `
-        <div class="timeline-grid">${headerRow}${rowsHtml}</div>
+        <div class="timeline-grid" id="timeline-grid">${headerRowFixed}${rowsHtml}</div>
       `;
     }
 
@@ -127,6 +165,12 @@ const TimelineView = {
       this.render();
     });
 
+    // 정렬 드롭다운
+    document.getElementById('timeline-sort-select')?.addEventListener('change', (e) => {
+      this.sortBy = e.target.value;
+      this.renderTimeline(content);
+    });
+
     // 셀 더블클릭 → 수정
     content.querySelectorAll('.timeline-cell[data-item-id]').forEach(cell => {
       cell.addEventListener('dblclick', () => {
@@ -135,12 +179,84 @@ const TimelineView = {
       });
     });
 
-    // 행 라벨 클릭 → 수정
-    content.querySelectorAll('.timeline-row-label').forEach((label, idx) => {
+    // 행 라벨 클릭 → 수정 (드래그 핸들 제외)
+    content.querySelectorAll('.timeline-row-label').forEach(label => {
       label.style.cursor = 'pointer';
-      label.addEventListener('click', () => {
-        const allItems = Object.values(groups).flatMap(g => g.items);
-        if (allItems[idx]) this.openForm(allItems[idx]);
+      label.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tl-drag-handle')) return;
+        const itemId = label.dataset.itemId;
+        const item = this.items.find(i => i.id == itemId);
+        if (item) this.openForm(item);
+      });
+    });
+
+    // 드래그 앤 드롭 (sort_order 모드일 때만)
+    if (this.sortBy === 'sort_order') {
+      this._bindDragReorder(content, sortedItems);
+    }
+  },
+
+  _bindDragReorder(content, sortedItems) {
+    const labels = content.querySelectorAll('.timeline-row-label.tl-draggable');
+
+    labels.forEach(label => {
+      label.addEventListener('dragstart', (e) => {
+        this._dragSrcId = parseInt(label.dataset.itemId);
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => label.classList.add('tl-dragging'), 0);
+      });
+
+      label.addEventListener('dragend', () => {
+        label.classList.remove('tl-dragging');
+        content.querySelectorAll('.tl-drag-over').forEach(el => el.classList.remove('tl-drag-over'));
+      });
+
+      label.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        content.querySelectorAll('.tl-drag-over').forEach(el => el.classList.remove('tl-drag-over'));
+        if (parseInt(label.dataset.itemId) !== this._dragSrcId) {
+          label.classList.add('tl-drag-over');
+        }
+      });
+
+      label.addEventListener('dragleave', () => {
+        label.classList.remove('tl-drag-over');
+      });
+
+      label.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        label.classList.remove('tl-drag-over');
+        const srcId = this._dragSrcId;
+        const tgtId = parseInt(label.dataset.itemId);
+        if (!srcId || srcId === tgtId) return;
+
+        // sortedItems 배열에서 위치 교환
+        const srcIdx = sortedItems.findIndex(i => i.id === srcId);
+        const tgtIdx = sortedItems.findIndex(i => i.id === tgtId);
+        if (srcIdx === -1 || tgtIdx === -1) return;
+
+        // 드래그한 항목을 목표 위치에 삽입
+        const arr = [...sortedItems];
+        const [moved] = arr.splice(srcIdx, 1);
+        arr.splice(tgtIdx, 0, moved);
+
+        // sort_order 재계산
+        const reorderPayload = arr.map((item, idx) => ({ id: item.id, sort_order: idx }));
+
+        // items 배열의 sort_order 업데이트
+        reorderPayload.forEach(({ id, sort_order }) => {
+          const it = this.items.find(i => i.id === id);
+          if (it) it.sort_order = sort_order;
+        });
+
+        try {
+          await API.patch('/timeline/reorder', { items: reorderPayload });
+        } catch (err) {
+          App.toast('순서 저장에 실패했습니다.', 'error');
+        }
+
+        this.renderTimeline(content);
       });
     });
   },

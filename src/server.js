@@ -100,6 +100,29 @@ app.delete('/task/api/products/:id', authMiddleware, auditMiddleware('products')
 
 app.get('/task/api/dashboard', authMiddleware, async (req, res, next) => {
   try {
+    // 날짜 범위: 커스텀 파라미터 또는 기본값(이번 주 / 이번 달)
+    const { date_from, date_to } = req.query;
+    // YYYY-MM-DD 형식 검증 (SQL 인젝션 방지)
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const hasCustomRange = date_from && date_to &&
+      dateRe.test(date_from) && dateRe.test(date_to);
+
+    // 업무 날짜 범위
+    const taskDateFrom = hasCustomRange
+      ? `'${date_from}'::date`
+      : `date_trunc('week', CURRENT_DATE)`;
+    const taskDateTo = hasCustomRange
+      ? `'${date_to}'::date + INTERVAL '1 day'`
+      : `date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'`;
+
+    // 콘텐츠 날짜 범위
+    const contentDateFrom = hasCustomRange
+      ? `'${date_from}'::date`
+      : `date_trunc('month', CURRENT_DATE)`;
+    const contentDateTo = hasCustomRange
+      ? `'${date_to}'::date + INTERVAL '1 day'`
+      : `date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'`;
+
     // 이번 주 업무 수
     const weekTasks = await db.query(`
       SELECT
@@ -107,18 +130,18 @@ app.get('/task/api/dashboard', authMiddleware, async (req, res, next) => {
         COUNT(*) FILTER (WHERE status != 'done') AS pending_count,
         COUNT(*) AS total
       FROM tasks
-      WHERE due_date >= date_trunc('week', CURRENT_DATE)
-        AND due_date < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'
+      WHERE due_date >= ${taskDateFrom}
+        AND due_date < ${taskDateTo}
     `);
 
-    // 콘텐츠 발행 현황 (이번 달)
+    // 콘텐츠 발행 현황
     const contentStats = await db.query(`
       SELECT
         COUNT(*) FILTER (WHERE status = 'done') AS done_count,
         COUNT(*) AS total
       FROM content_items
-      WHERE publish_date >= date_trunc('month', CURRENT_DATE)
-        AND publish_date < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+      WHERE publish_date >= ${contentDateFrom}
+        AND publish_date < ${contentDateTo}
     `);
 
     // 진행 중 카테고리 수
@@ -132,7 +155,7 @@ app.get('/task/api/dashboard', authMiddleware, async (req, res, next) => {
       SELECT COUNT(*) AS count FROM tasks WHERE status = 'blocked'
     `);
 
-    // 이번 주 주요 업무
+    // 기간 내 주요 업무
     const weekTaskList = await db.query(`
       SELECT t.id, t.title, t.status, t.due_date,
              u.name AS assignee_name, u.avatar_bg, u.avatar_text,
@@ -140,31 +163,31 @@ app.get('/task/api/dashboard', authMiddleware, async (req, res, next) => {
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assignee_id
       LEFT JOIN task_categories tc ON tc.id = t.category_id
-      WHERE t.due_date >= date_trunc('week', CURRENT_DATE)
-        AND t.due_date < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'
+      WHERE t.due_date >= ${taskDateFrom}
+        AND t.due_date < ${taskDateTo}
       ORDER BY t.due_date
       LIMIT 10
     `);
 
-    // 채널별 발행 현황 (이번 달)
+    // 채널별 발행 현황
     const channelStats = await db.query(`
       SELECT channel, COUNT(*) AS count
       FROM content_items
-      WHERE publish_date >= date_trunc('month', CURRENT_DATE)
-        AND publish_date < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+      WHERE publish_date >= ${contentDateFrom}
+        AND publish_date < ${contentDateTo}
       GROUP BY channel
       ORDER BY count DESC
     `);
 
-    // 나의 이번 주 업무
+    // 나의 기간 내 업무
     const myTasks = await db.query(`
       SELECT t.id, t.title, t.status, t.due_date,
              tc.name AS category_name
       FROM tasks t
       LEFT JOIN task_categories tc ON tc.id = t.category_id
       WHERE t.assignee_id = $1
-        AND t.due_date >= date_trunc('week', CURRENT_DATE)
-        AND t.due_date < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'
+        AND t.due_date >= ${taskDateFrom}
+        AND t.due_date < ${taskDateTo}
       ORDER BY t.due_date
       LIMIT 5
     `, [req.user.id]);

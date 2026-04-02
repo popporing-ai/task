@@ -33,7 +33,7 @@ router.get('/', async (req, res, next) => {
       LEFT JOIN task_categories tc ON tc.id = t.category_id
       LEFT JOIN users u ON u.id = t.created_by
       ${whereClause}
-      ORDER BY t.category_id, t.start_month
+      ORDER BY t.sort_order, t.category_id, t.start_month
     `, params);
 
     res.json({ data: rows });
@@ -92,6 +92,23 @@ router.delete('/:id', auditMiddleware('timeline_items'), async (req, res, next) 
     }
 
     res.json({ data: rows[0], message: '항목이 삭제되었습니다.' });
+  } catch (err) { next(err); }
+});
+
+// 타임라인 순서 일괄 변경
+router.patch('/reorder', async (req, res, next) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: '정렬 데이터가 필요합니다.' });
+    }
+
+    // 각 항목의 sort_order 업데이트
+    await Promise.all(items.map(({ id, sort_order }) =>
+      db.query('UPDATE timeline_items SET sort_order=$1, updated_at=NOW() WHERE id=$2', [sort_order, id])
+    ));
+
+    res.json({ message: '순서가 저장되었습니다.' });
   } catch (err) { next(err); }
 });
 

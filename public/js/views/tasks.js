@@ -142,6 +142,33 @@ const TasksView = {
 
     const hasFilters = this.filterCategories.length || this.filterAssignees.length || this.filterDateFrom || this.filterDateTo;
 
+    // 빠른 필터 카테고리 버튼 (localStorage 기반)
+    const quickCatIds = this._getQuickFilterButtons();
+    const quickCatBtns = quickCatIds.map(id => {
+      const cat = App.categories.find(c => String(c.id) === String(id));
+      if (!cat) return '';
+      const isActive = this.filterCategories.includes(String(cat.id));
+      return `<button class="filter-btn ${isActive ? 'active' : ''}" data-quick-cat="${cat.id}">${escHtml(cat.name)}</button>`;
+    }).join('');
+
+    // 빠른 필터 기어 드롭다운
+    const gearDropdownHtml = `
+      <div style="position:relative;display:inline-block;">
+        <button class="filter-btn" id="quick-filter-gear-btn" title="빠른 필터 설정" style="padding:4px 8px;">⚙</button>
+        <div id="quick-filter-gear-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:90;background:var(--color-bg-primary);border-radius:10px;padding:12px;min-width:200px;box-shadow:var(--shadow-lg);border:0.5px solid var(--color-border);">
+          <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">빠른 필터 버튼</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            ${App.categories.map(c => `
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 6px;border-radius:6px;color:var(--color-text-primary);">
+                <input type="checkbox" data-gear-cat="${c.id}" ${quickCatIds.includes(String(c.id)) ? 'checked' : ''} style="width:auto;height:auto;margin:0;accent-color:var(--color-primary);">
+                ${escHtml(c.name)}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
     // 필터 바
     const filterHtml = `
       <div class="filter-bar" style="position:relative;">
@@ -152,6 +179,8 @@ const TasksView = {
         </div>
         ${sortDropdownHtml}
         <button class="filter-btn ${this.showArchived ? 'active' : ''}" id="archive-toggle-btn" style="margin-left:4px;">아카이브 보기</button>
+        ${quickCatBtns}
+        ${gearDropdownHtml}
         ${activeTags}
       </div>
     `;
@@ -405,6 +434,52 @@ const TasksView = {
       this.renderBoard(content);
     });
 
+    // 빠른 필터 카테고리 버튼 클릭
+    content.querySelectorAll('[data-quick-cat]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.quickCat;
+        if (this.filterCategories.includes(id)) {
+          this.filterCategories = this.filterCategories.filter(c => c !== id);
+        } else {
+          this.filterCategories = [...this.filterCategories, id];
+        }
+        this.renderBoard(content);
+      });
+    });
+
+    // 기어 드롭다운 토글
+    const gearBtn = content.querySelector('#quick-filter-gear-btn');
+    const gearDropdown = content.querySelector('#quick-filter-gear-dropdown');
+    gearBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (dropdown) dropdown.style.display = 'none';
+      if (sortDropdown) sortDropdown.style.display = 'none';
+      const isOpen = gearDropdown.style.display !== 'none';
+      gearDropdown.style.display = isOpen ? 'none' : 'block';
+    });
+
+    // 기어 체크박스 변경 → 저장 + 리렌더
+    content.querySelectorAll('[data-gear-cat]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const current = this._getQuickFilterButtons();
+        const id = cb.dataset.gearCat;
+        const updated = cb.checked ? [...new Set([...current, id])] : current.filter(x => x !== id);
+        this._setQuickFilterButtons(updated);
+        this.renderBoard(content);
+      });
+    });
+
+    // 기어 드롭다운 외부 클릭 닫기 포함 document listener 확장
+    const existingClose = content._closeDropdownsHandler;
+    if (existingClose) document.removeEventListener('click', existingClose);
+    const closeAll = (e) => {
+      if (gearDropdown && !gearDropdown.contains(e.target) && e.target !== gearBtn) {
+        gearDropdown.style.display = 'none';
+      }
+    };
+    document.addEventListener('click', closeAll);
+    content._closeDropdownsHandler = closeAll;
+
     // 활성 태그 제거
     content.querySelectorAll('[data-remove-cat]').forEach(tag => {
       tag.addEventListener('click', () => {
@@ -425,6 +500,21 @@ const TasksView = {
         this.renderBoard(content);
       });
     });
+  },
+
+  // 빠른 필터 버튼 localStorage 읽기
+  _getQuickFilterButtons() {
+    try {
+      const saved = localStorage.getItem('task_filter_buttons');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  },
+
+  // 빠른 필터 버튼 localStorage 저장
+  _setQuickFilterButtons(ids) {
+    try {
+      localStorage.setItem('task_filter_buttons', JSON.stringify(ids));
+    } catch {}
   },
 
   // 분기 시작일 계산

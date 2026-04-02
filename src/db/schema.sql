@@ -57,10 +57,20 @@ CREATE TABLE IF NOT EXISTS timeline_items (
   end_month   DATE NOT NULL,
   status      VARCHAR(20) NOT NULL DEFAULT 'planned'
               CHECK (status IN ('done','in_progress','planned','tbd')),
+  sort_order  INTEGER DEFAULT 0,
   created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
+-- sort_order 컬럼 마이그레이션 (기존 DB 대응)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='timeline_items' AND column_name='sort_order'
+  ) THEN
+    ALTER TABLE timeline_items ADD COLUMN sort_order INTEGER DEFAULT 0;
+  END IF;
+END $$;
 
 -- 6. products (제품 목록)
 CREATE TABLE IF NOT EXISTS products (

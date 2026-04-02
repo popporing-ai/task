@@ -125,4 +125,67 @@ router.get('/export.csv', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// 허용된 테이블 목록 (SQL injection 방지)
+const ALLOWED_TABLES = ['tasks', 'content_items', 'timeline_items', 'rrr_items'];
+
+// 레코드 복구
+router.post('/:id/restore', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // audit log 조회
+    const logResult = await db.query('SELECT * FROM audit_logs WHERE id = $1', [id]);
+    if (logResult.rows.length === 0) {
+      return res.status(404).json({ error: '이력을 찾을 수 없습니다.' });
+    }
+    const log = logResult.rows[0];
+    const { action, table_name, record_id, old_value } = log;
+
+    // 테이블명 검증
+    if (!ALLOWED_TABLES.includes(table_name)) {
+      return res.status(400).json({ error: `복구가 지원되지 않는 테이블입니다: ${table_name}` });
+    }
+
+    if (action === 'DELETE') {
+      // old_value를 해당 테이블에 재삽입
+      if (!old_value) {
+        return res.status(400).json({ error: '복구할 데이터가 없습니다.' });
+      }
+      const data = typeof old_value === 'string' ? JSON.parse(old_value) : old_value;
+      const keys = Object.keys(data).filter(k => k !== 'id');
+      const cols = ['id', ...keys].join(', ');
+      const vals = [record_id, ...keys.map(k => data[k])];
+      const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+      await db.query(
+        `INSERT INTO ${table_name} (${cols}) VALUES (${placeholders}) ON CONFLICT (id) DO NOTHING`,
+        vals
+      );
+      return res.json({ message: '삭제된 레코드가 복구되었습니다.' });
+
+    } else if (action === 'UPDATE') {
+      // old_value로 레코드 되돌리기
+      if (!old_value) {
+        return res.status(400).json({ error: '복구할 이전 데이터가 없습니다.' });
+      }
+      const data = typeof old_value === 'string' ? JSON.parse(old_value) : old_value;
+      const keys = Object.keys(data).filter(k => k !== 'id');
+      const sets = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+      const vals = [...keys.map(k => data[k]), record_id];
+      await db.query(
+        `UPDATE ${table_name} SET ${sets} WHERE id = $${vals.length}`,
+        vals
+      );
+      return res.json({ message: '레코드가 이전 상태로 복구되었습니다.' });
+
+    } else if (action === 'CREATE') {
+      // 생성 취소: 레코드 삭제
+      await db.query(`DELETE FROM ${table_name} WHERE id = $1`, [record_id]);
+      return res.json({ message: '생성된 레코드가 삭제(되돌리기)되었습니다.' });
+
+    } else {
+      return res.status(400).json({ error: `지원하지 않는 작업 유형입니다: ${action}` });
+    }
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

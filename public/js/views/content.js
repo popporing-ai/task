@@ -33,8 +33,22 @@ const ContentView = {
     } catch { this.items = []; }
   },
 
+  _getVisibleChannels() {
+    try {
+      const saved = localStorage.getItem('content_filter_channels');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    // 기본: 전체 채널 표시
+    return ['YT','BL','LI','IG','FB','EM','HM'];
+  },
+
+  _setVisibleChannels(chs) {
+    try { localStorage.setItem('content_filter_channels', JSON.stringify(chs)); } catch {}
+  },
+
   renderTable(content) {
     const channels = ['YT','BL','LI','IG','FB','EM','HM'];
+    const visibleChannels = this._getVisibleChannels();
 
     const assigneeOptions = `
       <option value="">전체 담당자</option>
@@ -43,13 +57,32 @@ const ContentView = {
       ).join('')}
     `;
 
+    // 채널 기어 드롭다운
+    const chGearDropdown = `
+      <div style="position:relative;display:inline-block;">
+        <button class="filter-btn" id="ch-gear-btn" title="채널 표시 설정" style="padding:4px 8px;">⚙</button>
+        <div id="ch-gear-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:90;background:var(--color-bg-primary);border-radius:10px;padding:12px;min-width:160px;box-shadow:var(--shadow-lg);border:0.5px solid var(--color-border);">
+          <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">채널 버튼 표시</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            ${channels.map(ch => `
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 6px;border-radius:6px;color:var(--color-text-primary);">
+                <input type="checkbox" data-gear-ch="${ch}" ${visibleChannels.includes(ch) ? 'checked' : ''} style="width:auto;height:auto;margin:0;accent-color:var(--color-primary);">
+                ${ch}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
     // 필터 바 — CSS 클래스 사용, 인라인 light 색상 제거
     const filterHtml = `
       <div class="filter-bar">
         <button class="filter-btn ${!this.filterChannel ? 'active' : ''}" data-ch="">전체</button>
-        ${channels.map(ch =>
+        ${visibleChannels.map(ch =>
           `<button class="filter-btn ${this.filterChannel === ch ? 'active' : ''}" data-ch="${ch}">${ch}</button>`
         ).join('')}
+        ${chGearDropdown}
         <div class="filter-sep"></div>
         <select id="f-assignee">${assigneeOptions}</select>
         <div class="filter-sep"></div>
@@ -109,6 +142,30 @@ const ContentView = {
     `;
 
     content.innerHTML = filterHtml + tableHtml;
+
+    // 채널 기어 드롭다운 토글
+    const chGearBtn = content.querySelector('#ch-gear-btn');
+    const chGearDropdown = content.querySelector('#ch-gear-dropdown');
+    chGearBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = chGearDropdown.style.display !== 'none';
+      chGearDropdown.style.display = isOpen ? 'none' : 'block';
+    });
+    document.addEventListener('click', function closeChGear(e) {
+      if (chGearDropdown && !chGearDropdown.contains(e.target) && e.target !== chGearBtn) {
+        chGearDropdown.style.display = 'none';
+        document.removeEventListener('click', closeChGear);
+      }
+    });
+    content.querySelectorAll('[data-gear-ch]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const current = this._getVisibleChannels();
+        const ch = cb.dataset.gearCh;
+        const updated = cb.checked ? [...new Set([...current, ch])] : current.filter(x => x !== ch);
+        this._setVisibleChannels(updated);
+        this.renderTable(content);
+      });
+    });
 
     // 필터 이벤트
     content.querySelectorAll('.filter-btn[data-ch]').forEach(btn => {

@@ -719,6 +719,58 @@ input[type="month"] {
 .timeline-bar.in_progress { background: var(--color-primary-muted); }
 .timeline-bar.tbd { background: var(--color-text-hint); }
 
+/* 타임라인 드래그 핸들 */
+.timeline-row-label .tl-drag-handle {
+  font-size: 14px;
+  color: var(--color-text-hint);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s;
+  user-select: none;
+  padding-right: 2px;
+  flex-shrink: 0;
+}
+.timeline-row-label:hover .tl-drag-handle { opacity: 1; }
+.timeline-row-label.tl-dragging { opacity: 0.4; }
+.timeline-row-label.tl-drag-over {
+  background: rgba(79,110,247,0.18);
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* === 대시보드 날짜 필터 === */
+.dashboard-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 14px;
+  flex-wrap: wrap;
+}
+
+/* 차트 타입 토글 버튼 */
+.chart-type-toggle {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 2px;
+}
+.chart-type-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+.chart-type-btn:hover { background: rgba(255,255,255,0.08); color: var(--color-text-primary); }
+.chart-type-btn.active { background: var(--color-primary); color: #fff; }
+
 /* === R&R 카드 === */
 .rrr-grid {
   display: grid;
@@ -762,7 +814,14 @@ input[type="month"] {
 }
 .rrr-item::before { content: '·'; margin-right: 8px; color: var(--color-text-hint); }
 .rrr-item-actions { display: none; gap: 4px; }
+.rrr-item:hover .rrr-item-actions { display: flex; }
 .rrr-card.editing .rrr-item-actions { display: flex; }
+.rrr-card-delete {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.rrr-card:hover .rrr-card-delete { opacity: 1; }
 .rrr-edit-btn {
   font-size: 12px;
   color: var(--color-primary);

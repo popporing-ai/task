@@ -50,6 +50,7 @@ const RRRView = {
               <div class="rrr-card-header">
                 ${App.avatar({name: user.user_name, avatar_bg: user.avatar_bg, avatar_text: user.avatar_text})}
                 <span class="rrr-card-name">${escHtml(user.user_name)}</span>
+                <button class="card-action-btn rrr-card-delete" data-rrr-del-user="${user.user_id}" title="${escHtml(user.user_name)} 전체 삭제"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </div>
               ${leads.length > 0 ? `
                 <div class="rrr-section">
@@ -118,6 +119,23 @@ const RRRView = {
     content.querySelectorAll('[data-rrr-add]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.openAddForm(parseInt(btn.dataset.rrrAdd));
+      });
+    });
+
+    // 유저 카드 전체 삭제
+    content.querySelectorAll('[data-rrr-del-user]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const userId = btn.dataset.rrrDelUser;
+        const userData = this.data.find(u => String(u.user_id) === String(userId));
+        const userName = userData ? userData.user_name : '이 팀원';
+        const confirmed = await App.confirm(`${userName}의 R&R 전체를 삭제하시겠습니까?`);
+        if (confirmed) {
+          const items = userData ? userData.items : [];
+          await Promise.all(items.map(item => API.del(`/rrr/${item.id}`)));
+          App.toast('R&R이 모두 삭제되었습니다.', 'info');
+          this.render();
+        }
       });
     });
   },

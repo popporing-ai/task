@@ -87,6 +87,8 @@ const AuditView = {
       </div>
     `;
 
+    const isAdmin = App.user && App.user.role === 'admin';
+
     const tableHtml = this.logs.length > 0 ? `
       <table class="data-table">
         <thead>
@@ -98,6 +100,7 @@ const AuditView = {
             <th>레코드</th>
             <th>변경 내용</th>
             <th>상세</th>
+            ${isAdmin ? '<th>복구</th>' : ''}
           </tr>
         </thead>
         <tbody>
@@ -119,6 +122,7 @@ const AuditView = {
                 <td>${log.record_id}</td>
                 <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(summary)}</td>
                 <td><button class="btn btn-default" data-detail-idx="${log.id}" style="font-size:11px;padding:2px 8px">보기</button></td>
+                ${isAdmin ? `<td><button class="btn btn-default" data-restore-log="${log.id}" style="font-size:11px;padding:2px 8px;color:var(--color-primary)">복구</button></td>` : ''}
               </tr>
             `;
           }).join('')}
@@ -181,6 +185,27 @@ const AuditView = {
       btn.addEventListener('click', () => {
         const detail = logMap[btn.dataset.detailIdx];
         if (detail) this.showDetail(detail);
+      });
+    });
+
+    // 복구 버튼 (관리자 전용)
+    content.querySelectorAll('[data-restore-log]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const logId = btn.dataset.restoreLog;
+        const confirmed = await App.confirm('이 변경 사항을 복구하시겠습니까? 현재 데이터가 변경될 수 있습니다.');
+        if (!confirmed) return;
+        try {
+          btn.disabled = true;
+          btn.textContent = '복구 중...';
+          const res = await API.post(`/audit/${logId}/restore`, {});
+          App.toast(res.message || '복구되었습니다.', 'success');
+          await this.loadData();
+          this.renderTable(content);
+        } catch (err) {
+          App.toast(err?.message || '복구에 실패했습니다.', 'error');
+          btn.disabled = false;
+          btn.textContent = '복구';
+        }
       });
     });
   },
