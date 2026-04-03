@@ -1231,12 +1231,72 @@ const TasksView = {
       try {
         await API.post(`/tasks/${task.id}/comments`, { content: body });
         textarea.value = '';
+        // 멘션 드롭다운 숨기기
+        const md = overlay.querySelector('#mention-dropdown');
+        if (md) md.style.display = 'none';
         commentsLoaded = false;
         await this._loadComments(task.id, overlay);
       } catch (e) {
         App.toast('댓글 등록 실패', 'error');
       }
     });
+
+    // @멘션 드롭다운 지원
+    const mentionTextarea = overlay.querySelector('#new-comment');
+    if (mentionTextarea) {
+      mentionTextarea.addEventListener('input', () => {
+        const val = mentionTextarea.value;
+        const cursorPos = mentionTextarea.selectionStart;
+        const beforeCursor = val.substring(0, cursorPos);
+        const atMatch = beforeCursor.match(/@(\S*)$/);
+
+        let mentionDropdown = overlay.querySelector('#mention-dropdown');
+
+        if (atMatch) {
+          const query = atMatch[1].toLowerCase();
+          const matches = App.users.filter(u => u.name.toLowerCase().includes(query));
+
+          if (matches.length > 0) {
+            if (!mentionDropdown) {
+              mentionDropdown = document.createElement('div');
+              mentionDropdown.id = 'mention-dropdown';
+              mentionDropdown.className = 'mention-dropdown';
+              mentionTextarea.parentNode.style.position = 'relative';
+              mentionTextarea.parentNode.appendChild(mentionDropdown);
+            }
+            mentionDropdown.innerHTML = matches.map(u =>
+              `<div class="mention-item" data-name="${escHtml(u.name)}">${App.avatar(u)} <span>${escHtml(u.name)}</span></div>`
+            ).join('');
+            mentionDropdown.style.display = 'block';
+
+            mentionDropdown.querySelectorAll('.mention-item').forEach(item => {
+              item.addEventListener('click', () => {
+                const name = item.dataset.name;
+                const before = val.substring(0, cursorPos - atMatch[1].length);
+                const after = val.substring(cursorPos);
+                mentionTextarea.value = before + name + ' ' + after;
+                mentionTextarea.focus();
+                const newPos = (before + name + ' ').length;
+                mentionTextarea.setSelectionRange(newPos, newPos);
+                mentionDropdown.style.display = 'none';
+              });
+            });
+          } else {
+            if (mentionDropdown) mentionDropdown.style.display = 'none';
+          }
+        } else {
+          if (mentionDropdown) mentionDropdown.style.display = 'none';
+        }
+      });
+
+      // Escape 키로 멘션 드롭다운 닫기
+      mentionTextarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          const md = overlay.querySelector('#mention-dropdown');
+          if (md) md.style.display = 'none';
+        }
+      });
+    }
 
     // 태그 추가
     overlay.querySelector('#btn-add-tag')?.addEventListener('click', async () => {
