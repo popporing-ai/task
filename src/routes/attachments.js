@@ -12,16 +12,30 @@ const router = express.Router();
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-// multer 스토리지 설정
+// multer 스토리지 설정 — 업무/콘텐츠별 하위 폴더 자동 생성
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, UPLOAD_DIR);
+    // task_id 또는 content_id 기반 폴더 구조
+    const taskId = req.body.task_id;
+    const contentId = req.body.content_id;
+    let subDir;
+    if (taskId) {
+      subDir = path.join(UPLOAD_DIR, `task_${taskId}`);
+    } else if (contentId) {
+      subDir = path.join(UPLOAD_DIR, `content_${contentId}`);
+    } else {
+      subDir = path.join(UPLOAD_DIR, 'etc');
+    }
+    if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
+    cb(null, subDir);
   },
   filename: (req, file, cb) => {
-    // 고유 파일명 생성: timestamp-random-originalname
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const ext = path.extname(file.originalname);
-    cb(null, `${uniqueSuffix}${ext}`);
+    // 원본 파일명 유지 (중복 시 타임스탬프 추가)
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    const ext = path.extname(originalName);
+    const base = path.basename(originalName, ext);
+    const safeName = `${base}_${Date.now()}${ext}`;
+    cb(null, safeName);
   }
 });
 
@@ -54,15 +68,30 @@ router.post('/upload', upload.single('file'), auditMiddleware('attachments'), as
       task_id || null,
       content_id || null,
       req.user.id,
-      req.file.originalname,
-      req.file.filename,
+      Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
+      path.relative(UPLOAD_DIR, req.file.path).replace(/\\/g, '/'),
       req.file.size,
       req.file.mimetype
     ]);
 
+    // 폴더에 매칭 정보 파일 생성 (_info.txt)
+    const infoPath = path.join(path.dirname(req.file.path), '_info.txt');
+    if (!fs.existsSync(infoPath)) {
+      let info = `업로드 폴더 정보\n생성일: ${new Date().toISOString()}\n`;
+      if (task_id) {
+        const taskRes = await db.query('SELECT id, title FROM tasks WHERE id=$1', [task_id]);
+        if (taskRes.rows[0]) info += `업무 ID: ${taskRes.rows[0].id}\n업무명: ${taskRes.rows[0].title}\n`;
+      }
+      if (content_id) {
+        const contRes = await db.query('SELECT id, title FROM content_items WHERE id=$1', [content_id]);
+        if (contRes.rows[0]) info += `콘텐츠 ID: ${contRes.rows[0].id}\n콘텐츠명: ${contRes.rows[0].title}\n`;
+      }
+      info += `업로드 사용자: ${req.user.name} (${req.user.email})\n`;
+      fs.writeFileSync(infoPath, info, 'utf8');
+    }
+
     res.status(201).json({ data: rows[0], message: '파일이 업로드되었습니다.' });
   } catch (err) {
-    // 에러 시 업로드된 파일 정리
     if (req.file) fs.unlink(req.file.path, () => {});
     next(err);
   }
