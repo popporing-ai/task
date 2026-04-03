@@ -7,6 +7,10 @@ const PerformanceView = {
   _teamData: null,
   _goalsData: null,
   _feedbackData: null,
+  _scoresData: null,
+  _meetingsData: null,
+  _alertsData: null,
+  _scorePeriod: 'month', // month | quarter
 
   async render() {
     const content = document.getElementById('content');
@@ -64,11 +68,17 @@ const PerformanceView = {
   },
 
   _renderMain(content) {
+    const isAdmin = App.user?.role === 'admin';
     const tabs = [
       { key: 'overview', label: '팀 현황' },
       { key: 'goals', label: '팀 목표' },
       { key: 'feedback', label: '피드백' },
     ];
+    if (isAdmin) {
+      tabs.push({ key: 'scores', label: '성과 스코어' });
+      tabs.push({ key: 'meetings', label: '면담 기록' });
+      tabs.push({ key: 'alerts', label: '경고 현황' });
+    }
 
     content.innerHTML = `
       <div class="perf-period-filter">
@@ -125,6 +135,9 @@ const PerformanceView = {
       case 'overview': this._renderOverview(container); break;
       case 'goals': this._renderGoals(container); break;
       case 'feedback': this._renderFeedback(container); break;
+      case 'scores': this._renderScores(container); break;
+      case 'meetings': this._renderMeetings(container); break;
+      case 'alerts': this._renderAlerts(container); break;
     }
   },
 
@@ -478,6 +491,456 @@ const PerformanceView = {
         return false;
       }
     });
+  },
+
+  // ── 성과 스코어 (관리자 전용) ──
+  async _renderScores(container) {
+    container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>성과 스코어 불러오는 중...</span></div>';
+    try {
+      const period = this._scorePeriod;
+      const res = await API.get(`/performance/scores?period=${period}`);
+      this._scoresData = res.data || [];
+    } catch {
+      this._scoresData = [];
+    }
+
+    const scores = this._scoresData;
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:12px;color:var(--color-text-muted);font-weight:600;">기간:</span>
+          <button class="filter-btn score-period-btn ${this._scorePeriod === 'month' ? 'active' : ''}" data-sp="month">월간</button>
+          <button class="filter-btn score-period-btn ${this._scorePeriod === 'quarter' ? 'active' : ''}" data-sp="quarter">분기별</button>
+        </div>
+        <button class="btn btn-primary" id="btn-generate-scores">성과 산정</button>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table class="score-table">
+          <thead>
+            <tr>
+              <th>팀원</th>
+              <th>완료</th>
+              <th>지연</th>
+              <th>완료율</th>
+              <th>지연율</th>
+              <th>평균소요일</th>
+              <th>포인트</th>
+              <th>등급</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${scores.length === 0
+              ? '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--color-text-muted);">데이터가 없습니다</td></tr>'
+              : scores.map(s => {
+                const gradeClass = (s.grade || 'c').toLowerCase();
+                const completionRate = s.completion_rate != null ? Number(s.completion_rate).toFixed(0) : 0;
+                const delayRate = s.delay_rate != null ? Number(s.delay_rate).toFixed(0) : 0;
+                return `
+                  <tr class="score-row" data-user-id="${s.user_id}">
+                    <td style="display:flex;align-items:center;gap:8px;">
+                      ${App.avatar({ name: s.name || '-', avatar_bg: s.avatar_bg, avatar_text: s.avatar_text })}
+                      ${escHtml(s.name || '-')}
+                    </td>
+                    <td><span style="color:var(--color-done-text);font-weight:600;">${s.done_count || 0}</span></td>
+                    <td><span style="color:var(--color-warn-text);font-weight:600;">${s.overdue_count || 0}</span></td>
+                    <td>${completionRate}%</td>
+                    <td>${delayRate}%</td>
+                    <td>${s.avg_days != null ? Number(s.avg_days).toFixed(1) : '-'}일</td>
+                    <td><span class="points-badge">${s.total_points || 0}pt</span></td>
+                    <td><span class="grade-badge grade-badge-${gradeClass}">${(s.grade || '-').toUpperCase()}</span></td>
+                  </tr>
+                `;
+              }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // 기간 전환
+    container.querySelectorAll('.score-period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._scorePeriod = btn.dataset.sp;
+        this._renderScores(container);
+      });
+    });
+
+    // 성과 산정 버튼
+    container.querySelector('#btn-generate-scores')?.addEventListener('click', async () => {
+      try {
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        await API.post('/performance/scores/generate', { month });
+        App.toast('성과가 산정되었습니다.', 'success');
+        this._renderScores(container);
+      } catch {
+        App.toast('성과 산정에 실패했습니다.', 'error');
+      }
+    });
+
+    // 행 클릭 → 트렌드 차트
+    container.querySelectorAll('.score-row').forEach(row => {
+      row.addEventListener('click', () => this._showTrendChart(row.dataset.userId));
+    });
+  },
+
+  // 개인 트렌드 차트 모달
+  async _showTrendChart(userId) {
+    let trendData;
+    try {
+      const res = await API.get(`/performance/scores/trend/${userId}?months=6`);
+      trendData = res.data || {};
+    } catch {
+      App.toast('트렌드 데이터를 불러올 수 없습니다.', 'error');
+      return;
+    }
+
+    const months = trendData.months || [];
+    const currentGrade = trendData.current_grade || '-';
+    const prevGrade = trendData.previous_grade || '-';
+    const gradeClass = (currentGrade || 'c').toLowerCase();
+
+    // 등급 변화 화살표
+    const gradeOrder = { A: 4, B: 3, C: 2, D: 1 };
+    const cur = gradeOrder[currentGrade.toUpperCase()] || 0;
+    const prev = gradeOrder[prevGrade.toUpperCase()] || 0;
+    let arrow = '';
+    if (cur > prev && prev > 0) arrow = '<span style="color:var(--color-done-text);font-weight:700;margin-left:6px;">&#9650;</span>';
+    else if (cur < prev && prev > 0) arrow = '<span style="color:var(--color-warn-text);font-weight:700;margin-left:6px;">&#9660;</span>';
+    else arrow = '<span style="color:var(--color-text-muted);margin-left:6px;">&#8211;</span>';
+
+    // SVG 라인 차트 (완료율 트렌드)
+    const lineChartSvg = this._buildLineChart(months);
+    // SVG 바 차트 (완료 vs 지연)
+    const barChartSvg = this._buildBarChart(months);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'popover-overlay';
+    overlay.innerHTML = `
+      <div class="popover" style="max-width:560px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="font-size:16px;font-weight:700;color:var(--color-text-primary);">${escHtml(trendData.name || '팀원')} 트렌드</div>
+          <button class="popover-close" id="trend-close">×</button>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <span style="font-size:13px;color:var(--color-text-muted);">현재 등급:</span>
+          <span class="grade-badge grade-badge-${gradeClass}" style="font-size:14px;padding:4px 14px;">${currentGrade.toUpperCase()}</span>
+          ${arrow}
+        </div>
+
+        <div class="trend-chart">
+          <div class="trend-chart-title">완료율 트렌드 (최근 6개월)</div>
+          ${lineChartSvg}
+        </div>
+
+        <div class="trend-chart">
+          <div class="trend-chart-title">완료 vs 지연 (월별)</div>
+          ${barChartSvg}
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+          <button class="btn" id="trend-close-btn">닫기</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#trend-close')?.addEventListener('click', close);
+    overlay.querySelector('#trend-close-btn')?.addEventListener('click', close);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  },
+
+  _buildLineChart(months) {
+    if (!months.length) return '<div style="padding:20px;text-align:center;color:var(--color-text-muted);font-size:12px;">데이터 없음</div>';
+    const w = 480, h = 140, px = 40, py = 20;
+    const maxRate = 100;
+    const points = months.map((m, i) => {
+      const x = px + (i / Math.max(months.length - 1, 1)) * (w - px * 2);
+      const rate = m.completion_rate != null ? Number(m.completion_rate) : 0;
+      const y = py + (1 - rate / maxRate) * (h - py * 2);
+      return { x, y, rate, label: m.month || '' };
+    });
+    const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+    return `<svg viewBox="0 0 ${w} ${h}" style="overflow:visible;">
+      <!-- 그리드 라인 -->
+      ${[0, 25, 50, 75, 100].map(v => {
+        const y = py + (1 - v / maxRate) * (h - py * 2);
+        return `<line x1="${px}" y1="${y}" x2="${w - px}" y2="${y}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                <text x="${px - 6}" y="${y + 4}" text-anchor="end" fill="var(--color-text-hint)" font-size="10">${v}%</text>`;
+      }).join('')}
+      <!-- 라인 -->
+      <polyline points="${polyline}" fill="none" stroke="var(--color-primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <!-- 포인트 + 라벨 -->
+      ${points.map(p => `
+        <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--color-primary)" stroke="var(--color-bg-secondary)" stroke-width="2"/>
+        <text x="${p.x}" y="${h - 2}" text-anchor="middle" fill="var(--color-text-hint)" font-size="10">${escHtml(p.label)}</text>
+      `).join('')}
+    </svg>`;
+  },
+
+  _buildBarChart(months) {
+    if (!months.length) return '<div style="padding:20px;text-align:center;color:var(--color-text-muted);font-size:12px;">데이터 없음</div>';
+    const w = 480, h = 140, px = 40, py = 20;
+    const maxVal = Math.max(...months.map(m => Math.max(m.done_count || 0, m.overdue_count || 0)), 1);
+    const barW = Math.max(12, ((w - px * 2) / months.length - 12) / 2);
+    const innerH = h - py * 2;
+
+    return `<svg viewBox="0 0 ${w} ${h}" style="overflow:visible;">
+      ${months.map((m, i) => {
+        const cx = px + (i + 0.5) / months.length * (w - px * 2);
+        const doneH = ((m.done_count || 0) / maxVal) * innerH;
+        const overdueH = ((m.overdue_count || 0) / maxVal) * innerH;
+        return `
+          <rect x="${cx - barW - 1}" y="${py + innerH - doneH}" width="${barW}" height="${doneH}" rx="3" fill="var(--color-done-text)" opacity="0.7"/>
+          <rect x="${cx + 1}" y="${py + innerH - overdueH}" width="${barW}" height="${overdueH}" rx="3" fill="var(--color-warn-text)" opacity="0.7"/>
+          <text x="${cx}" y="${h - 2}" text-anchor="middle" fill="var(--color-text-hint)" font-size="10">${escHtml(m.month || '')}</text>
+        `;
+      }).join('')}
+      <!-- 범례 -->
+      <rect x="${w - px - 100}" y="2" width="10" height="10" rx="2" fill="var(--color-done-text)" opacity="0.7"/>
+      <text x="${w - px - 86}" y="11" fill="var(--color-text-muted)" font-size="10">완료</text>
+      <rect x="${w - px - 50}" y="2" width="10" height="10" rx="2" fill="var(--color-warn-text)" opacity="0.7"/>
+      <text x="${w - px - 36}" y="11" fill="var(--color-text-muted)" font-size="10">지연</text>
+    </svg>`;
+  },
+
+  // ── 면담 기록 (관리자 전용) ──
+  async _renderMeetings(container) {
+    container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>면담 기록 불러오는 중...</span></div>';
+    try {
+      const res = await API.get('/performance/meetings');
+      this._meetingsData = res.data || [];
+    } catch {
+      this._meetingsData = [];
+    }
+
+    const meetings = this._meetingsData;
+    // 팀원별 그룹화
+    const grouped = {};
+    meetings.forEach(m => {
+      const key = m.target_user_id || 'unknown';
+      if (!grouped[key]) grouped[key] = { name: m.target_name || '-', avatar_bg: m.target_avatar_bg, avatar_text: m.target_avatar_text, items: [] };
+      grouped[key].items.push(m);
+    });
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    container.innerHTML = `
+      <div style="margin-bottom:14px;">
+        <button class="btn btn-primary" id="btn-add-meeting">면담 추가</button>
+      </div>
+
+      ${Object.keys(grouped).length === 0
+        ? '<div class="empty-state" style="padding:40px;"><div class="empty-state-title">면담 기록이 없습니다</div></div>'
+        : Object.entries(grouped).map(([userId, group]) => `
+          <div style="margin-bottom:24px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              ${App.avatar({ name: group.name, avatar_bg: group.avatar_bg, avatar_text: group.avatar_text })}
+              <span style="font-size:14px;font-weight:600;color:var(--color-text-primary);">${escHtml(group.name)}</span>
+              <span style="font-size:12px;color:var(--color-text-muted);">(${group.items.length}건)</span>
+            </div>
+            ${group.items.map(m => {
+              const isUpcoming = m.next_meeting_date && m.next_meeting_date >= today;
+              return `
+                <div class="meeting-card" data-meeting-id="${m.id}">
+                  <div class="meeting-card-header">
+                    <div class="meeting-card-date">
+                      ${escHtml(m.meeting_date || '')}
+                      ${isUpcoming ? `<span class="upcoming-badge" style="margin-left:8px;">다음 면담 ${escHtml(m.next_meeting_date)}</span>` : ''}
+                    </div>
+                    <div class="meeting-card-actions">
+                      <button class="btn btn-default meeting-edit-btn" data-id="${m.id}" style="font-size:11px;padding:3px 8px;">수정</button>
+                      <button class="btn btn-danger meeting-delete-btn" data-id="${m.id}" style="font-size:11px;padding:3px 8px;">삭제</button>
+                    </div>
+                  </div>
+                  <div class="meeting-card-summary">${escHtml(m.content || '')}</div>
+                  ${m.action_items ? `<div class="meeting-card-actions-list"><strong style="color:var(--color-text-primary);">액션 아이템:</strong> ${escHtml(m.action_items)}</div>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `).join('')}
+    `;
+
+    // 면담 추가
+    container.querySelector('#btn-add-meeting')?.addEventListener('click', () => this._openMeetingForm(null));
+
+    // 수정
+    container.querySelectorAll('.meeting-edit-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const meeting = meetings.find(m => String(m.id) === btn.dataset.id);
+        if (meeting) this._openMeetingForm(meeting);
+      });
+    });
+
+    // 삭제
+    container.querySelectorAll('.meeting-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const ok = await App.confirm('이 면담 기록을 삭제하시겠습니까?');
+        if (!ok) return;
+        try {
+          await API.del(`/performance/meetings/${btn.dataset.id}`);
+          App.toast('면담 기록이 삭제되었습니다.', 'success');
+          this._renderMeetings(container);
+        } catch {
+          App.toast('삭제 실패', 'error');
+        }
+      });
+    });
+  },
+
+  _openMeetingForm(meeting) {
+    const isEdit = !!meeting;
+    const html = `
+      <div class="form-group">
+        <label>대상자 <span style="color:var(--color-warn-text)">*</span></label>
+        <select id="f-mt-target">${App.userOptions(meeting?.target_user_id || '')}</select>
+      </div>
+      <div class="form-group">
+        <label>면담일 <span style="color:var(--color-warn-text)">*</span></label>
+        <input type="date" id="f-mt-date" value="${meeting?.meeting_date || new Date().toISOString().slice(0, 10)}">
+      </div>
+      <div class="form-group">
+        <label>면담 내용</label>
+        <textarea id="f-mt-content" rows="5" placeholder="면담 내용을 입력하세요...">${escHtml(meeting?.content || '')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>액션 아이템</label>
+        <textarea id="f-mt-actions" rows="3" placeholder="액션 아이템을 입력하세요...">${escHtml(meeting?.action_items || '')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>다음 면담일</label>
+        <input type="date" id="f-mt-next" value="${meeting?.next_meeting_date || ''}">
+      </div>
+    `;
+
+    App.openPanel(isEdit ? '면담 수정' : '면담 추가', html, async () => {
+      const data = {
+        target_user_id: document.getElementById('f-mt-target').value,
+        meeting_date: document.getElementById('f-mt-date').value,
+        content: document.getElementById('f-mt-content').value.trim(),
+        action_items: document.getElementById('f-mt-actions').value.trim(),
+        next_meeting_date: document.getElementById('f-mt-next').value || null,
+      };
+      if (!data.target_user_id || !data.meeting_date) {
+        App.toast('대상자와 면담일을 입력해주세요.', 'error');
+        return false;
+      }
+      try {
+        if (isEdit) {
+          await API.put(`/performance/meetings/${meeting.id}`, data);
+          App.toast('면담이 수정되었습니다.', 'success');
+        } else {
+          await API.post('/performance/meetings', data);
+          App.toast('면담이 추가되었습니다.', 'success');
+        }
+        this._renderActiveTab();
+      } catch {
+        App.toast('저장 실패', 'error');
+        return false;
+      }
+    });
+  },
+
+  // ── 경고 현황 (관리자 전용) ──
+  async _renderAlerts(container) {
+    container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>경고 현황 불러오는 중...</span></div>';
+    try {
+      const res = await API.get('/performance/alerts');
+      this._alertsData = res.data || [];
+    } catch {
+      this._alertsData = [];
+    }
+
+    const alerts = this._alertsData;
+    const active = alerts.filter(a => !a.resolved_at);
+    const resolved = alerts.filter(a => a.resolved_at);
+
+    container.innerHTML = `
+      ${active.length === 0 && resolved.length === 0
+        ? '<div class="empty-state" style="padding:40px;"><div class="empty-state-title">경고가 없습니다</div></div>'
+        : `
+          ${active.length > 0 ? `
+            <div style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:10px;">활성 경고 (${active.length})</div>
+            ${active.map(a => this._renderAlertItem(a, false)).join('')}
+          ` : '<div style="padding:16px 0;color:var(--color-text-muted);font-size:13px;">활성 경고가 없습니다.</div>'}
+
+          ${resolved.length > 0 ? `
+            <div class="collapsible-header" id="resolved-toggle" style="margin-top:20px;">
+              <span class="collapsible-arrow">&#9654;</span>
+              해결된 경고 (${resolved.length})
+            </div>
+            <div id="resolved-section" style="display:none;">
+              ${resolved.map(a => this._renderAlertItem(a, true)).join('')}
+            </div>
+          ` : ''}
+        `}
+    `;
+
+    // 해결 버튼
+    container.querySelectorAll('.alert-resolve-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try {
+          await API.patch(`/performance/alerts/${btn.dataset.id}/resolve`, {});
+          App.toast('경고가 해결 처리되었습니다.', 'success');
+          this._renderAlerts(container);
+          // 사이드바 뱃지 갱신
+          this._updateAlertBadge();
+        } catch {
+          App.toast('처리 실패', 'error');
+        }
+      });
+    });
+
+    // 접기/펼치기
+    container.querySelector('#resolved-toggle')?.addEventListener('click', () => {
+      const section = container.querySelector('#resolved-section');
+      const toggle = container.querySelector('#resolved-toggle');
+      if (!section) return;
+      const isOpen = section.style.display !== 'none';
+      section.style.display = isOpen ? 'none' : 'block';
+      toggle.classList.toggle('open', !isOpen);
+    });
+  },
+
+  _renderAlertItem(a, isResolved) {
+    return `
+      <div class="alert-item ${isResolved ? 'alert-resolved' : ''}">
+        ${App.avatar({ name: a.user_name || '-', avatar_bg: a.avatar_bg, avatar_text: a.avatar_text })}
+        <div class="alert-item-info">
+          <div class="alert-item-type">${escHtml(a.alert_type || '경고')}</div>
+          <div class="alert-item-message">${escHtml(a.message || '')}</div>
+        </div>
+        <div class="alert-item-date">${a.created_at ? new Date(a.created_at).toLocaleDateString('ko-KR') : ''}</div>
+        ${!isResolved ? `<button class="btn btn-default alert-resolve-btn" data-id="${a.id}" style="font-size:11px;padding:3px 10px;flex-shrink:0;">해결</button>` : ''}
+      </div>
+    `;
+  },
+
+  // 사이드바 경고 뱃지 갱신
+  async _updateAlertBadge() {
+    if (App.user?.role !== 'admin') return;
+    try {
+      const res = await API.get('/performance/alerts');
+      const alerts = res.data || [];
+      const unresolvedCount = alerts.filter(a => !a.resolved_at).length;
+      const navItem = document.querySelector('.nav-item[data-view="performance"]');
+      if (!navItem) return;
+      let badge = navItem.querySelector('.nav-alert-badge');
+      if (unresolvedCount > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'nav-alert-badge';
+          navItem.appendChild(badge);
+        }
+        badge.textContent = unresolvedCount > 99 ? '99+' : unresolvedCount;
+      } else if (badge) {
+        badge.remove();
+      }
+    } catch {}
   },
 
   // ── 리포트 내보내기 ──

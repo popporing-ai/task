@@ -2514,3 +2514,208 @@ input[type="month"] {
 .member-mgmt-table tbody tr.member-inactive-row:hover td {
   opacity: 0.7;
 }
+
+/* === 성과 등급 뱃지 === */
+.grade-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.grade-badge-a { background: rgba(93,217,132,0.15); color: #5DD984; }
+.grade-badge-b { background: rgba(123,155,250,0.15); color: #7B9BFA; }
+.grade-badge-c { background: rgba(245,166,35,0.15); color: #F5A623; }
+.grade-badge-d { background: rgba(240,112,112,0.15); color: #F07070; }
+
+/* === 성과 스코어 테이블 === */
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.score-table thead th {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.score-table tbody td {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+}
+.score-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.score-table tbody tr:hover td {
+  background: rgba(79,110,247,0.08);
+}
+
+/* === 면담 기록 카드 === */
+.meeting-card {
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 10px;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.meeting-card:hover {
+  background: rgba(255,255,255,0.04);
+  box-shadow: var(--shadow-sm);
+}
+.meeting-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.meeting-card-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.meeting-card-actions {
+  display: flex;
+  gap: 4px;
+}
+.meeting-card-summary {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  margin-bottom: 6px;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.meeting-card-actions-list {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* === 경고 현황 아이템 === */
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border);
+  border-left: 3px solid var(--color-warn-text);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: background 0.12s;
+}
+.alert-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+.alert-item.alert-resolved {
+  opacity: 0.5;
+  border-left-color: var(--color-text-hint);
+}
+.alert-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.alert-item-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-warn-text);
+  margin-bottom: 2px;
+}
+.alert-item.alert-resolved .alert-item-type {
+  color: var(--color-text-muted);
+}
+.alert-item-message {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alert-item-date {
+  font-size: 11px;
+  color: var(--color-text-hint);
+  flex-shrink: 0;
+}
+
+/* === 트렌드 차트 컨테이너 === */
+.trend-chart {
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.trend-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.trend-chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+}
+
+/* === 다가오는 면담 뱃지 === */
+.upcoming-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(79,110,247,0.18);
+  color: var(--color-primary-muted);
+  white-space: nowrap;
+}
+
+/* === 경고 카운트 뱃지 (사이드바) === */
+.nav-alert-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--color-warn-text);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* === 접기/펼치기 섹션 === */
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 8px 0;
+  user-select: none;
+}
+.collapsible-header:hover {
+  color: var(--color-text-primary);
+}
+.collapsible-arrow {
+  transition: transform 0.2s;
+  font-size: 10px;
+}
+.collapsible-header.open .collapsible-arrow {
+  transform: rotate(90deg);
+}

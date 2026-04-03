@@ -31,6 +31,11 @@ const App = {
     // 사이드바 뱃지 업데이트
     this.updateSidebarBadges();
 
+    // 관리자: 성과 관리 경고 뱃지
+    if (this.user.role === 'admin') {
+      this._updatePerformanceAlertBadge();
+    }
+
     // 초기 뷰 렌더링
     this.navigate('dashboard');
   },
@@ -66,6 +71,30 @@ const App = {
       badge.textContent = count > 99 ? '99+' : count;
     } else if (badge) {
       badge.remove();
+    }
+  },
+
+  // 관리자: 성과 경고 뱃지 (사이드바)
+  async _updatePerformanceAlertBadge() {
+    try {
+      const res = await API.get('/performance/alerts');
+      const alerts = res.data || [];
+      const unresolvedCount = alerts.filter(a => !a.resolved_at).length;
+      const navItem = document.querySelector('.nav-item[data-view="performance"]');
+      if (!navItem) return;
+      let badge = navItem.querySelector('.nav-alert-badge');
+      if (unresolvedCount > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'nav-alert-badge';
+          navItem.appendChild(badge);
+        }
+        badge.textContent = unresolvedCount > 99 ? '99+' : unresolvedCount;
+      } else if (badge) {
+        badge.remove();
+      }
+    } catch {
+      // 백엔드 미구현 시 무시
     }
   },
 

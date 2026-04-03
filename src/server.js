@@ -38,6 +38,7 @@ app.use('/task/api/issues', require('./routes/issues'));
 app.use('/task/api/goals', require('./routes/goals'));
 app.use('/task/api/feedbacks', require('./routes/feedbacks'));
 app.use('/task/api/performance', require('./routes/performance'));
+app.use('/task/api/meetings', require('./routes/meetings'));
 
 // 메타 API (제품, 대시보드)
 const authMiddleware = require('./middleware/auth');
