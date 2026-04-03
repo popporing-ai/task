@@ -23,8 +23,7 @@ services:
     depends_on:
       - db
     volumes:
-      - task_uploads:/app/uploads
+      - ./uploads:/app/uploads
 
 volumes:
   pgdata:
-  task_uploads:
