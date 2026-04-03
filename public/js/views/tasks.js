@@ -1862,14 +1862,18 @@ const TasksView = {
         <label>난이도 포인트</label>
         <select id="f-points" style="width:100%">
           <option value="">선택</option>
-          <option value="1" ${task?.points==1?'selected':''}>1점 — 단순 확인/전달 (30분 이내)</option>
-          <option value="2" ${task?.points==2?'selected':''}>2점 — 간단한 수정/업데이트 (1시간)</option>
-          <option value="3" ${task?.points==3?'selected':''}>3점 — 일반 업무 (반나절)</option>
-          <option value="5" ${task?.points==5?'selected':''}>5점 — 기획/제작 필요 (1일)</option>
-          <option value="8" ${task?.points==8?'selected':''}>8점 — 복합 업무/협업 필요 (2~3일)</option>
-          <option value="10" ${task?.points==10?'selected':''}>10점 — 대규모 프로젝트 (1주 이상)</option>
+          <option value="1" ${task?.points==1?'selected':''}>1점 — SNS 예약 게시, 이미지 리사이즈 (1시간 이내)</option>
+          <option value="2" ${task?.points==2?'selected':''}>2점 — 주간 리포트 작성, 템플릿 수정 (1~3시간)</option>
+          <option value="3" ${task?.points==3?'selected':''}>3점 — 소셜 미디어 콘텐츠 제작, 숏폼 영상 편집 (반나절)</option>
+          <option value="4" ${task?.points==4?'selected':''}>4점 — 블로그 초안, 제품 소개 슬라이드 제작 (1일)</option>
+          <option value="5" ${task?.points==5?'selected':''}>5점 — SEO 블로그 작성, 브로슈어 디자인, 랜딩페이지 수정 (2~3일)</option>
+          <option value="6" ${task?.points==6?'selected':''}>6점 — 캠페인 기획, 멀티채널 광고 세팅, 프로모션 영상 편집 (3~5일)</option>
+          <option value="7" ${task?.points==7?'selected':''}>7점 — 백서/사례 작성, PR 캠페인 실행, 카탈로그 디자인 (1~2주)</option>
+          <option value="8" ${task?.points==8?'selected':''}>8점 — 통합 캠페인(전략+콘텐츠+광고+LP), 설명 영상 제작 (2주)</option>
+          <option value="9" ${task?.points==9?'selected':''}>9점 — 전시회 기획/운영, 연간 마케팅 전략 수립 (2~4주)</option>
+          <option value="10" ${task?.points==10?'selected':''}>10점 — 브랜드 리뉴얼, 웹사이트 전면 개편, 대규모 론칭 (1개월+)</option>
         </select>
-        <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">피보나치 기반 (1,2,3,5,8,10) — 숫자가 클수록 복잡한 업무</div>
+        <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">시간·복잡도·이해관계자 수 기반 — Agile 마케팅 방법론 적용</div>
       </div>
       ${statusHtml}
     `;
