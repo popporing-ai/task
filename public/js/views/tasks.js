@@ -958,12 +958,12 @@ const TasksView = {
           <div style="flex:1;padding-right:16px;">
             ${task.category_name ? `<div style="margin-bottom:8px;">${categoryTag(task.category_name)}</div>` : ''}
             <div style="font-size:18px;font-weight:700;line-height:1.4;color:var(--color-text-primary);">${escHtml(task.title)}</div>
+            <button class="btn btn-default" id="detail-edit-btn" style="padding:4px 12px;font-size:12px;display:inline-flex;align-items:center;gap:5px;margin-top:8px;" title="업무 수정">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+              업무 수정
+            </button>
           </div>
-          <button class="btn btn-default" id="detail-edit-btn" style="flex-shrink:0;padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:4px;" title="업무 수정">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
-            수정
-          </button>
-          <button class="popover-close" id="detail-close" style="flex-shrink:0;margin-top:2px;" aria-label="닫기">×</button>
+          <button class="popover-close" id="detail-close" style="flex-shrink:0;" aria-label="닫기">×</button>
         </div>
 
         <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;flex-shrink:0;">
@@ -1859,8 +1859,17 @@ const TasksView = {
         </div>
       </div>
       <div class="form-group">
-        <label>난이도 포인트 (1~10)</label>
-        <input type="number" id="f-points" min="1" max="10" value="${task?.points || ''}" placeholder="난이도를 입력하세요 (1~10)">
+        <label>난이도 포인트</label>
+        <select id="f-points" style="width:100%">
+          <option value="">선택</option>
+          <option value="1" ${task?.points==1?'selected':''}>1점 — 단순 확인/전달 (30분 이내)</option>
+          <option value="2" ${task?.points==2?'selected':''}>2점 — 간단한 수정/업데이트 (1시간)</option>
+          <option value="3" ${task?.points==3?'selected':''}>3점 — 일반 업무 (반나절)</option>
+          <option value="5" ${task?.points==5?'selected':''}>5점 — 기획/제작 필요 (1일)</option>
+          <option value="8" ${task?.points==8?'selected':''}>8점 — 복합 업무/협업 필요 (2~3일)</option>
+          <option value="10" ${task?.points==10?'selected':''}>10점 — 대규모 프로젝트 (1주 이상)</option>
+        </select>
+        <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">피보나치 기반 (1,2,3,5,8,10) — 숫자가 클수록 복잡한 업무</div>
       </div>
       ${statusHtml}
     `;
@@ -1872,7 +1881,7 @@ const TasksView = {
         category_id: document.getElementById('f-category').value || null,
         assignee_id: document.getElementById('f-assignee').value || null,
         due_date: document.getElementById('f-due').value || null,
-        points: parseInt(document.getElementById('f-points').value) || null,
+        points: parseInt(document.getElementById('f-points').value) || 0,
         status: isEdit ? document.querySelector('input[name="f-status"]:checked').value : 'todo',
       };
       if (!data.title) {
