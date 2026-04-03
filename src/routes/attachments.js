@@ -32,8 +32,8 @@ const upload = multer({
 
 router.use(authMiddleware);
 
-// 파일 업로드
-router.post('/upload', auditMiddleware('attachments'), upload.single('file'), async (req, res, next) => {
+// 파일 업로드 (multer를 audit보다 먼저 실행해야 multipart body 파싱됨)
+router.post('/upload', upload.single('file'), auditMiddleware('attachments'), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ data: null, error: '파일이 없습니다.' });

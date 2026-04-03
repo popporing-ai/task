@@ -1957,6 +1957,22 @@ input[type="month"] {
 .mention-item span {
   font-weight: 500;
 }
+.mention-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(79,110,247,0.15);
+  color: #7B9BFA;
+}
+.mention-highlight {
+  color: #7B9BFA;
+  font-weight: 600;
+  background: rgba(79,110,247,0.1);
+  padding: 0 2px;
+  border-radius: 3px;
+}
 
 /* === 3. Sidebar Active State Enhancement === */
 .nav-item:hover:not(.active) {

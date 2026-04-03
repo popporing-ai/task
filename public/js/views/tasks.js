@@ -1279,6 +1279,8 @@ const TasksView = {
                 const newPos = (before + name + ' ').length;
                 mentionTextarea.setSelectionRange(newPos, newPos);
                 mentionDropdown.style.display = 'none';
+                // 멘션 태그 미리보기 표시
+                this._updateMentionPreview(mentionTextarea, overlay);
               });
             });
           } else {
@@ -1411,7 +1413,7 @@ const TasksView = {
               <strong>${escHtml(c.user_name || '-')}</strong>
               <span class="comment-time">${timeAgo}</span>
             </div>
-            <div class="comment-body">${escHtml(c.content)}</div>
+            <div class="comment-body">${this._highlightMentions(c.content)}</div>
           </div>
         `;
       }).join('');
@@ -1654,6 +1656,33 @@ const TasksView = {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  },
+
+  // 멘션 미리보기 업데이트 (textarea 아래에 파란 태그 표시)
+  _updateMentionPreview(textarea, overlay) {
+    let preview = overlay.querySelector('#mention-preview');
+    if (!preview) {
+      preview = document.createElement('div');
+      preview.id = 'mention-preview';
+      preview.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;';
+      textarea.parentNode.appendChild(preview);
+    }
+    const mentions = textarea.value.match(/@(\S+)/g) || [];
+    const validMentions = mentions.filter(m => App.users.some(u => u.name === m.slice(1)));
+    preview.innerHTML = validMentions.map(m =>
+      `<span class="mention-tag">${escHtml(m)}</span>`
+    ).join('');
+  },
+
+  // 댓글 텍스트에서 @멘션을 파란색으로 표시
+  _highlightMentions(text) {
+    return escHtml(text).replace(/@(\S+)/g, (match) => {
+      const name = match.slice(1);
+      if (App.users.some(u => u.name === name)) {
+        return `<span class="mention-highlight">${match}</span>`;
+      }
+      return match;
+    });
   },
 
   // 상대 시간 포맷 (댓글용)
