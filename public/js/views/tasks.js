@@ -959,6 +959,10 @@ const TasksView = {
             ${task.category_name ? `<div style="margin-bottom:8px;">${categoryTag(task.category_name)}</div>` : ''}
             <div style="font-size:18px;font-weight:700;line-height:1.4;color:var(--color-text-primary);">${escHtml(task.title)}</div>
           </div>
+          <button class="btn btn-default" id="detail-edit-btn" style="flex-shrink:0;padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:4px;" title="업무 수정">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            수정
+          </button>
           <button class="popover-close" id="detail-close" style="flex-shrink:0;margin-top:2px;" aria-label="닫기">×</button>
         </div>
 
@@ -1109,9 +1113,8 @@ const TasksView = {
 
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:16px;border-top:1px solid var(--color-border);flex-shrink:0;margin-top:4px;">
+        <div style="display:flex;justify-content:flex-end;padding-top:16px;border-top:1px solid var(--color-border);flex-shrink:0;margin-top:4px;">
           <button class="btn" id="detail-close-btn">닫기</button>
-          <button class="btn btn-primary" id="detail-edit-btn">수정</button>
         </div>
       </div>
     `;
