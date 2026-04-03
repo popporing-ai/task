@@ -84,6 +84,14 @@ const DashboardView = {
     }
     const res = await API.get(url);
     this._data = res.data;
+
+    // 모든 업무 로드 (workload, overdue 등 전체 데이터 필요 위젯용)
+    try {
+      const allTasksRes = await API.get('/tasks');
+      this._data._allTasks = allTasksRes.data || [];
+    } catch {
+      this._data._allTasks = [];
+    }
   },
 
   toggleEditMode() {
@@ -263,50 +271,59 @@ const DashboardView = {
 
   // 번다운 차트 (완료 추이 vs 계획)
   _renderBurndown(d) {
-    // weekTasks로 일별 완료 추이 시뮬레이션
-    const tasks = d.weekTasks || [];
-    const total = tasks.length;
+    // 전체 업무 사용하여 번다운 계산
+    const tasks = d._allTasks || d.weekTasks || [];
+    const total = tasks.filter(t => t.status !== 'done').length + tasks.filter(t => t.status === 'done').length;
     if (total === 0) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
 
-    // 완료된 업무를 날짜별로 그룹핑
-    const doneTasks = tasks.filter(t => t.status === 'done' && t.due_date);
+    // 완료된 업무를 완료일(updated_at) 또는 마감일 기준으로 날짜별 그룹핑
+    const doneTasks = tasks.filter(t => t.status === 'done');
     const dateMap = {};
     doneTasks.forEach(t => {
-      const d = t.due_date.slice(0, 10);
-      dateMap[d] = (dateMap[d] || 0) + 1;
+      const dateStr = (t.updated_at || t.due_date || t.created_at || '').slice(0, 10);
+      if (dateStr) dateMap[dateStr] = (dateMap[dateStr] || 0) + 1;
     });
 
-    // 최근 7일 생성
+    // 최근 14일 생성 (더 넓은 범위)
     const days = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = 13; i >= 0; i--) {
       const dt = new Date();
       dt.setDate(dt.getDate() - i);
       days.push(dt.toISOString().slice(0, 10));
     }
 
+    // 시작일 이전 완료 카운트 계산
+    let priorDone = 0;
+    doneTasks.forEach(t => {
+      const dateStr = (t.updated_at || t.due_date || t.created_at || '').slice(0, 10);
+      if (dateStr && dateStr < days[0]) priorDone++;
+    });
+
     // 번다운: 남은 업무 수 (전체 - 누적 완료)
-    let remaining = total;
+    let remaining = total - priorDone;
     const actualPoints = [];
     const idealPoints = [];
     days.forEach((day, i) => {
       const completedToday = dateMap[day] || 0;
       remaining = Math.max(0, remaining - completedToday);
       actualPoints.push({ x: i, y: remaining, label: day.slice(5) });
-      idealPoints.push({ x: i, y: Math.round(total * (6 - i) / 6) });
+      idealPoints.push({ x: i, y: Math.round((total - priorDone) * (13 - i) / 13) });
     });
 
-    const W = 260, H = 90, padL = 28, padB = 18;
+    const numPts = actualPoints.length;
+    const W = 300, H = 90, padL = 28, padB = 18;
     const innerW = W - padL - 4;
     const innerH = H - padB;
-    const maxY = total;
-    const scaleX = i => padL + (innerW / 6) * i;
+    const maxY = Math.max(total, 1);
+    const scaleX = i => padL + (innerW / Math.max(numPts - 1, 1)) * i;
     const scaleY = v => (innerH - (v / maxY) * (innerH - 4)) + 2;
 
     const actualPolyline = actualPoints.map(p => `${scaleX(p.x).toFixed(1)},${scaleY(p.y).toFixed(1)}`).join(' ');
     const idealPolyline = idealPoints.map(p => `${scaleX(p.x).toFixed(1)},${scaleY(p.y).toFixed(1)}`).join(' ');
 
-    const xLabels = actualPoints.map((p, i) =>
-      `<text x="${scaleX(i).toFixed(1)}" y="${H}" text-anchor="middle" font-size="8" fill="var(--color-text-muted)">${p.label}</text>`
+    // x 라벨: 매 2일마다 표시하여 겹침 방지
+    const xLabels = actualPoints.filter((p, i) => i % 2 === 0 || i === numPts - 1).map((p) =>
+      `<text x="${scaleX(p.x).toFixed(1)}" y="${H}" text-anchor="middle" font-size="7" fill="var(--color-text-muted)">${p.label}</text>`
     ).join('');
     const yLabel = `<text x="2" y="${scaleY(maxY).toFixed(1)}" font-size="8" fill="var(--color-text-muted)">${maxY}</text>
       <text x="2" y="${scaleY(0).toFixed(1)}" font-size="8" fill="var(--color-text-muted)">0</text>`;
@@ -325,9 +342,9 @@ const DashboardView = {
       </div>`;
   },
 
-  // 담당자별 업무 부하 (수평 막대)
+  // 담당자별 업무 부하 (수평 막대) — 전체 업무 사용
   _renderWorkload(d) {
-    const tasks = d.weekTasks || [];
+    const tasks = d._allTasks || d.weekTasks || [];
     if (!tasks.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
 
     const userMap = {};
@@ -361,63 +378,72 @@ const DashboardView = {
     `).join('');
   },
 
-  // 완료율 추이 (일별)
+  // 완료율 추이 (일별) — 전체 업무의 일별 완료 건수 트렌드
   _renderCompletionRate(d) {
-    const tasks = d.weekTasks || [];
+    const tasks = d._allTasks || d.weekTasks || [];
     if (!tasks.length) return '<div class="empty-state" style="padding:20px"><div class="empty-state-title">데이터가 없습니다</div></div>';
 
-    // 최근 7일 완료율 계산
+    // 최근 14일 일별 완료 건수 트렌드
     const days = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = 13; i >= 0; i--) {
       const dt = new Date();
       dt.setDate(dt.getDate() - i);
       days.push(dt.toISOString().slice(0, 10));
     }
 
-    const points = days.map((day, i) => {
-      const dayTasks = tasks.filter(t => t.due_date && t.due_date.slice(0, 10) === day);
-      const done = dayTasks.filter(t => t.status === 'done').length;
-      const rate = dayTasks.length > 0 ? Math.round(done / dayTasks.length * 100) : 0;
-      return { x: i, y: rate, label: day.slice(5), count: dayTasks.length };
+    // 완료 업무의 updated_at 또는 due_date 기준 날짜별 완료 건수
+    const doneTasks = tasks.filter(t => t.status === 'done');
+    const doneByDay = {};
+    doneTasks.forEach(t => {
+      const dateStr = (t.updated_at || t.due_date || t.created_at || '').slice(0, 10);
+      if (dateStr) doneByDay[dateStr] = (doneByDay[dateStr] || 0) + 1;
     });
 
-    const W = 260, H = 80, padL = 28, padB = 18;
+    const points = days.map((day, i) => {
+      const count = doneByDay[day] || 0;
+      return { x: i, y: count, label: day.slice(5), count };
+    });
+    const maxCount = Math.max(...points.map(p => p.y), 1);
+
+    const numPts = points.length;
+    const W = 300, H = 80, padL = 28, padB = 18;
     const innerW = W - padL - 4;
     const innerH = H - padB;
-    const scaleX = i => padL + (innerW / 6) * i;
-    const scaleY = v => (innerH - (v / 100) * (innerH - 4)) + 2;
+    const scaleX = i => padL + (innerW / Math.max(numPts - 1, 1)) * i;
+    const scaleY = v => (innerH - (v / maxCount) * (innerH - 4)) + 2;
 
     const polyline = points.map(p => `${scaleX(p.x).toFixed(1)},${scaleY(p.y).toFixed(1)}`).join(' ');
     const dots = points.map(p => `
-      <circle cx="${scaleX(p.x).toFixed(1)}" cy="${scaleY(p.y).toFixed(1)}" r="3.5" fill="${p.count > 0 ? 'var(--color-done-text)' : 'var(--color-bg-secondary)'}" stroke="var(--color-bg-primary)" stroke-width="1.5">
-        <title>${p.label}: ${p.y}% (${p.count}건)</title>
+      <circle cx="${scaleX(p.x).toFixed(1)}" cy="${scaleY(p.y).toFixed(1)}" r="3" fill="${p.count > 0 ? 'var(--color-done-text)' : 'var(--color-bg-secondary)'}" stroke="var(--color-bg-primary)" stroke-width="1.5">
+        <title>${p.label}: ${p.y}건 완료</title>
       </circle>`).join('');
-    const xLabels = points.map((p, i) =>
-      `<text x="${scaleX(i).toFixed(1)}" y="${H}" text-anchor="middle" font-size="8" fill="var(--color-text-muted)">${p.label}</text>`
+    const xLabels = points.filter((p, i) => i % 2 === 0 || i === numPts - 1).map((p) =>
+      `<text x="${scaleX(p.x).toFixed(1)}" y="${H}" text-anchor="middle" font-size="7" fill="var(--color-text-muted)">${p.label}</text>`
     ).join('');
-    const yLabels = [0, 50, 100].map(v =>
-      `<text x="2" y="${scaleY(v).toFixed(1)}" font-size="8" fill="var(--color-text-muted)">${v}%</text>`
+    const yLabels = [0, Math.round(maxCount / 2), maxCount].map(v =>
+      `<text x="2" y="${scaleY(v).toFixed(1)}" font-size="8" fill="var(--color-text-muted)">${v}</text>`
     ).join('');
 
-    // 100% 기준선
-    const baselineY = scaleY(100).toFixed(1);
+    const totalDone = points.reduce((s, p) => s + p.y, 0);
 
     return `
       <svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;overflow:visible;">
-        <line x1="${padL}" y1="${baselineY}" x2="${W - 4}" y2="${baselineY}" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="3,3"/>
         ${yLabels}
         <polyline points="${polyline}" fill="none" stroke="var(--color-done-text)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
         ${dots}
         ${xLabels}
-      </svg>`;
+      </svg>
+      <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">최근 14일 완료: <strong style="color:var(--color-done-text)">${totalDone}건</strong></div>`;
   },
 
-  // 마감 초과 업무 목록
+  // 마감 초과 업무 목록 — 전체 업무에서 마감 초과 검색, 클릭 시 업무 뷰로 이동
   _renderOverdueTasks(d) {
     const today = new Date().toISOString().slice(0, 10);
-    const tasks = (d.weekTasks || []).filter(t =>
+    const allTasks = d._allTasks || d.weekTasks || [];
+    const tasks = allTasks.filter(t =>
       t.due_date && t.due_date.slice(0, 10) < today && t.status !== 'done'
-    );
+    ).sort((a, b) => a.due_date.localeCompare(b.due_date));
+
     if (!tasks.length) return `
       <div class="empty-state" style="padding:20px">
         <span class="empty-state-icon" style="color:var(--color-done-text)">✓</span>
@@ -425,18 +451,20 @@ const DashboardView = {
       </div>`;
 
     return `<div style="display:flex;flex-direction:column;gap:6px;">` +
-      tasks.slice(0, 8).map(t => {
+      tasks.slice(0, 10).map(t => {
         const due = t.due_date.slice(0, 10);
         const diff = Math.ceil((new Date(today) - new Date(due)) / (1000 * 60 * 60 * 24));
         return `
-          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--color-bg-secondary);border-radius:6px;border-left:3px solid var(--color-warn-text);">
+          <div class="overdue-task-item" data-task-id="${t.id}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--color-bg-secondary);border-radius:6px;border-left:3px solid var(--color-warn-text);cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='var(--color-bg-secondary)'">
             <div style="flex:1;min-width:0;">
               <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.title)}</div>
               <div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">${t.assignee_name ? escHtml(t.assignee_name) + ' · ' : ''}${due}</div>
             </div>
             <span style="font-size:11px;font-weight:600;color:var(--color-warn-text);white-space:nowrap;">D+${diff}</span>
           </div>`;
-      }).join('') + `</div>`;
+      }).join('') +
+      (tasks.length > 10 ? `<div style="text-align:center;font-size:11px;color:var(--color-text-muted);padding:4px;">외 ${tasks.length - 10}건 더...</div>` : '') +
+      `</div>`;
   },
 
   // 차트 타입 분기 렌더
@@ -635,6 +663,13 @@ const DashboardView = {
   bindEvents(layout) {
     const content = document.getElementById('content');
     const grid = document.getElementById('dashboard-grid');
+
+    // 마감 초과 업무 클릭 → 업무 현황으로 이동
+    content.querySelectorAll('.overdue-task-item').forEach(item => {
+      item.addEventListener('click', () => {
+        App.navigate('tasks');
+      });
+    });
 
     // 빠른 기간 버튼
     content.querySelectorAll('.dash-period-btn').forEach(btn => {

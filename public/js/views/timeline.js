@@ -119,11 +119,15 @@ const TimelineView = {
     if (Object.keys(groups).length === 0) {
       content.innerHTML = filterHtml + `
         <div class="empty-state">
-          <span class="empty-state-icon">📆</span>
+          <div class="empty-state-icon-svg">
+            <svg width="48" height="48" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><circle cx="13" cy="12" r="2" stroke="currentColor" stroke-width="0.8"/></svg>
+          </div>
           <div class="empty-state-title">${this.year}년 타임라인이 없습니다</div>
-          <div class="empty-state-desc">+ 추가 버튼으로 첫 계획을 등록해보세요</div>
+          <div class="empty-state-desc">첫 계획을 등록해보세요</div>
+          <div class="empty-state-action"><button class="btn btn-primary" id="empty-add-timeline">+ 타임라인 추가</button></div>
         </div>
       `;
+      content.querySelector('#empty-add-timeline')?.addEventListener('click', () => this.openForm());
     } else {
       // 타임라인 그리드
       const headerRow = `

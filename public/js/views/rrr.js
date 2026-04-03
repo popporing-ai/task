@@ -31,11 +31,15 @@ const RRRView = {
     if (this.data.length === 0) {
       content.innerHTML = `
         <div class="empty-state">
-          <span class="empty-state-icon">👥</span>
+          <div class="empty-state-icon-svg">
+            <svg width="48" height="48" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+          </div>
           <div class="empty-state-title">R&R 데이터가 없습니다</div>
-          <div class="empty-state-desc">+ R&R 추가 버튼으로 팀원의 역할을 등록해보세요</div>
+          <div class="empty-state-desc">팀원의 역할을 등록해보세요</div>
+          <div class="empty-state-action"><button class="btn btn-primary" id="empty-add-rrr">+ R&R 추가</button></div>
         </div>
       `;
+      content.querySelector('#empty-add-rrr')?.addEventListener('click', () => this.openAddForm());
       return;
     }
 

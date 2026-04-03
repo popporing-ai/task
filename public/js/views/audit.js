@@ -130,7 +130,9 @@ const AuditView = {
       </table>
     ` : `
       <div class="empty-state">
-        <span class="empty-state-icon">📋</span>
+        <div class="empty-state-icon-svg">
+          <svg width="48" height="48" viewBox="0 0 16 16" fill="none"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1"/><path d="M5 6h6M5 9h6M5 12h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+        </div>
         <div class="empty-state-title">변경 이력이 없습니다</div>
         <div class="empty-state-desc">조회 기간 또는 필터를 변경해보세요</div>
       </div>

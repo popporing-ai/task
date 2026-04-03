@@ -98,7 +98,7 @@ a { text-decoration: none; color: var(--color-primary); cursor: pointer; }
   color: var(--sidebar-text);
   border-left: 2px solid transparent;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.18s ease;
 }
 .nav-item:hover:not(.active) {
   background: rgba(255,255,255,0.05);
@@ -1919,3 +1919,218 @@ input[type="month"] {
 }
 .attachment-item:hover .attachment-del { opacity: 1; }
 .attachment-del:hover { color: var(--color-warn-text); }
+
+/* === 3. Sidebar Active State Enhancement === */
+.nav-item:hover:not(.active) {
+  padding-left: 20px;
+}
+.nav-item .nav-badge {
+  margin-left: auto;
+  background: rgba(255,255,255,0.12);
+  color: var(--sidebar-text);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 99px;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.5;
+}
+.nav-item.active .nav-badge {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
+/* === 4. Topbar Enhancement === */
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.topbar-breadcrumb-sep {
+  color: var(--color-text-hint);
+  font-weight: 400;
+  font-size: 13px;
+}
+.topbar-breadcrumb-root {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-size: 13px;
+}
+.topbar-breadcrumb-current {
+  color: var(--color-text-primary);
+}
+.search-shortcut-hint {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255,255,255,0.08);
+  border: 0.5px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--color-text-hint);
+  pointer-events: none;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+}
+
+/* === 6. Smooth Transitions === */
+/* View switching fade */
+.content {
+  animation: viewFadeIn 0.25s ease-out;
+}
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Card appearing in kanban */
+.kanban-card {
+  animation: cardFadeIn 0.2s ease-out;
+}
+@keyframes cardFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Widget appearing when added */
+.dashboard-widget {
+  animation: widgetFadeIn 0.3s ease-out;
+}
+@keyframes widgetFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Tab content switching */
+.detail-tab-pane.active {
+  display: block;
+  animation: tabFadeIn 0.2s ease-out;
+}
+@keyframes tabFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* === Kanban Context Menu === */
+.kanban-context-menu {
+  position: fixed;
+  z-index: 500;
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  min-width: 160px;
+  animation: ctxMenuIn 0.12s ease-out;
+}
+@keyframes ctxMenuIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.ctx-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+.ctx-menu-item:hover {
+  background: var(--color-bg-secondary);
+}
+.ctx-menu-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ctx-menu-label { font-size: 10px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.3px; padding: 6px 12px 4px; }
+
+/* === Compact card mode === */
+.kanban-card.compact-card .card-footer,
+.kanban-card.compact-card .card-category,
+.kanban-card.compact-card .card-tags,
+.kanban-card.compact-card .card-indicators,
+.kanban-card.compact-card .card-actions {
+  display: none !important;
+}
+.kanban-card.compact-card {
+  padding: 8px 12px;
+  margin-bottom: 4px;
+}
+.kanban-card.compact-card .card-title {
+  margin-bottom: 0;
+  font-size: 12px;
+  -webkit-line-clamp: 1;
+}
+.kanban-card.compact-card:hover .card-actions {
+  display: flex !important;
+}
+
+/* Compact toggle button */
+.compact-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0.5px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.compact-toggle-btn:hover { color: var(--color-text-primary); background: #383948; }
+.compact-toggle-btn.active { color: var(--color-primary); border-color: var(--color-primary); }
+
+/* === 5. Better Empty States === */
+.empty-state-action {
+  margin-top: 16px;
+}
+.empty-state-action .btn {
+  padding: 8px 20px;
+  font-size: 13px;
+}
+.empty-state-icon-svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.empty-state-icon-svg svg {
+  opacity: 0.35;
+}
+
+/* === 8. Settings Tab Icons === */
+.settings-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-tab-count {
+  font-size: 10px;
+  background: rgba(255,255,255,0.1);
+  padding: 1px 6px;
+  border-radius: 99px;
+  margin-left: 2px;
+  color: var(--color-text-muted);
+}
+.filter-btn.active .settings-tab-count {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}

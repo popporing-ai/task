@@ -135,13 +135,19 @@ const ContentView = {
       </table>
     ` : `
       <div class="empty-state">
-        <span class="empty-state-icon">📅</span>
+        <div class="empty-state-icon-svg">
+          <svg width="48" height="48" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1"/><path d="M1 5h14" stroke="currentColor" stroke-width="1"/><path d="M5 5v10" stroke="currentColor" stroke-width="1"/><circle cx="10" cy="9" r="1.5" stroke="currentColor" stroke-width="0.8"/></svg>
+        </div>
         <div class="empty-state-title">${this.month} 콘텐츠가 없습니다</div>
-        <div class="empty-state-desc">+ 콘텐츠 추가 버튼으로 첫 콘텐츠를 등록해보세요</div>
+        <div class="empty-state-desc">첫 콘텐츠를 등록해보세요</div>
+        <div class="empty-state-action"><button class="btn btn-primary empty-add-content">+ 콘텐츠 추가</button></div>
       </div>
     `;
 
     content.innerHTML = filterHtml + tableHtml;
+
+    // 빈 상태 추가 버튼
+    content.querySelector('.empty-add-content')?.addEventListener('click', () => this.openForm());
 
     // 채널 기어 드롭다운 토글
     const chGearBtn = content.querySelector('#ch-gear-btn');

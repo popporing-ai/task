@@ -9,6 +9,7 @@ const TasksView = {
   showArchived: false,   // 아카이브 보기 모드
   sortBy: 'default',     // 정렬 기준: default | due_date | created_at | title
   viewMode: localStorage.getItem('task_view_mode') || 'kanban', // 'kanban' | 'list'
+  compactMode: localStorage.getItem('task_compact_mode') === 'true', // 컴팩트/확장 토글
   selectedTaskIds: [],   // 리스트 뷰 다중 선택
 
   async render() {
@@ -185,10 +186,18 @@ const TasksView = {
       </div>
     `;
 
+    // 컴팩트 모드 토글 버튼
+    const compactToggleHtml = `
+      <button class="compact-toggle-btn ${this.compactMode ? 'active' : ''}" id="compact-toggle" title="${this.compactMode ? '확장 보기' : '컴팩트 보기'}">
+        ${this.compactMode ? '═' : '≡'}
+      </button>
+    `;
+
     // 필터 바
     const filterHtml = `
       <div class="filter-bar" style="position:relative;">
         ${viewToggleHtml}
+        ${this.viewMode === 'kanban' ? compactToggleHtml : ''}
         <button class="filter-btn ${!hasFilters && !this.showArchived ? 'active' : ''}" id="filter-all">전체</button>
         <div style="position:relative;">
           <button class="filter-btn ${hasFilters ? 'active' : ''}" id="filter-toggle-btn">필터 ▼</button>
@@ -346,12 +355,12 @@ const TasksView = {
       return;
     }
 
-    // 칸반 컬럼별 빈 상태 메시지
+    // 칸반 컬럼별 빈 상태 메시지 (SVG 아이콘)
     const colEmptyMessages = {
-      todo:        { icon: '📝', msg: '할 일이 없습니다' },
-      in_progress: { icon: '⚡', msg: '진행 중인 업무 없음' },
-      done:        { icon: '✓',  msg: '완료된 업무 없음' },
-      blocked:     { icon: '—',  msg: '미진행 없음' },
+      todo:        { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M5 8h6M8 5v6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', msg: '할 일이 없습니다' },
+      in_progress: { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 4.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>', msg: '진행 중인 업무 없음' },
+      done:        { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 8l2 2 3.5-4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>', msg: '완료된 업무 없음' },
+      blocked:     { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', msg: '미진행 없음' },
     };
 
     content.innerHTML = filterHtml + `
@@ -372,6 +381,7 @@ const TasksView = {
                   : `<div class="kanban-empty">
                        <span class="kanban-empty-icon">${empty.icon}</span>
                        <span>${empty.msg}</span>
+                       ${col.key === 'todo' ? '<button class="btn btn-default kanban-empty-add" style="margin-top:8px;font-size:11px;padding:4px 12px;">+ 업무 추가</button>' : ''}
                      </div>`
                 }
               </div>
@@ -383,12 +393,29 @@ const TasksView = {
 
     // 칸반 빠른 추가 버튼
     content.querySelector('#kanban-quick-add')?.addEventListener('click', () => this.openForm());
+    // 빈 상태 추가 버튼
+    content.querySelectorAll('.kanban-empty-add').forEach(btn => {
+      btn.addEventListener('click', () => this.openForm());
+    });
+
+    // 컴팩트 모드 토글
+    content.querySelector('#compact-toggle')?.addEventListener('click', () => {
+      this.compactMode = !this.compactMode;
+      localStorage.setItem('task_compact_mode', this.compactMode);
+      this.renderBoard(content);
+    });
 
     // 드래그 앤 드롭
     this.bindDragDrop(content);
 
-    // 카드 이벤트
+    // 카드 이벤트 — 좌클릭 + 우클릭 컨텍스트 메뉴
     content.querySelectorAll('.kanban-card').forEach(card => {
+      // 우클릭 → 빠른 상태 변경 컨텍스트 메뉴
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this._showContextMenu(e, card.dataset.id, content);
+      });
+
       card.addEventListener('click', (e) => {
         if (e.target.closest('.card-actions')) return;
         const task = this.tasks.find(t => t.id == card.dataset.id);
@@ -811,7 +838,7 @@ const TasksView = {
       : '';
 
     return `
-      <div class="kanban-card" draggable="true" data-id="${t.id}">
+      <div class="kanban-card${this.compactMode ? ' compact-card' : ''}" draggable="true" data-id="${t.id}">
         <div class="card-actions">
           <button class="card-action-btn card-edit" title="수정">${editIcon}</button>
           <button class="card-action-btn card-archive" title="아카이브">${archiveIcon}</button>
@@ -827,6 +854,71 @@ const TasksView = {
         </div>
       </div>
     `;
+  },
+
+  // 우클릭 컨텍스트 메뉴: 빠른 상태 변경
+  _showContextMenu(e, taskId, content) {
+    // 기존 메뉴 제거
+    document.querySelectorAll('.kanban-context-menu').forEach(m => m.remove());
+
+    const task = this.tasks.find(t => t.id == taskId);
+    if (!task) return;
+
+    const statuses = [
+      { key: 'todo', label: '할 일', color: 'var(--color-plan-text)' },
+      { key: 'in_progress', label: '진행 중', color: 'var(--color-primary)' },
+      { key: 'done', label: '완료', color: 'var(--color-done-text)' },
+      { key: 'blocked', label: '미진행', color: 'var(--color-warn-text)' },
+    ];
+
+    const menu = document.createElement('div');
+    menu.className = 'kanban-context-menu';
+    menu.innerHTML = `
+      <div class="ctx-menu-label">상태 변경</div>
+      ${statuses.map(s => `
+        <button class="ctx-menu-item${task.status === s.key ? ' active' : ''}" data-ctx-status="${s.key}">
+          <span class="ctx-menu-dot" style="background:${s.color}"></span>
+          ${s.label}
+          ${task.status === s.key ? '<span style="margin-left:auto;font-size:11px;color:var(--color-text-muted)">✓</span>' : ''}
+        </button>
+      `).join('')}
+    `;
+
+    // 위치 설정
+    menu.style.left = e.clientX + 'px';
+    menu.style.top = e.clientY + 'px';
+    document.body.appendChild(menu);
+
+    // 화면 밖 방지
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 8) + 'px';
+    if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 8) + 'px';
+
+    // 상태 클릭
+    menu.querySelectorAll('[data-ctx-status]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const newStatus = btn.dataset.ctxStatus;
+        menu.remove();
+        if (newStatus === task.status) return;
+        try {
+          await API.patch(`/tasks/${taskId}/status`, { status: newStatus });
+          App.toast('상태가 변경되었습니다.', 'success');
+          await this.loadTasks();
+          this.renderBoard(content);
+        } catch {
+          App.toast('상태 변경 실패', 'error');
+        }
+      });
+    });
+
+    // 외부 클릭으로 닫기
+    const closeMenu = (ev) => {
+      if (!menu.contains(ev.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeMenu), 0);
   },
 
   openDetail(task) {

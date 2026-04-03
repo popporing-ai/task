@@ -76,7 +76,11 @@
   <!-- 메인 영역 -->
   <main class="main">
     <header class="topbar" id="topbar">
-      <h1 class="topbar-title" id="topbar-title">대시보드</h1>
+      <div class="topbar-breadcrumb" id="topbar-title">
+        <span class="topbar-breadcrumb-root">마케팅 업무 현황</span>
+        <span class="topbar-breadcrumb-sep">›</span>
+        <span class="topbar-breadcrumb-current" id="topbar-current">대시보드</span>
+      </div>
       <div class="topbar-center">
         <div class="topbar-notifications" id="notif-wrap">
           <button class="notif-bell" id="notif-bell" title="알림">
@@ -93,6 +97,7 @@
         </div>
         <div class="global-search-wrap" id="global-search-wrap">
           <input type="text" class="global-search" id="global-search" placeholder="검색..." autocomplete="off">
+          <span class="search-shortcut-hint" id="search-hint">Ctrl+K</span>
           <div class="search-results" id="search-results" style="display:none;"></div>
         </div>
       </div>

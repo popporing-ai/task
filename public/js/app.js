@@ -28,8 +28,45 @@ const App = {
     this.bindGlobalSearch();
     this.initNotifications();
 
+    // 사이드바 뱃지 업데이트
+    this.updateSidebarBadges();
+
     // 초기 뷰 렌더링
     this.navigate('dashboard');
+  },
+
+  // 사이드바 카운트 뱃지 업데이트
+  async updateSidebarBadges() {
+    try {
+      const [tasksRes, contentRes, timelineRes] = await Promise.all([
+        API.get('/tasks').catch(() => ({ data: [] })),
+        API.get('/content?month=' + new Date().toISOString().slice(0, 7)).catch(() => ({ data: [] })),
+        API.get('/timeline?year=' + new Date().getFullYear()).catch(() => ({ data: [] })),
+      ]);
+      const taskCount = (tasksRes.data || []).length;
+      const contentCount = (contentRes.data || []).length;
+      const timelineCount = (timelineRes.data || []).length;
+
+      this._setSidebarBadge('tasks', taskCount);
+      this._setSidebarBadge('content', contentCount);
+      this._setSidebarBadge('timeline', timelineCount);
+    } catch {}
+  },
+
+  _setSidebarBadge(view, count) {
+    const navItem = document.querySelector(`.nav-item[data-view="${view}"]`);
+    if (!navItem) return;
+    let badge = navItem.querySelector('.nav-badge');
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'nav-badge';
+        navItem.appendChild(badge);
+      }
+      badge.textContent = count > 99 ? '99+' : count;
+    } else if (badge) {
+      badge.remove();
+    }
   },
 
   async loadMeta() {
@@ -95,7 +132,17 @@ const App = {
       settings: '설정',
       audit: '변경 이력',
     };
-    document.getElementById('topbar-title').textContent = titles[view] || '';
+    // 브레드크럼 업데이트
+    const currentEl = document.getElementById('topbar-current');
+    if (currentEl) currentEl.textContent = titles[view] || '';
+
+    // 콘텐츠 영역에 fade-in 애니메이션 재트리거
+    const contentEl = document.getElementById('content');
+    if (contentEl) {
+      contentEl.style.animation = 'none';
+      contentEl.offsetHeight; // reflow
+      contentEl.style.animation = '';
+    }
     document.getElementById('topbar-actions').innerHTML = '';
 
     // 뷰 렌더링
@@ -190,6 +237,7 @@ const App = {
   bindGlobalSearch() {
     const input = document.getElementById('global-search');
     const results = document.getElementById('search-results');
+    const hint = document.getElementById('search-hint');
     if (!input || !results) return;
 
     let debounceTimer = null;
@@ -208,11 +256,17 @@ const App = {
       }
     });
 
-    // 포커스 시 다시 표시
+    // 포커스 시 다시 표시 + 숨기기 Ctrl+K 힌트
     input.addEventListener('focus', () => {
+      if (hint) hint.style.display = 'none';
       if (input.value.trim() && results.children.length > 0) {
         results.style.display = 'block';
       }
+    });
+
+    // 블러 시 힌트 다시 표시
+    input.addEventListener('blur', () => {
+      if (hint && !input.value.trim()) hint.style.display = '';
     });
   },
 
@@ -266,6 +320,13 @@ const App = {
   // 글로벌 키보드 단축키
   bindGlobalKeys() {
     document.addEventListener('keydown', (e) => {
+      // Ctrl+K → 검색 포커스
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = document.getElementById('global-search');
+        if (searchInput) searchInput.focus();
+        return;
+      }
       if (e.key === 'Escape') {
         // 팝오버 닫기
         const popover = document.querySelector('.popover-overlay');
