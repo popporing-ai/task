@@ -17,6 +17,65 @@ router.get('/', async (req, res, next) => {
       WHERE due_date < CURRENT_DATE AND status IN ('todo', 'in_progress') AND archived = false
     `);
 
+    // === 에스컬레이션 로직 ===
+    // D+1 지연: 담당자 알림 (이미 알림 없는 경우만)
+    const d1Tasks = (await db.query(`
+      SELECT t.id, t.title, t.assignee_id
+      FROM tasks t
+      WHERE t.due_date = CURRENT_DATE - INTERVAL '1 day'
+        AND t.status != 'done' AND t.archived = false
+        AND t.assignee_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM notifications n
+          WHERE n.link_id = t.id AND n.link_view = 'tasks' AND n.type = 'overdue_d1'
+        )
+    `)).rows;
+    for (const t of d1Tasks) {
+      createNotification(t.assignee_id, 'overdue_d1',
+        `업무가 1일 지연되었습니다: ${t.title}`, 'tasks', t.id);
+    }
+
+    // D+3 지연: 관리자 전원 알림
+    const d3Tasks = (await db.query(`
+      SELECT t.id, t.title, t.assignee_id, u.name AS assignee_name
+      FROM tasks t
+      LEFT JOIN users u ON u.id = t.assignee_id
+      WHERE t.due_date = CURRENT_DATE - INTERVAL '3 days'
+        AND t.status != 'done' AND t.archived = false
+        AND NOT EXISTS (
+          SELECT 1 FROM notifications n
+          WHERE n.link_id = t.id AND n.link_view = 'tasks' AND n.type = 'overdue_d3'
+        )
+    `)).rows;
+    if (d3Tasks.length > 0) {
+      const admins = (await db.query("SELECT id FROM users WHERE role = 'admin'")).rows;
+      for (const t of d3Tasks) {
+        for (const admin of admins) {
+          createNotification(admin.id, 'overdue_d3',
+            `업무가 3일 이상 지연: ${t.title} (담당: ${t.assignee_name || '미배정'})`,
+            'tasks', t.id);
+        }
+      }
+    }
+
+    // D+7 지연: 자동 이슈 생성
+    const d7Tasks = (await db.query(`
+      SELECT t.id, t.title
+      FROM tasks t
+      WHERE t.due_date <= CURRENT_DATE - INTERVAL '7 days'
+        AND t.status != 'done' AND t.archived = false
+        AND NOT EXISTS (
+          SELECT 1 FROM task_issues ti
+          WHERE ti.task_id = t.id AND ti.issue_type = 'delay'
+        )
+    `)).rows;
+    for (const t of d7Tasks) {
+      await db.query(`
+        INSERT INTO task_issues (task_id, reporter_id, issue_type, description)
+        VALUES ($1, $2, 'delay', $3)
+      `, [t.id, req.user.id, `업무가 7일 이상 지연되었습니다: ${t.title}`]);
+    }
+
     const { status, category_id, assignee_id, archived, date_from, date_to } = req.query;
     let where = [];
     let params = [];
@@ -148,6 +207,22 @@ router.patch('/:id/status', auditMiddleware('tasks'), async (req, res, next) => 
       }
     }
 
+    // 의존성 검증: in_progress로 변경 시 선행 업무가 모두 done인지 확인
+    if (status === 'in_progress') {
+      const { rows: deps } = await db.query(`
+        SELECT td.depends_on_id, t.title, t.status
+        FROM task_dependencies td
+        JOIN tasks t ON t.id = td.depends_on_id
+        WHERE td.task_id = $1 AND t.status != 'done'
+      `, [req.params.id]);
+      if (deps.length > 0) {
+        const names = deps.map(d => d.title).join(', ');
+        return res.status(400).json({
+          error: `선행 업무가 완료되지 않았습니다: ${names}`
+        });
+      }
+    }
+
     const { rows } = await db.query(
       'UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING *',
       [status, req.params.id]
@@ -196,6 +271,73 @@ router.patch('/:id/archive', auditMiddleware('tasks'), async (req, res, next) =>
     );
     if (rows.length === 0) return res.status(404).json({ error: '업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0], message: archived ? '아카이브되었습니다.' : '복원되었습니다.' });
+  } catch (err) { next(err); }
+});
+
+// === 의존성 관리 ===
+
+// 의존성 목록 조회
+router.get('/:id/dependencies', async (req, res, next) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT td.id, td.depends_on_id, td.created_at,
+             t.title AS depends_on_title, t.status AS depends_on_status,
+             u.name AS assignee_name
+      FROM task_dependencies td
+      JOIN tasks t ON t.id = td.depends_on_id
+      LEFT JOIN users u ON u.id = t.assignee_id
+      WHERE td.task_id = $1
+      ORDER BY td.created_at
+    `, [req.params.id]);
+    res.json({ data: rows });
+  } catch (err) { next(err); }
+});
+
+// 의존성 추가
+router.post('/:id/dependencies', auditMiddleware('task_dependencies'), async (req, res, next) => {
+  try {
+    const taskId = req.params.id;
+    const { depends_on_id } = req.body;
+
+    if (!depends_on_id) {
+      return res.status(400).json({ error: 'depends_on_id는 필수입니다.' });
+    }
+    if (parseInt(taskId) === parseInt(depends_on_id)) {
+      return res.status(400).json({ error: '자기 자신에 대한 의존성은 설정할 수 없습니다.' });
+    }
+
+    // 대상 업무 존재 확인
+    const target = (await db.query('SELECT id FROM tasks WHERE id = $1', [depends_on_id])).rows;
+    if (!target.length) {
+      return res.status(404).json({ error: '대상 업무를 찾을 수 없습니다.' });
+    }
+
+    const { rows } = await db.query(`
+      INSERT INTO task_dependencies (task_id, depends_on_id)
+      VALUES ($1, $2)
+      RETURNING *
+    `, [taskId, depends_on_id]);
+
+    res.json({ data: rows[0], message: '의존성이 추가되었습니다.' });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: '이미 등록된 의존성입니다.' });
+    }
+    next(err);
+  }
+});
+
+// 의존성 삭제
+router.delete('/:id/dependencies/:depId', auditMiddleware('task_dependencies'), async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      'DELETE FROM task_dependencies WHERE task_id = $1 AND id = $2 RETURNING *',
+      [req.params.id, req.params.depId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: '의존성을 찾을 수 없습니다.' });
+    }
+    res.json({ data: rows[0], message: '의존성이 삭제되었습니다.' });
   } catch (err) { next(err); }
 });
 

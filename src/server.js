@@ -33,19 +33,15 @@ app.use('/task/api/tags', require('./routes/tags'));
 app.use('/task/api/notifications', require('./routes/notifications'));
 app.use('/task/api/attachments', require('./routes/attachments'));
 app.use('/task/api/checklists', require('./routes/checklists'));
+app.use('/task/api/users', require('./routes/users'));
+app.use('/task/api/issues', require('./routes/issues'));
+app.use('/task/api/goals', require('./routes/goals'));
+app.use('/task/api/feedbacks', require('./routes/feedbacks'));
+app.use('/task/api/performance', require('./routes/performance'));
 
-// 메타 API (카테고리, 제품, 유저 목록, 대시보드)
+// 메타 API (제품, 대시보드)
 const authMiddleware = require('./middleware/auth');
 const db = require('./db');
-
-app.get('/task/api/users', authMiddleware, async (req, res, next) => {
-  try {
-    const { rows } = await db.query(
-      'SELECT id, name, email, avatar_bg, avatar_text FROM users ORDER BY name'
-    );
-    res.json({ data: rows });
-  } catch (err) { next(err); }
-});
 
 app.get('/task/api/products', authMiddleware, async (req, res, next) => {
   try {

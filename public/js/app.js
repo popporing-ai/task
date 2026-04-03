@@ -129,6 +129,7 @@ const App = {
       timeline: '연간 타임라인',
       content: '콘텐츠 캘린더',
       rrr: 'R&R 현황',
+      performance: '성과 관리',
       settings: '설정',
       audit: '변경 이력',
     };
@@ -152,6 +153,7 @@ const App = {
       timeline: TimelineView,
       content: ContentView,
       rrr: RRRView,
+      performance: PerformanceView,
       settings: SettingsView,
       audit: AuditView,
     };

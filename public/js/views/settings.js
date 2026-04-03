@@ -38,6 +38,7 @@ const SettingsView = {
     const prodCount = App.products.length;
     const chCount = this.CHANNELS.length;
     const typeCount = this.CONTENT_TYPES.length;
+    const isAdmin = App.user?.role === 'admin';
 
     // 탭 + 콘텐츠 골격 렌더링
     container.innerHTML = `
@@ -70,6 +71,14 @@ const SettingsView = {
           </span>
           <span class="settings-tab-count">${typeCount}</span>
         </button>
+        ${isAdmin ? `
+        <button class="filter-btn ${this.activeTab === 'members' ? 'active' : ''}" data-tab="members">
+          <span class="settings-tab-icon">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            팀원 관리
+          </span>
+        </button>
+        ` : ''}
       </div>
       <div id="settings-tab-content"></div>
     `;
@@ -92,6 +101,7 @@ const SettingsView = {
       case 'products':   await this._renderProducts();   break;
       case 'channels':   this._renderChannels();         break;
       case 'types':      this._renderContentTypes();     break;
+      case 'members':    await this._renderMembers();    break;
     }
   },
 
@@ -393,6 +403,110 @@ const SettingsView = {
           </tbody>
         </table>
       </div>
+    `;
+  },
+
+  // ─────────────────────────────────────────
+  // 팀원 관리 탭 (admin only)
+  // ─────────────────────────────────────────
+  async _renderMembers() {
+    const wrap = document.getElementById('settings-tab-content');
+    document.getElementById('topbar-actions').innerHTML = '';
+    wrap.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>불러오는 중...</span></div>';
+
+    let users = [];
+    try {
+      const res = await API.get('/users');
+      users = res.data || [];
+    } catch {
+      wrap.innerHTML = '<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">사용자 목록을 불러오지 못했습니다</div></div>';
+      return;
+    }
+
+    wrap.innerHTML = `
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="settings-table member-mgmt-table">
+          <thead>
+            <tr>
+              <th>이름</th>
+              <th>이메일</th>
+              <th>권한</th>
+              <th>상태</th>
+              <th>가입일</th>
+              <th style="width:180px;text-align:right">작업</th>
+            </tr>
+          </thead>
+          <tbody id="member-tbody">
+            ${users.length === 0
+              ? '<tr><td colspan="6" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 사용자가 없습니다</td></tr>'
+              : users.map(u => this._memberRowHtml(u)).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // 이벤트 위임
+    document.getElementById('member-tbody')?.addEventListener('click', async (e) => {
+      const roleBtn = e.target.closest('.btn-toggle-role');
+      const activeBtn = e.target.closest('.btn-toggle-active');
+
+      if (roleBtn) {
+        const userId = roleBtn.dataset.id;
+        const newRole = roleBtn.dataset.currentRole === 'admin' ? 'user' : 'admin';
+        try {
+          await API.patch(`/users/${userId}/role`, { role: newRole });
+          App.toast(`권한이 ${newRole === 'admin' ? '관리자' : '일반'}(으)로 변경되었습니다.`, 'success');
+          await App.loadMeta();
+          await this._renderMembers();
+        } catch {
+          App.toast('권한 변경 실패', 'error');
+        }
+      }
+
+      if (activeBtn) {
+        const userId = activeBtn.dataset.id;
+        const newActive = activeBtn.dataset.currentActive === 'true' ? false : true;
+        try {
+          await API.patch(`/users/${userId}/active`, { is_active: newActive });
+          App.toast(newActive ? '활성화되었습니다.' : '비활성화되었습니다.', 'success');
+          await App.loadMeta();
+          await this._renderMembers();
+        } catch {
+          App.toast('상태 변경 실패', 'error');
+        }
+      }
+    });
+  },
+
+  _memberRowHtml(u) {
+    const isActive = u.is_active !== false;
+    const roleBadge = u.role === 'admin'
+      ? '<span class="badge badge-plan">관리자</span>'
+      : '<span class="badge" style="background:rgba(148,163,184,0.15);color:#94A3B8;">일반</span>';
+    const statusBadge = isActive
+      ? '<span class="badge badge-done">활성</span>'
+      : '<span class="badge badge-skip">비활성</span>';
+    const joinDate = u.created_at ? u.created_at.slice(0, 10) : '-';
+
+    return `
+      <tr class="${isActive ? '' : 'member-inactive-row'}">
+        <td style="display:flex;align-items:center;gap:8px;">
+          ${App.avatar({ name: u.name || '-', avatar_bg: u.avatar_bg, avatar_text: u.avatar_text })}
+          ${escHtml(u.name || '-')}
+        </td>
+        <td>${escHtml(u.email || '-')}</td>
+        <td>${roleBadge}</td>
+        <td>${statusBadge}</td>
+        <td>${joinDate}</td>
+        <td style="text-align:right">
+          <button class="btn btn-default btn-toggle-role" data-id="${u.id}" data-current-role="${u.role}" style="margin-right:6px;font-size:12px;padding:4px 10px;">
+            ${u.role === 'admin' ? '일반으로' : '관리자로'}
+          </button>
+          <button class="btn ${isActive ? 'btn-danger' : 'btn-primary'} btn-toggle-active" data-id="${u.id}" data-current-active="${isActive}" style="font-size:12px;padding:4px 10px;">
+            ${isActive ? '비활성화' : '활성화'}
+          </button>
+        </td>
+      </tr>
     `;
   },
 };
