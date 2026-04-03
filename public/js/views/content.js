@@ -157,12 +157,16 @@ const ContentView = {
       const isOpen = chGearDropdownEl.style.display !== 'none';
       chGearDropdownEl.style.display = isOpen ? 'none' : 'block';
     });
-    document.addEventListener('click', function closeChGear(e) {
+    if (this._closeChGearHandler) {
+      document.removeEventListener('click', this._closeChGearHandler);
+    }
+    this._closeChGearHandler = function closeChGear(e) {
       if (chGearDropdownEl && !chGearDropdownEl.contains(e.target) && e.target !== chGearBtn) {
         chGearDropdownEl.style.display = 'none';
         document.removeEventListener('click', closeChGear);
       }
-    });
+    };
+    document.addEventListener('click', this._closeChGearHandler);
     content.querySelectorAll('[data-gear-ch]').forEach(cb => {
       cb.addEventListener('change', () => {
         const current = this._getVisibleChannels();

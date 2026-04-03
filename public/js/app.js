@@ -225,11 +225,22 @@ const App = {
       confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
       newBtn.id = 'dialog-confirm';
 
+      const escHandler = (e) => {
+        if (e.key === 'Escape') {
+          document.getElementById('dialog-overlay').style.display = 'none';
+          document.removeEventListener('keydown', escHandler);
+          resolve(false);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+
       newBtn.addEventListener('click', () => {
         document.getElementById('dialog-overlay').style.display = 'none';
+        document.removeEventListener('keydown', escHandler);
         resolve(true);
       });
       document.getElementById('dialog-cancel').addEventListener('click', () => {
+        document.removeEventListener('keydown', escHandler);
         resolve(false);
       }, { once: true });
     });

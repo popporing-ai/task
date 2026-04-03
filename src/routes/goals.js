@@ -60,6 +60,9 @@ router.post('/', auditMiddleware('team_goals'), async (req, res, next) => {
 // 목표 수정
 router.put('/:id', auditMiddleware('team_goals'), async (req, res, next) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: '관리자만 수정할 수 있습니다.' });
+    }
     const { title, description, target_value, period, start_date, end_date, status } = req.body;
     const { rows } = await db.query(`
       UPDATE team_goals
@@ -79,6 +82,9 @@ router.put('/:id', auditMiddleware('team_goals'), async (req, res, next) => {
 // 목표 진행률 업데이트
 router.patch('/:id/progress', auditMiddleware('team_goals'), async (req, res, next) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: '관리자만 수정할 수 있습니다.' });
+    }
     const { current_value } = req.body;
     if (current_value === undefined || current_value === null) {
       return res.status(400).json({ error: 'current_value는 필수입니다.' });

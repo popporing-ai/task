@@ -537,7 +537,7 @@ const DashboardView = {
         const due = t.due_date.slice(0, 10);
         const diff = Math.ceil((new Date(today) - new Date(due)) / (1000 * 60 * 60 * 24));
         return `
-          <div class="overdue-task-item" data-task-id="${t.id}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--color-bg-secondary);border-radius:6px;border-left:3px solid var(--color-warn-text);cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='var(--color-bg-secondary)'">
+          <div class="overdue-task-item" data-task-id="${t.id}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--color-bg-secondary);border-radius:6px;border-left:3px solid var(--color-warn-text);cursor:pointer;transition:background 0.12s;">
             <div style="flex:1;min-width:0;">
               <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.title)}</div>
               <div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">${t.assignee_name ? escHtml(t.assignee_name) + ' · ' : ''}${due}</div>

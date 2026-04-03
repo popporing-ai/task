@@ -126,7 +126,7 @@ router.get('/export.csv', async (req, res, next) => {
 });
 
 // 허용된 테이블 목록 (SQL injection 방지)
-const ALLOWED_TABLES = ['tasks', 'content_items', 'timeline_items', 'rrr_items'];
+const ALLOWED_TABLES = ['tasks', 'content_items', 'timeline_items', 'rrr_items', 'task_categories', 'products', 'subtasks', 'comments', 'tags'];
 
 // 레코드 복구
 router.post('/:id/restore', async (req, res, next) => {

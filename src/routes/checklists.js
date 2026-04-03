@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
+const auditMiddleware = require('../middleware/audit');
 
 const router = express.Router();
 
@@ -40,7 +41,7 @@ router.get('/task/:taskId', async (req, res, next) => {
 });
 
 // 체크리스트 생성
-router.post('/', async (req, res, next) => {
+router.post('/', auditMiddleware('checklists'), async (req, res, next) => {
   try {
     const { task_id, title } = req.body;
     if (!task_id) {
@@ -58,7 +59,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // 체크리스트 삭제
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', auditMiddleware('checklists'), async (req, res, next) => {
   try {
     const { rows } = await db.query(
       'DELETE FROM checklists WHERE id = $1 RETURNING *', [req.params.id]
@@ -71,7 +72,7 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 // 체크리스트 항목 추가
-router.post('/:id/items', async (req, res, next) => {
+router.post('/:id/items', auditMiddleware('checklist_items'), async (req, res, next) => {
   try {
     const { content } = req.body;
     if (!content || !content.trim()) {
@@ -97,7 +98,7 @@ router.post('/:id/items', async (req, res, next) => {
 });
 
 // 체크리스트 항목 완료 토글
-router.patch('/items/:itemId/toggle', async (req, res, next) => {
+router.patch('/items/:itemId/toggle', auditMiddleware('checklist_items'), async (req, res, next) => {
   try {
     const { rows } = await db.query(`
       UPDATE checklist_items
@@ -114,7 +115,7 @@ router.patch('/items/:itemId/toggle', async (req, res, next) => {
 });
 
 // 체크리스트 항목 삭제
-router.delete('/items/:itemId', async (req, res, next) => {
+router.delete('/items/:itemId', auditMiddleware('checklist_items'), async (req, res, next) => {
   try {
     const { rows } = await db.query(
       'DELETE FROM checklist_items WHERE id = $1 RETURNING *', [req.params.itemId]

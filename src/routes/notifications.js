@@ -32,6 +32,18 @@ router.get('/unread-count', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// 전체 알림 읽음 처리
+router.patch('/read-all', async (req, res, next) => {
+  try {
+    await db.query(`
+      UPDATE notifications
+      SET is_read = true
+      WHERE user_id = $1 AND is_read = false
+    `, [req.user.id]);
+    res.json({ data: null, message: '모든 알림이 읽음 처리되었습니다.' });
+  } catch (err) { next(err); }
+});
+
 // 특정 알림 읽음 처리
 router.patch('/:id/read', async (req, res, next) => {
   try {
@@ -45,18 +57,6 @@ router.patch('/:id/read', async (req, res, next) => {
       return res.status(404).json({ data: null, error: '알림을 찾을 수 없습니다.' });
     }
     res.json({ data: rows[0], message: '읽음 처리되었습니다.' });
-  } catch (err) { next(err); }
-});
-
-// 전체 알림 읽음 처리
-router.patch('/read-all', async (req, res, next) => {
-  try {
-    await db.query(`
-      UPDATE notifications
-      SET is_read = true
-      WHERE user_id = $1 AND is_read = false
-    `, [req.user.id]);
-    res.json({ data: null, message: '모든 알림이 읽음 처리되었습니다.' });
   } catch (err) { next(err); }
 });
 

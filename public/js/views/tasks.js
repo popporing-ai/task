@@ -341,7 +341,7 @@ const TasksView = {
                         ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'미진행'}].map(s=>`<option value="${s.v}" ${t.status===s.v?'selected':''}>${s.l}</option>`).join('')}
                       </select>
                     </td>
-                    <td>${(t.tags||[]).map(tag=>`<span class="tag-pill" style="background:${tag.color}20;color:${tag.color}">${escHtml(tag.name)}</span>`).join('')}</td>
+                    <td>${(t.tags||[]).map(tag=>`<span class="tag-pill" style="background:${escHtml(tag.color)}20;color:${escHtml(tag.color)}">${escHtml(tag.name)}</span>`).join('')}</td>
                   </tr>
                 `).join('')}
             </tbody>
@@ -819,7 +819,7 @@ const TasksView = {
 
     // 태그 필 표시
     const tagPills = (t.tags || []).map(tag =>
-      `<span class="tag-pill" style="background:${tag.color}20;color:${tag.color}">${escHtml(tag.name)}</span>`
+      `<span class="tag-pill" style="background:${escHtml(tag.color)}20;color:${escHtml(tag.color)}">${escHtml(tag.name)}</span>`
     ).join('');
 
     // 서브태스크 진행 상황
@@ -1185,7 +1185,7 @@ const TasksView = {
       const description = overlay.querySelector('#f-issue-desc').value.trim();
       if (!issueType) { App.toast('이슈 유형을 선택해주세요.', 'error'); return; }
       try {
-        await API.post(`/issues/task/${task.id}`, { issue_type: issueType, description });
+        await API.post('/issues', { task_id: task.id, issue_type: issueType, description });
         overlay.querySelector('#f-issue-type').value = '';
         overlay.querySelector('#f-issue-desc').value = '';
         overlay.querySelector('#issue-form-wrap').style.display = 'none';
@@ -1378,7 +1378,7 @@ const TasksView = {
         container.innerHTML = '<div style="font-size:12px;color:var(--color-text-muted);">태그 없음</div>';
       } else {
         container.innerHTML = taskTags.map(tag => `
-          <span class="tag-pill tag-pill-removable" data-tag-id="${tag.id}" style="background:${tag.color}20;color:${tag.color};cursor:pointer;" title="클릭하여 제거">
+          <span class="tag-pill tag-pill-removable" data-tag-id="${tag.id}" style="background:${escHtml(tag.color)}20;color:${escHtml(tag.color)};cursor:pointer;" title="클릭하여 제거">
             ${escHtml(tag.name)} ×
           </span>
         `).join('');

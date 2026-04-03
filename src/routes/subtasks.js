@@ -59,10 +59,10 @@ router.put('/:taskId/subtasks/:id', auditMiddleware('subtasks'), async (req, res
 // 하위 업무 완료 토글
 router.patch('/:taskId/subtasks/:id/toggle', auditMiddleware('subtasks'), async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const { id, taskId } = req.params;
     const { rows } = await db.query(`
-      UPDATE subtasks SET done = NOT done WHERE id=$1 RETURNING *
-    `, [id]);
+      UPDATE subtasks SET done = NOT done WHERE id=$1 AND task_id=$2 RETURNING *
+    `, [id, taskId]);
     if (!rows.length) return res.status(404).json({ data: null, error: '하위 업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0] });
   } catch (err) { next(err); }
@@ -71,9 +71,9 @@ router.patch('/:taskId/subtasks/:id/toggle', auditMiddleware('subtasks'), async 
 // 하위 업무 삭제
 router.delete('/:taskId/subtasks/:id', auditMiddleware('subtasks'), async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const { id, taskId } = req.params;
     const { rows } = await db.query(
-      'DELETE FROM subtasks WHERE id=$1 RETURNING *', [id]
+      'DELETE FROM subtasks WHERE id=$1 AND task_id=$2 RETURNING *', [id, taskId]
     );
     if (!rows.length) return res.status(404).json({ data: null, error: '하위 업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0], message: '하위 업무가 삭제되었습니다.' });

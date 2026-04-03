@@ -84,7 +84,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     const { rows } = await db.query(
-      'SELECT id, name, email, password_hash, avatar_bg, avatar_text FROM users WHERE email = $1',
+      'SELECT id, name, email, password_hash, avatar_bg, avatar_text FROM users WHERE email = $1 AND is_active IS NOT false',
       [email]
     );
 
@@ -129,7 +129,7 @@ router.post('/logout', async (req, res, next) => {
       await db.query('DELETE FROM sessions WHERE token = $1', [token]);
     }
     res.clearCookie('task_session', { path: '/task' });
-    res.json({ message: '로그아웃 되었습니다.' });
+    res.json({ data: null, message: '로그아웃 되었습니다.' });
   } catch (err) { next(err); }
 });
 

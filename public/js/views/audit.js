@@ -119,7 +119,7 @@ const AuditView = {
                 </td>
                 <td>${actionBadge(log.action)}</td>
                 <td>${escHtml(tableLabel)}</td>
-                <td>${log.record_id}</td>
+                <td>${escHtml(log.record_id)}</td>
                 <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(summary)}</td>
                 <td><button class="btn btn-default" data-detail-idx="${log.id}" style="font-size:11px;padding:2px 8px">보기</button></td>
                 ${isAdmin ? `<td><button class="btn btn-default" data-restore-log="${log.id}" style="font-size:11px;padding:2px 8px;color:var(--color-primary)">복구</button></td>` : ''}

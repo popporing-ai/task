@@ -278,6 +278,9 @@ app.get('/task', (req, res) => {
 app.get('/task/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
+app.get('/task/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
 
 // 에러 핸들러
 app.use(errorHandler);

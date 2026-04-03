@@ -144,13 +144,10 @@ router.patch('/:id/status', auditMiddleware('task_issues'), async (req, res, nex
       return res.status(400).json({ error: '유효한 상태를 지정해주세요. (open/in_progress/resolved)' });
     }
 
-    const resolvedAt = status === 'resolved' ? 'NOW()' : 'NULL';
-    const { rows } = await db.query(`
-      UPDATE task_issues
-      SET status = $1, resolved_at = ${resolvedAt}
-      WHERE id = $2
-      RETURNING *
-    `, [status, req.params.id]);
+    const { rows } = await db.query(
+      `UPDATE task_issues SET status=$1, resolved_at = CASE WHEN $1 = 'resolved' THEN NOW() ELSE NULL END WHERE id=$2 RETURNING *`,
+      [status, req.params.id]
+    );
 
     if (!rows.length) {
       return res.status(404).json({ error: '이슈를 찾을 수 없습니다.' });

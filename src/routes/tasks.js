@@ -157,6 +157,10 @@ router.put('/:id', auditMiddleware('tasks'), async (req, res, next) => {
   try {
     const { title, description, category_id, assignee_id, status, due_date } = req.body;
 
+    if (!title) {
+      return res.status(400).json({ error: '업무명을 입력해주세요.' });
+    }
+
     const { rows } = await db.query(`
       UPDATE tasks SET title=$1, description=$2, category_id=$3, assignee_id=$4,
              status=$5, due_date=$6, updated_at=NOW()
@@ -191,6 +195,10 @@ router.delete('/:id', auditMiddleware('tasks'), async (req, res, next) => {
 router.patch('/:id/status', auditMiddleware('tasks'), async (req, res, next) => {
   try {
     const { status } = req.body;
+
+    if (!['todo', 'in_progress', 'done', 'blocked'].includes(status)) {
+      return res.status(400).json({ error: '유효하지 않은 상태값입니다.' });
+    }
 
     // 마감일 초과 업무는 'todo' 또는 'in_progress'로 변경 불가
     if (status === 'todo' || status === 'in_progress') {
@@ -256,6 +264,8 @@ router.patch('/:id/order', auditMiddleware('tasks'), async (req, res, next) => {
       'UPDATE tasks SET sort_order=$1, updated_at=NOW() WHERE id=$2 RETURNING *',
       [sort_order, req.params.id]
     );
+
+    if (rows.length === 0) return res.status(404).json({ error: '업무를 찾을 수 없습니다.' });
 
     res.json({ data: rows[0] });
   } catch (err) { next(err); }
