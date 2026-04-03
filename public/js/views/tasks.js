@@ -1199,7 +1199,7 @@ const TasksView = {
       const depTaskId = overlay.querySelector('#f-dep-task').value;
       if (!depTaskId) return;
       try {
-        await API.post(`/tasks/${task.id}/dependencies`, { depends_on_task_id: depTaskId });
+        await API.post(`/tasks/${task.id}/dependencies`, { depends_on_id: depTaskId });
         App.toast('의존성이 추가되었습니다.', 'success');
         await this._loadDependencies(task.id, overlay);
       } catch { App.toast('의존성 추가 실패', 'error'); }
@@ -1517,7 +1517,7 @@ const TasksView = {
   },
 
   // 체크리스트 없을 때 생성 UI
-  _renderChecklistEmpty(taskId, overlay, section) {
+  _renderChecklistEmpty(taskId, overlay) {
     return `
       <div style="text-align:center;padding:12px 0 16px;">
         <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:12px;">체크리스트가 없습니다</div>
@@ -1696,18 +1696,18 @@ const TasksView = {
         container.innerHTML = '<div style="font-size:12px;color:var(--color-text-muted);">선행 업무가 없습니다</div>';
       } else {
         container.innerHTML = deps.map(d => `
-          <div class="dep-item" data-dep-id="${d.depends_on_task_id}">
-            <span class="dep-status-dot ${d.dep_status === 'done' ? 'dep-done' : 'dep-pending'}"></span>
-            <span class="dep-title">${escHtml(d.dep_title || '-')}</span>
-            <span class="dep-status-label">${d.dep_status === 'done' ? '완료' : '미완료'}</span>
-            <button class="btn dep-remove-btn" data-dep-task-id="${d.depends_on_task_id}" style="font-size:11px;padding:2px 6px;margin-left:auto;">삭제</button>
+          <div class="dep-item" data-dep-id="${d.id}">
+            <span class="dep-status-dot ${d.depends_on_status === 'done' ? 'dep-done' : 'dep-pending'}"></span>
+            <span class="dep-title">${escHtml(d.depends_on_title || '-')}</span>
+            <span class="dep-status-label">${d.depends_on_status === 'done' ? '완료' : '미완료'}</span>
+            <button class="btn dep-remove-btn" data-dep-id="${d.id}" style="font-size:11px;padding:2px 6px;margin-left:auto;">삭제</button>
           </div>
         `).join('');
 
         container.querySelectorAll('.dep-remove-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             try {
-              await API.del(`/tasks/${taskId}/dependencies/${btn.dataset.depTaskId}`);
+              await API.del(`/tasks/${taskId}/dependencies/${btn.dataset.depId}`);
               App.toast('의존성이 삭제되었습니다.', 'success');
               await this._loadDependencies(taskId, overlay);
             } catch { App.toast('삭제 실패', 'error'); }
@@ -1717,7 +1717,7 @@ const TasksView = {
 
       // 드롭다운에 현재 의존성 제외한 업무 표시
       if (select) {
-        const depIds = deps.map(d => String(d.depends_on_task_id));
+        const depIds = deps.map(d => String(d.depends_on_id));
         const available = this.tasks.filter(t => String(t.id) !== String(taskId) && !depIds.includes(String(t.id)));
         select.innerHTML = '<option value="">선행 업무 선택...</option>' +
           available.map(t => `<option value="${t.id}">${escHtml(t.title)}</option>`).join('');

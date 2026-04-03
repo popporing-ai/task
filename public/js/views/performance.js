@@ -38,7 +38,34 @@ const PerformanceView = {
       API.get('/feedbacks/received').catch(() => ({ data: [] })),
       API.get('/feedbacks/sent').catch(() => ({ data: [] })),
     ]);
-    this._teamData = teamRes.data || { summary: {}, members: [], contribution: { byCategory: [], byProduct: [] } };
+    // /performance/team returns flat array of user rows; transform to expected structure
+    const teamRows = Array.isArray(teamRes.data) ? teamRes.data : [];
+    const totalDone = teamRows.reduce((s, r) => s + (parseInt(r.completed) || 0), 0);
+    const totalDelayed = teamRows.reduce((s, r) => s + (parseInt(r.delayed) || 0), 0);
+    const totalAll = teamRows.reduce((s, r) => s + (parseInt(r.total) || 0), 0);
+    const avgCompletionRate = totalAll > 0 ? Math.round((totalDone / totalAll) * 1000) / 10 : 0;
+    const avgDaysArr = teamRows.map(r => parseFloat(r.completion_rate)).filter(v => !isNaN(v));
+    this._teamData = {
+      summary: {
+        total_done: totalDone,
+        total_overdue: totalDelayed,
+        completion_rate: avgCompletionRate,
+        avg_days: null,
+        in_progress: 0,
+      },
+      members: teamRows.map(r => ({
+        user_id: r.id,
+        name: r.name,
+        avatar_bg: r.avatar_bg,
+        avatar_text: r.avatar_text,
+        done_count: parseInt(r.completed) || 0,
+        overdue_count: parseInt(r.delayed) || 0,
+        total_points: parseInt(r.total_points) || 0,
+        completion_rate: parseFloat(r.completion_rate) || 0,
+        avg_days: null,
+      })),
+      contribution: { byCategory: [], byProduct: [] },
+    };
     this._goalsData = goalsRes.data || [];
     this._feedbackReceived = recvRes.data || [];
     this._feedbackSent = sentRes.data || [];
@@ -378,8 +405,23 @@ const PerformanceView = {
         </div>
       </div>
       <div class="form-group">
-        <label>기간</label>
-        <input type="text" id="f-goal-period" value="${escHtml(goal?.period || '')}" placeholder="예: 2026 Q2">
+        <label>기간 유형</label>
+        <select id="f-goal-period">
+          <option value="monthly" ${goal?.period === 'monthly' ? 'selected' : ''}>월간</option>
+          <option value="quarterly" ${goal?.period === 'quarterly' ? 'selected' : ''}>분기</option>
+          <option value="yearly" ${goal?.period === 'yearly' ? 'selected' : ''}>연간</option>
+          <option value="weekly" ${goal?.period === 'weekly' ? 'selected' : ''}>주간</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>시작일 *</label>
+          <input type="date" id="f-goal-start" value="${goal?.start_date?.slice(0,10) || ''}">
+        </div>
+        <div class="form-group">
+          <label>종료일 *</label>
+          <input type="date" id="f-goal-end" value="${goal?.end_date?.slice(0,10) || ''}">
+        </div>
       </div>
     `;
 
@@ -388,9 +430,12 @@ const PerformanceView = {
         title: document.getElementById('f-goal-title').value.trim(),
         target_value: parseInt(document.getElementById('f-goal-target').value) || 0,
         current_value: parseInt(document.getElementById('f-goal-current').value) || 0,
-        period: document.getElementById('f-goal-period').value.trim(),
+        period: document.getElementById('f-goal-period').value,
+        start_date: document.getElementById('f-goal-start').value || null,
+        end_date: document.getElementById('f-goal-end').value || null,
       };
       if (!data.title) { App.toast('목표명을 입력해주세요.', 'error'); return false; }
+      if (!data.start_date || !data.end_date) { App.toast('시작일과 종료일을 입력해주세요.', 'error'); return false; }
       try {
         if (isEdit) {
           await API.put(`/goals/${goal.id}`, data);
@@ -437,7 +482,7 @@ const PerformanceView = {
   },
 
   _renderFeedbackItem(f, type) {
-    const name = type === 'received' ? (f.from_name || '-') : (f.to_name || '-');
+    const name = type === 'received' ? (f.from_user_name || '-') : (f.to_user_name || '-');
     const label = type === 'received' ? 'From' : 'To';
     const timeAgo = f.created_at ? new Date(f.created_at).toLocaleDateString('ko-KR') : '';
     return `
@@ -539,11 +584,11 @@ const PerformanceView = {
                 return `
                   <tr class="score-row" data-user-id="${s.user_id}">
                     <td style="display:flex;align-items:center;gap:8px;">
-                      ${App.avatar({ name: s.name || '-', avatar_bg: s.avatar_bg, avatar_text: s.avatar_text })}
-                      ${escHtml(s.name || '-')}
+                      ${App.avatar({ name: s.user_name || '-', avatar_bg: s.avatar_bg, avatar_text: s.avatar_text })}
+                      ${escHtml(s.user_name || '-')}
                     </td>
-                    <td><span style="color:var(--color-done-text);font-weight:600;">${s.done_count || 0}</span></td>
-                    <td><span style="color:var(--color-warn-text);font-weight:600;">${s.overdue_count || 0}</span></td>
+                    <td><span style="color:var(--color-done-text);font-weight:600;">${s.total_completed || 0}</span></td>
+                    <td><span style="color:var(--color-warn-text);font-weight:600;">${s.total_delayed || 0}</span></td>
                     <td>${completionRate}%</td>
                     <td>${delayRate}%</td>
                     <td>${s.avg_days != null ? Number(s.avg_days).toFixed(1) : '-'}일</td>
@@ -569,8 +614,9 @@ const PerformanceView = {
     container.querySelector('#btn-generate-scores')?.addEventListener('click', async () => {
       try {
         const now = new Date();
-        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        await API.post('/performance/scores/generate', { month });
+        const dateStr = now.toISOString().slice(0, 10);
+        const period = this._scorePeriod === 'quarter' ? 'quarterly' : 'monthly';
+        await API.post(`/performance/scores/generate?period=${period}&date=${dateStr}`, {});
         App.toast('성과가 산정되었습니다.', 'success');
         this._renderScores(container);
       } catch {
@@ -588,8 +634,19 @@ const PerformanceView = {
   async _showTrendChart(userId) {
     let trendData;
     try {
-      const res = await API.get(`/performance/scores/trend/${userId}?months=6`);
-      trendData = res.data || {};
+      const res = await API.get(`/performance/scores/trend/${userId}`);
+      // Backend returns flat array of score records; transform to expected structure
+      const rawScores = Array.isArray(res.data) ? res.data : [];
+      const months = rawScores.map(s => ({
+        month: s.period_start ? s.period_start.slice(0, 7) : '',
+        completion_rate: parseFloat(s.completion_rate) || 0,
+        done_count: parseInt(s.total_completed) || 0,
+        overdue_count: parseInt(s.total_delayed) || 0,
+      }));
+      const currentGrade = rawScores.length > 0 ? (rawScores[rawScores.length - 1].grade || '-') : '-';
+      const prevGrade = rawScores.length > 1 ? (rawScores[rawScores.length - 2].grade || '-') : '-';
+      const userName = this._scoresData?.find(s => String(s.user_id) === String(userId))?.user_name || '팀원';
+      trendData = { months, current_grade: currentGrade, previous_grade: prevGrade, name: userName };
     } catch {
       App.toast('트렌드 데이터를 불러올 수 없습니다.', 'error');
       return;
@@ -709,8 +766,16 @@ const PerformanceView = {
   async _renderMeetings(container) {
     container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>면담 기록 불러오는 중...</span></div>';
     try {
-      const res = await API.get('/performance/meetings');
-      this._meetingsData = res.data || [];
+      // 각 활성 유저별 면담 로드
+      const allMeetings = [];
+      const userFetches = App.users.filter(u => u.is_active !== false).map(async u => {
+        try {
+          const res = await API.get(`/meetings/user/${u.id}`);
+          (res.data || []).forEach(m => allMeetings.push(m));
+        } catch {}
+      });
+      await Promise.all(userFetches);
+      this._meetingsData = allMeetings.sort((a, b) => (b.meeting_date || '').localeCompare(a.meeting_date || ''));
     } catch {
       this._meetingsData = [];
     }
@@ -719,8 +784,8 @@ const PerformanceView = {
     // 팀원별 그룹화
     const grouped = {};
     meetings.forEach(m => {
-      const key = m.target_user_id || 'unknown';
-      if (!grouped[key]) grouped[key] = { name: m.target_name || '-', avatar_bg: m.target_avatar_bg, avatar_text: m.target_avatar_text, items: [] };
+      const key = m.user_id || 'unknown';
+      if (!grouped[key]) grouped[key] = { name: m.user_name || '-', avatar_bg: null, avatar_text: null, items: [] };
       grouped[key].items.push(m);
     });
 
@@ -741,20 +806,20 @@ const PerformanceView = {
               <span style="font-size:12px;color:var(--color-text-muted);">(${group.items.length}건)</span>
             </div>
             ${group.items.map(m => {
-              const isUpcoming = m.next_meeting_date && m.next_meeting_date >= today;
+              const isUpcoming = m.next_meeting && m.next_meeting >= today;
               return `
                 <div class="meeting-card" data-meeting-id="${m.id}">
                   <div class="meeting-card-header">
                     <div class="meeting-card-date">
-                      ${escHtml(m.meeting_date || '')}
-                      ${isUpcoming ? `<span class="upcoming-badge" style="margin-left:8px;">다음 면담 ${escHtml(m.next_meeting_date)}</span>` : ''}
+                      ${escHtml(m.meeting_date ? m.meeting_date.slice(0, 10) : '')}
+                      ${isUpcoming ? `<span class="upcoming-badge" style="margin-left:8px;">다음 면담 ${escHtml(m.next_meeting ? m.next_meeting.slice(0, 10) : '')}</span>` : ''}
                     </div>
                     <div class="meeting-card-actions">
                       <button class="btn btn-default meeting-edit-btn" data-id="${m.id}" style="font-size:11px;padding:3px 8px;">수정</button>
                       <button class="btn btn-danger meeting-delete-btn" data-id="${m.id}" style="font-size:11px;padding:3px 8px;">삭제</button>
                     </div>
                   </div>
-                  <div class="meeting-card-summary">${escHtml(m.content || '')}</div>
+                  <div class="meeting-card-summary">${escHtml(m.summary || '')}</div>
                   ${m.action_items ? `<div class="meeting-card-actions-list"><strong style="color:var(--color-text-primary);">액션 아이템:</strong> ${escHtml(m.action_items)}</div>` : ''}
                 </div>
               `;
@@ -782,7 +847,7 @@ const PerformanceView = {
         const ok = await App.confirm('이 면담 기록을 삭제하시겠습니까?');
         if (!ok) return;
         try {
-          await API.del(`/performance/meetings/${btn.dataset.id}`);
+          await API.del(`/meetings/${btn.dataset.id}`);
           App.toast('면담 기록이 삭제되었습니다.', 'success');
           this._renderMeetings(container);
         } catch {
@@ -797,15 +862,15 @@ const PerformanceView = {
     const html = `
       <div class="form-group">
         <label>대상자 <span style="color:var(--color-warn-text)">*</span></label>
-        <select id="f-mt-target">${App.userOptions(meeting?.target_user_id || '')}</select>
+        <select id="f-mt-target">${App.userOptions(meeting?.user_id || '')}</select>
       </div>
       <div class="form-group">
         <label>면담일 <span style="color:var(--color-warn-text)">*</span></label>
-        <input type="date" id="f-mt-date" value="${meeting?.meeting_date || new Date().toISOString().slice(0, 10)}">
+        <input type="date" id="f-mt-date" value="${meeting?.meeting_date?.slice(0,10) || new Date().toISOString().slice(0, 10)}">
       </div>
       <div class="form-group">
-        <label>면담 내용</label>
-        <textarea id="f-mt-content" rows="5" placeholder="면담 내용을 입력하세요...">${escHtml(meeting?.content || '')}</textarea>
+        <label>면담 내용 <span style="color:var(--color-warn-text)">*</span></label>
+        <textarea id="f-mt-content" rows="5" placeholder="면담 내용을 입력하세요...">${escHtml(meeting?.summary || '')}</textarea>
       </div>
       <div class="form-group">
         <label>액션 아이템</label>
@@ -813,28 +878,28 @@ const PerformanceView = {
       </div>
       <div class="form-group">
         <label>다음 면담일</label>
-        <input type="date" id="f-mt-next" value="${meeting?.next_meeting_date || ''}">
+        <input type="date" id="f-mt-next" value="${meeting?.next_meeting?.slice(0,10) || ''}">
       </div>
     `;
 
     App.openPanel(isEdit ? '면담 수정' : '면담 추가', html, async () => {
       const data = {
-        target_user_id: document.getElementById('f-mt-target').value,
+        user_id: document.getElementById('f-mt-target').value,
         meeting_date: document.getElementById('f-mt-date').value,
-        content: document.getElementById('f-mt-content').value.trim(),
+        summary: document.getElementById('f-mt-content').value.trim(),
         action_items: document.getElementById('f-mt-actions').value.trim(),
-        next_meeting_date: document.getElementById('f-mt-next').value || null,
+        next_meeting: document.getElementById('f-mt-next').value || null,
       };
-      if (!data.target_user_id || !data.meeting_date) {
-        App.toast('대상자와 면담일을 입력해주세요.', 'error');
+      if (!data.user_id || !data.meeting_date || !data.summary) {
+        App.toast('대상자, 면담일, 면담 내용을 입력해주세요.', 'error');
         return false;
       }
       try {
         if (isEdit) {
-          await API.put(`/performance/meetings/${meeting.id}`, data);
+          await API.put(`/meetings/${meeting.id}`, data);
           App.toast('면담이 수정되었습니다.', 'success');
         } else {
-          await API.post('/performance/meetings', data);
+          await API.post('/meetings', data);
           App.toast('면담이 추가되었습니다.', 'success');
         }
         this._renderActiveTab();
