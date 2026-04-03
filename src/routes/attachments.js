@@ -12,32 +12,36 @@ const router = express.Router();
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-// multer 스토리지 설정 — 업무/콘텐츠별 하위 폴더 자동 생성
+// multer 스토리지 — 임시 폴더에 저장 후 핸들러에서 올바른 폴더로 이동
+const TMP_DIR = path.join(UPLOAD_DIR, '_tmp');
+if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // task_id 또는 content_id 기반 폴더 구조
-    const taskId = req.body.task_id;
-    const contentId = req.body.content_id;
-    let subDir;
-    if (taskId) {
-      subDir = path.join(UPLOAD_DIR, `task_${taskId}`);
-    } else if (contentId) {
-      subDir = path.join(UPLOAD_DIR, `content_${contentId}`);
-    } else {
-      subDir = path.join(UPLOAD_DIR, 'etc');
-    }
-    if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
-    cb(null, subDir);
-  },
+  destination: (req, file, cb) => cb(null, TMP_DIR),
   filename: (req, file, cb) => {
-    // 원본 파일명 유지 (중복 시 타임스탬프 추가)
     const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     const ext = path.extname(originalName);
     const base = path.basename(originalName, ext);
-    const safeName = `${base}_${Date.now()}${ext}`;
-    cb(null, safeName);
+    cb(null, `${base}_${Date.now()}${ext}`);
   }
 });
+
+// 업로드 후 올바른 폴더로 이동하는 헬퍼
+function moveToTargetDir(filePath, taskId, contentId) {
+  let subDir;
+  if (taskId) {
+    subDir = path.join(UPLOAD_DIR, `task_${taskId}`);
+  } else if (contentId) {
+    subDir = path.join(UPLOAD_DIR, `content_${contentId}`);
+  } else {
+    subDir = path.join(UPLOAD_DIR, 'etc');
+  }
+  if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
+  const fileName = path.basename(filePath);
+  const newPath = path.join(subDir, fileName);
+  fs.renameSync(filePath, newPath);
+  return newPath;
+}
 
 const upload = multer({
   storage,
@@ -55,10 +59,14 @@ router.post('/upload', upload.single('file'), auditMiddleware('attachments'), as
 
     const { task_id, content_id } = req.body;
     if (!task_id && !content_id) {
-      // 업로드된 파일 삭제 후 에러 반환
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ data: null, error: 'task_id 또는 content_id가 필요합니다.' });
     }
+
+    // 임시 폴더에서 올바른 대상 폴더로 이동
+    const newPath = moveToTargetDir(req.file.path, task_id, content_id);
+    const relativePath = path.relative(UPLOAD_DIR, newPath).replace(/\\/g, '/');
+    const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
     const { rows } = await db.query(`
       INSERT INTO attachments (task_id, content_id, user_id, filename, filepath, filesize, mimetype)
@@ -68,14 +76,15 @@ router.post('/upload', upload.single('file'), auditMiddleware('attachments'), as
       task_id || null,
       content_id || null,
       req.user.id,
-      Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
-      path.relative(UPLOAD_DIR, req.file.path).replace(/\\/g, '/'),
+      originalName,
+      relativePath,
       req.file.size,
       req.file.mimetype
     ]);
 
     // 폴더에 매칭 정보 파일 생성 (_info.txt)
-    const infoPath = path.join(path.dirname(req.file.path), '_info.txt');
+    const targetDir = path.dirname(newPath);
+    const infoPath = path.join(targetDir, '_info.txt');
     if (!fs.existsSync(infoPath)) {
       let info = `업로드 폴더 정보\n생성일: ${new Date().toISOString()}\n`;
       if (task_id) {
