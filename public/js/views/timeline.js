@@ -80,7 +80,7 @@ const TimelineView = {
     // 기어 드롭다운
     const gearDropdownHtml = `
       <div style="position:relative;display:inline-block;">
-        <button class="filter-btn" id="tl-gear-btn" title="빠른 필터 설정" style="padding:4px 8px;">⚙</button>
+        <button class="filter-btn" id="tl-gear-btn" title="빠른 필터 설정" style="padding:4px 8px;display:inline-flex;align-items:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 2h4l.5 2.5 2.12-1.22 1.41 1.42L12.82 6.8 15 7v4l-2.5.5 1.22 2.12-1.42 1.41-2.1-1.21L10 15H6l-.5-2.5-2.12 1.22-1.41-1.42 1.21-2.1L1 10V6l2.5-.5L2.28 3.38l1.42-1.41 2.1 1.21L6 2z" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/></svg></button>
         <div id="tl-gear-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:90;background:var(--color-bg-primary);border-radius:10px;padding:12px;min-width:200px;box-shadow:var(--shadow-lg);border:0.5px solid var(--color-border);">
           <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">빠른 필터 버튼</div>
           <div style="display:flex;flex-direction:column;gap:4px;">

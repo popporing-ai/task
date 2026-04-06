@@ -365,9 +365,10 @@ const App = {
         total += items.length;
         html += `<div class="search-results-group-label">${escHtml(g.label)}</div>`;
         html += items.slice(0, 5).map(item => `
-          <div class="search-result-item" data-view="${g.view}" data-id="${item.id || ''}" data-type="${g.key}">
+          <div class="search-result-item" data-view="${g.view}" data-id="${item.id || ''}" data-type="${g.key}" data-task-id="${item.task_id || ''}">
             <span class="search-result-title">${escHtml(item.title || item.content || item.body || item.name || '')}</span>
             ${item.category_name ? `<span class="search-result-sub">${escHtml(item.category_name)}</span>` : ''}
+            ${item.task_title ? `<span class="search-result-sub">${escHtml(item.task_title)}</span>` : ''}
           </div>
         `).join('');
       }
@@ -379,12 +380,48 @@ const App = {
       results.innerHTML = html;
       results.style.display = 'block';
 
-      // 결과 클릭 → 해당 뷰로 이동
+      // 결과 클릭 → 해당 뷰로 이동 + 상세 팝업 열기
       results.querySelectorAll('.search-result-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', async () => {
           results.style.display = 'none';
           input.value = '';
-          this.navigate(item.dataset.view);
+          const view = item.dataset.view;
+          const id = item.dataset.id;
+          const type = item.dataset.type;
+
+          this.navigate(view);
+
+          // 뷰 렌더링 완료 대기 후 상세 열기
+          setTimeout(async () => {
+            try {
+              if (type === 'tasks') {
+                const res = await API.get('/tasks');
+                const task = (res.data || []).find(t => t.id == id);
+                if (task) TasksView.openDetail(task);
+              } else if (type === 'content_items') {
+                const res = await API.get('/content');
+                const found = (res.data || []).find(c => c.id == id);
+                if (found) ContentView.openForm(found);
+              } else if (type === 'timeline_items') {
+                const res = await API.get(`/timeline?year=${new Date().getFullYear()}`);
+                const found = (res.data || []).find(t => t.id == id);
+                if (found) TimelineView.openForm(found);
+              } else if (type === 'comments') {
+                // 댓글 검색 결과: task_id로 업무 찾기
+                const taskId = item.dataset.taskId;
+                const res = await API.get('/tasks');
+                const task = (res.data || []).find(t => t.id == taskId);
+                if (task) {
+                  TasksView.openDetail(task);
+                  // 댓글 탭 자동 활성화
+                  setTimeout(() => {
+                    const commentTab = document.querySelector('.detail-tab[data-tab="comments"]');
+                    if (commentTab) commentTab.click();
+                  }, 100);
+                }
+              }
+            } catch {}
+          }, 300);
         });
       });
     } catch (e) {

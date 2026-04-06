@@ -171,7 +171,7 @@ const TasksView = {
     // 빠른 필터 기어 드롭다운
     const gearDropdownHtml = `
       <div style="position:relative;display:inline-block;">
-        <button class="filter-btn" id="quick-filter-gear-btn" title="빠른 필터 설정" style="padding:4px 8px;">⚙</button>
+        <button class="filter-btn" id="quick-filter-gear-btn" title="빠른 필터 설정" style="padding:4px 8px;display:inline-flex;align-items:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 2h4l.5 2.5 2.12-1.22 1.41 1.42L12.82 6.8 15 7v4l-2.5.5 1.22 2.12-1.42 1.41-2.1-1.21L10 15H6l-.5-2.5-2.12 1.22-1.41-1.42 1.21-2.1L1 10V6l2.5-.5L2.28 3.38l1.42-1.41 2.1 1.21L6 2z" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/></svg></button>
         <div id="quick-filter-gear-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:90;background:var(--color-bg-primary);border-radius:10px;padding:12px;min-width:200px;box-shadow:var(--shadow-lg);border:0.5px solid var(--color-border);">
           <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">빠른 필터 버튼</div>
           <div style="display:flex;flex-direction:column;gap:4px;">
@@ -193,11 +193,41 @@ const TasksView = {
       </button>
     `;
 
+    // 카드 표시 항목 드롭다운
+    const cardFields = this._getCardFieldPrefs();
+    const cardFieldOptions = [
+      { key: 'category', label: '분류 태그', default: true },
+      { key: 'assignee', label: '담당자', default: true },
+      { key: 'due_date', label: '마감일', default: true },
+      { key: 'tags', label: '태그', default: true },
+      { key: 'subtasks', label: '서브태스크 진행률', default: true },
+      { key: 'comments', label: '댓글 수', default: true },
+      { key: 'points', label: '난이도 포인트', default: false },
+      { key: 'checklist', label: '체크리스트 진행률', default: false },
+    ];
+    const cardFieldDropdownHtml = `
+      <div style="position:relative;display:inline-block;">
+        <button class="filter-btn" id="card-fields-btn" title="표시 항목 설정" style="font-size:11px;padding:4px 8px;">표시 항목</button>
+        <div id="card-fields-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:90;background:var(--color-bg-primary);border-radius:10px;padding:12px;min-width:180px;box-shadow:var(--shadow-lg);border:0.5px solid var(--color-border);">
+          <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">카드 표시 항목</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            ${cardFieldOptions.map(opt => `
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 6px;border-radius:6px;color:var(--color-text-primary);">
+                <input type="checkbox" data-card-field="${opt.key}" ${cardFields[opt.key] ? 'checked' : ''} style="width:auto;height:auto;margin:0;accent-color:var(--color-primary);">
+                ${opt.label}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
     // 필터 바
     const filterHtml = `
       <div class="filter-bar" style="position:relative;">
         ${viewToggleHtml}
         ${this.viewMode === 'kanban' ? compactToggleHtml : ''}
+        ${this.viewMode === 'kanban' ? cardFieldDropdownHtml : ''}
         <button class="filter-btn ${!hasFilters && !this.showArchived ? 'active' : ''}" id="filter-all">전체</button>
         <div style="position:relative;">
           <button class="filter-btn ${hasFilters ? 'active' : ''}" id="filter-toggle-btn">필터 ▼</button>
@@ -404,6 +434,31 @@ const TasksView = {
       localStorage.setItem('task_compact_mode', this.compactMode);
       this.renderBoard(content);
     });
+
+    // 카드 표시 항목 드롭다운
+    const cardFieldsBtn = content.querySelector('#card-fields-btn');
+    const cardFieldsDropdown = content.querySelector('#card-fields-dropdown');
+    cardFieldsBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = cardFieldsDropdown.style.display !== 'none';
+      cardFieldsDropdown.style.display = isOpen ? 'none' : 'block';
+    });
+    content.querySelectorAll('[data-card-field]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const prefs = this._getCardFieldPrefs();
+        prefs[cb.dataset.cardField] = cb.checked;
+        this._setCardFieldPrefs(prefs);
+        this.renderBoard(content);
+      });
+    });
+    // 외부 클릭으로 닫기
+    if (this._closeCardFieldsHandler) document.removeEventListener('click', this._closeCardFieldsHandler);
+    this._closeCardFieldsHandler = (e) => {
+      if (cardFieldsDropdown && !cardFieldsDropdown.contains(e.target) && e.target !== cardFieldsBtn) {
+        cardFieldsDropdown.style.display = 'none';
+      }
+    };
+    document.addEventListener('click', this._closeCardFieldsHandler);
 
     // 드래그 앤 드롭
     this.bindDragDrop(content);
@@ -777,6 +832,20 @@ const TasksView = {
     });
   },
 
+  // 카드 표시 항목 기본값 및 localStorage 읽기/쓰기
+  _getCardFieldPrefs() {
+    const defaults = { category: true, assignee: true, due_date: true, tags: true, subtasks: true, comments: true, points: false, checklist: false };
+    try {
+      const saved = localStorage.getItem('kanban_card_fields');
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
+    } catch {}
+    return defaults;
+  },
+
+  _setCardFieldPrefs(prefs) {
+    try { localStorage.setItem('kanban_card_fields', JSON.stringify(prefs)); } catch {}
+  },
+
   // 빠른 필터 버튼 localStorage 읽기
   _getQuickFilterButtons() {
     try {
@@ -807,7 +876,9 @@ const TasksView = {
   },
 
   renderCard(t) {
-    const assignee = t.assignee_name
+    const prefs = this._getCardFieldPrefs();
+
+    const assignee = (prefs.assignee && t.assignee_name)
       ? `${App.avatar({name: t.assignee_name, avatar_bg: t.avatar_bg, avatar_text: t.avatar_text})}
          <span>${escHtml(t.assignee_name)}</span>`
       : '';
@@ -817,40 +888,46 @@ const TasksView = {
     // 아카이브 아이콘 (박스에 아래 화살표)
     const archiveIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 5v7a1 1 0 001 1h9a1 1 0 001-1V5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M6 9l2 2 2-2M8 7v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-    // 태그 필 표시
-    const tagPills = (t.tags || []).map(tag =>
+    // 태그 필 표시 (설정에 따라)
+    const tagPills = prefs.tags ? (t.tags || []).map(tag =>
       `<span class="tag-pill" style="background:${escHtml(tag.color)}20;color:${escHtml(tag.color)}">${escHtml(tag.name)}</span>`
-    ).join('');
+    ).join('') : '';
 
     // 서브태스크 진행 상황
-    const subtaskBadge = t.subtask_count > 0
+    const subtaskBadge = (prefs.subtasks && t.subtask_count > 0)
       ? `<span class="subtask-progress">✓ ${t.subtask_done_count || 0}/${t.subtask_count}</span>`
       : '';
 
     // 댓글 수
-    const commentBadge = t.comment_count > 0
+    const commentBadge = (prefs.comments && t.comment_count > 0)
       ? `<span class="comment-count">💬 ${t.comment_count}</span>`
       : '';
 
     // 체크리스트 진행 상황
-    const checklistBadge = t.checklist_count > 0
+    const checklistBadge = (prefs.checklist && t.checklist_count > 0)
       ? `<span class="checklist-progress-badge">☑ ${t.checklist_done}/${t.checklist_count}</span>`
       : '';
 
-    // 이슈 플래그
+    // 이슈 플래그 (항상 표시 — 중요 정보)
     const issueBadge = t.open_issue_count > 0
       ? `<span class="issue-flag-badge" title="${t.open_issue_count}개 이슈">⚠ ${t.open_issue_count}</span>`
       : '';
 
-    // 의존성 잠금 아이콘
+    // 의존성 잠금 아이콘 (항상 표시 — 중요 정보)
     const depBadge = t.unresolved_dep_count > 0
       ? `<span class="dep-lock-badge" title="미해결 선행 업무 ${t.unresolved_dep_count}건">🔒</span>`
       : '';
 
     // 난이도 포인트
-    const pointsBadge = t.points
+    const pointsBadge = (prefs.points && t.points)
       ? `<span class="points-badge">${t.points}pt</span>`
       : '';
+
+    // 카테고리 태그 (설정에 따라)
+    const categoryHtml = (prefs.category && t.category_name) ? categoryTag(t.category_name) : '';
+
+    // 마감일 (설정에 따라)
+    const dueDateHtml = prefs.due_date ? `<span style="margin-left:auto">${App.dday(t.due_date, t.status)}</span>` : '';
 
     return `
       <div class="kanban-card${this.compactMode ? ' compact-card' : ''}" draggable="true" data-id="${t.id}">
@@ -859,13 +936,13 @@ const TasksView = {
           <button class="card-action-btn card-archive" title="아카이브">${archiveIcon}</button>
           <button class="card-action-btn card-delete" title="삭제">${deleteIcon}</button>
         </div>
-        ${t.category_name ? categoryTag(t.category_name) : ''}
+        ${categoryHtml}
         ${tagPills ? `<div class="card-tags">${tagPills}</div>` : ''}
         <div class="card-title">${escHtml(t.title)}</div>
         ${subtaskBadge || commentBadge || checklistBadge || issueBadge || depBadge || pointsBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}${issueBadge}${depBadge}${pointsBadge}</div>` : ''}
         <div class="card-footer">
           ${assignee}
-          <span style="margin-left:auto">${App.dday(t.due_date, t.status)}</span>
+          ${dueDateHtml}
         </div>
       </div>
     `;
@@ -1080,16 +1157,11 @@ const TasksView = {
 
           <!-- 태그 탭 -->
           <div class="detail-tab-pane" data-pane="tags" style="display:none;">
-            <div id="task-tags-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+            <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">태그 선택 (클릭하여 토글)</div>
+            <div id="task-tags-list" style="display:flex;flex-direction:column;gap:0;margin-bottom:16px;">
               <div style="font-size:12px;color:var(--color-text-muted);">불러오는 중...</div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <select id="tag-add-select" style="flex:1;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:6px 8px;font-size:12px;">
-                <option value="">태그 선택...</option>
-              </select>
-              <button class="btn btn-primary" id="btn-add-tag" style="padding:6px 12px;font-size:12px;">추가</button>
-            </div>
-            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--color-border);">
+            <div style="margin-top:4px;padding-top:12px;border-top:1px solid var(--color-border);">
               <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;">새 태그 만들기</div>
               <div style="display:flex;gap:8px;align-items:center;">
                 <input type="text" id="new-tag-name" placeholder="태그 이름" style="flex:1;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
@@ -1311,21 +1383,6 @@ const TasksView = {
       });
     }
 
-    // 태그 추가
-    overlay.querySelector('#btn-add-tag')?.addEventListener('click', async () => {
-      const select = overlay.querySelector('#tag-add-select');
-      const tagId = select?.value;
-      if (!tagId) return;
-      try {
-        await API.post(`/tasks/${task.id}/tags`, { tag_id: tagId });
-        select.value = '';
-        tagsLoaded = false;
-        await this._loadTags(task.id, overlay);
-      } catch (e) {
-        App.toast('태그 추가 실패', 'error');
-      }
-    });
-
     // 새 태그 생성 후 현재 업무에 자동 연결
     overlay.querySelector('#btn-create-tag')?.addEventListener('click', async () => {
       const nameInput = overlay.querySelector('#new-tag-name');
@@ -1425,7 +1482,7 @@ const TasksView = {
     }
   },
 
-  // 댓글 로드 및 렌더
+  // 댓글 로드 및 렌더 — 본인 댓글에 수정/삭제 UI 포함
   async _loadComments(taskId, overlay) {
     const container = overlay.querySelector('#comment-list');
     if (!container) return;
@@ -1436,29 +1493,106 @@ const TasksView = {
         container.innerHTML = '<div style="padding:12px;color:var(--color-text-muted);font-size:12px;text-align:center;">댓글이 없습니다</div>';
         return;
       }
+      const currentUserId = App.user?.id;
       container.innerHTML = comments.map(c => {
         const timeAgo = this._timeAgo(c.created_at);
         const initial = (c.user_name || '?').charAt(0);
+        const isOwn = c.user_id == currentUserId;
         return `
-          <div class="comment-item">
+          <div class="comment-item" data-comment-id="${c.id}">
             <div class="comment-header">
               <span class="avatar" style="background:${escHtml(c.avatar_bg||'#4F6EF7')};color:${escHtml(c.avatar_text||'#fff')};width:28px;height:28px;font-size:12px;">${escHtml(initial)}</span>
               <strong>${escHtml(c.user_name || '-')}</strong>
               <span class="comment-time">${timeAgo}</span>
+              ${isOwn ? `
+                <span class="comment-actions" style="margin-left:auto;display:flex;gap:4px;opacity:0;transition:opacity 0.15s;">
+                  <button class="card-action-btn comment-edit-btn" data-comment-id="${c.id}" title="수정" style="padding:2px;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                  </button>
+                  <button class="card-action-btn comment-delete-btn" data-comment-id="${c.id}" title="삭제" style="padding:2px;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </span>
+              ` : ''}
             </div>
-            <div class="comment-body">${this._highlightMentions(c.content)}</div>
+            <div class="comment-body" data-raw-content="${escHtml(c.content)}">${this._highlightMentions(c.content)}</div>
           </div>
         `;
       }).join('');
+
+      // 호버 시 수정/삭제 아이콘 표시
+      container.querySelectorAll('.comment-item').forEach(item => {
+        const actions = item.querySelector('.comment-actions');
+        if (!actions) return;
+        item.addEventListener('mouseenter', () => { actions.style.opacity = '1'; });
+        item.addEventListener('mouseleave', () => { actions.style.opacity = '0'; });
+      });
+
+      // 삭제 버튼
+      container.querySelectorAll('.comment-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const confirmed = await App.confirm('이 댓글을 삭제하시겠습니까?');
+          if (!confirmed) return;
+          try {
+            await API.del(`/tasks/${taskId}/comments/${btn.dataset.commentId}`);
+            App.toast('댓글이 삭제되었습니다.', 'success');
+            await this._loadComments(taskId, overlay);
+          } catch { App.toast('댓글 삭제 실패', 'error'); }
+        });
+      });
+
+      // 수정 버튼 — 인라인 편집
+      container.querySelectorAll('.comment-edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const commentId = btn.dataset.commentId;
+          const item = btn.closest('.comment-item');
+          const bodyEl = item.querySelector('.comment-body');
+          const rawContent = bodyEl.dataset.rawContent;
+
+          bodyEl.innerHTML = `
+            <textarea class="comment-edit-textarea" style="width:100%;min-height:60px;font-size:12px;font-family:inherit;padding:8px;border-radius:6px;border:0.5px solid var(--color-primary);background:var(--color-bg-secondary);color:var(--color-text-primary);resize:vertical;outline:none;">${escHtml(rawContent)}</textarea>
+            <div style="display:flex;gap:6px;margin-top:6px;">
+              <button class="btn btn-primary comment-save-btn" style="font-size:11px;padding:4px 10px;">저장</button>
+              <button class="btn comment-cancel-btn" style="font-size:11px;padding:4px 10px;">취소</button>
+            </div>
+          `;
+          bodyEl.querySelector('.comment-edit-textarea').focus();
+
+          bodyEl.querySelector('.comment-save-btn').addEventListener('click', async () => {
+            const newContent = bodyEl.querySelector('.comment-edit-textarea').value.trim();
+            if (!newContent) { App.toast('댓글 내용을 입력하세요', 'error'); return; }
+            try {
+              await API.put(`/tasks/${taskId}/comments/${commentId}`, { content: newContent });
+              App.toast('댓글이 수정되었습니다.', 'success');
+              await this._loadComments(taskId, overlay);
+            } catch { App.toast('댓글 수정 실패', 'error'); }
+          });
+
+          bodyEl.querySelector('.comment-cancel-btn').addEventListener('click', async () => {
+            await this._loadComments(taskId, overlay);
+          });
+
+          bodyEl.querySelector('.comment-edit-textarea').addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+              bodyEl.querySelector('.comment-save-btn').click();
+            }
+            if (ev.key === 'Escape') {
+              bodyEl.querySelector('.comment-cancel-btn').click();
+            }
+          });
+        });
+      });
+
     } catch (e) {
       container.innerHTML = '<div style="padding:12px;color:var(--color-warn-text);font-size:12px;">불러오기 실패</div>';
     }
   },
 
-  // 태그 로드 및 렌더
+  // 태그 로드 및 렌더 — 전체 태그를 체크박스 리스트로 표시
   async _loadTags(taskId, overlay) {
     const container = overlay.querySelector('#task-tags-list');
-    const select = overlay.querySelector('#tag-add-select');
     if (!container) return;
     try {
       const [taskTagsRes, allTagsRes] = await Promise.all([
@@ -1467,36 +1601,112 @@ const TasksView = {
       ]);
       const taskTags = taskTagsRes.data || [];
       const allTags = allTagsRes.data || [];
+      const attachedIds = taskTags.map(t => String(t.id));
 
-      // 붙은 태그 표시
-      if (taskTags.length === 0) {
-        container.innerHTML = '<div style="font-size:12px;color:var(--color-text-muted);">태그 없음</div>';
-      } else {
-        container.innerHTML = taskTags.map(tag => `
-          <span class="tag-pill tag-pill-removable" data-tag-id="${tag.id}" style="background:${escHtml(tag.color)}20;color:${escHtml(tag.color)};cursor:pointer;" title="클릭하여 제거">
-            ${escHtml(tag.name)} ×
-          </span>
-        `).join('');
-        container.querySelectorAll('.tag-pill-removable').forEach(pill => {
-          pill.addEventListener('click', async () => {
-            const tid = pill.dataset.tagId;
-            try {
-              await API.del(`/tasks/${taskId}/tags/${tid}`);
-              pill.remove();
-            } catch (e) {
-              App.toast('태그 제거 실패', 'error');
+      if (allTags.length === 0) {
+        container.innerHTML = '<div style="font-size:12px;color:var(--color-text-muted);">태그가 없습니다. 아래에서 새 태그를 만들어보세요.</div>';
+        return;
+      }
+
+      container.innerHTML = allTags.map(tag => {
+        const isAttached = attachedIds.includes(String(tag.id));
+        return `
+          <div class="tag-select-item${isAttached ? ' tag-selected' : ''}" data-tag-id="${tag.id}" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;border:0.5px solid ${isAttached ? escHtml(tag.color) + '60' : 'var(--color-border)'};background:${isAttached ? escHtml(tag.color) + '18' : 'transparent'};transition:all 0.15s;margin-bottom:4px;">
+            <span style="width:10px;height:10px;border-radius:50%;background:${escHtml(tag.color)};flex-shrink:0;"></span>
+            <span class="tag-select-name" style="flex:1;font-size:12px;color:var(--color-text-primary);font-weight:${isAttached ? '600' : '400'};">${escHtml(tag.name)}</span>
+            ${isAttached ? '<span style="font-size:11px;color:var(--color-done-text);">✓</span>' : ''}
+            <button class="tag-edit-btn" data-tag-id="${tag.id}" title="수정" style="opacity:0;padding:2px;border:none;background:transparent;cursor:pointer;color:var(--color-text-muted);transition:opacity 0.15s;flex-shrink:0;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="tag-delete-btn" data-tag-id="${tag.id}" title="삭제" style="opacity:0;padding:2px;border:none;background:transparent;cursor:pointer;color:var(--color-warn-text);transition:opacity 0.15s;flex-shrink:0;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      // 호버 시 편집/삭제 아이콘 표시
+      container.querySelectorAll('.tag-select-item').forEach(item => {
+        item.addEventListener('mouseenter', () => {
+          item.querySelectorAll('.tag-edit-btn, .tag-delete-btn').forEach(b => b.style.opacity = '1');
+        });
+        item.addEventListener('mouseleave', () => {
+          item.querySelectorAll('.tag-edit-btn, .tag-delete-btn').forEach(b => b.style.opacity = '0');
+        });
+      });
+
+      // 클릭하여 태그 토글 (attach/detach)
+      container.querySelectorAll('.tag-select-item').forEach(item => {
+        item.addEventListener('click', async (e) => {
+          if (e.target.closest('.tag-edit-btn') || e.target.closest('.tag-delete-btn')) return;
+          const tagId = item.dataset.tagId;
+          const isAttached = item.classList.contains('tag-selected');
+          try {
+            if (isAttached) {
+              await API.del(`/tasks/${taskId}/tags/${tagId}`);
+            } else {
+              await API.post(`/tasks/${taskId}/tags`, { tag_id: tagId });
             }
+            await this._loadTags(taskId, overlay);
+          } catch {
+            App.toast(isAttached ? '태그 제거 실패' : '태그 추가 실패', 'error');
+          }
+        });
+      });
+
+      // 태그 수정 (인라인)
+      container.querySelectorAll('.tag-edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const tagId = btn.dataset.tagId;
+          const tag = allTags.find(t => String(t.id) === String(tagId));
+          if (!tag) return;
+          const item = btn.closest('.tag-select-item');
+          item.innerHTML = `
+            <input type="text" class="tag-edit-name" value="${escHtml(tag.name)}" style="flex:1;font-size:12px;padding:3px 6px;border-radius:4px;border:0.5px solid var(--color-primary);background:var(--color-bg-secondary);color:var(--color-text-primary);font-family:inherit;outline:none;">
+            <input type="color" class="tag-edit-color" value="${escHtml(tag.color)}" style="width:28px;height:28px;padding:1px;border:0.5px solid var(--color-border);border-radius:4px;cursor:pointer;background:transparent;">
+            <button class="btn btn-primary tag-save-btn" style="font-size:11px;padding:3px 8px;">저장</button>
+            <button class="btn tag-cancel-btn" style="font-size:11px;padding:3px 8px;">취소</button>
+          `;
+          item.querySelector('.tag-edit-name').focus();
+          item.querySelector('.tag-save-btn').addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            const newName = item.querySelector('.tag-edit-name').value.trim();
+            const newColor = item.querySelector('.tag-edit-color').value;
+            if (!newName) { App.toast('태그 이름을 입력하세요', 'error'); return; }
+            try {
+              await API.put(`/tags/${tagId}`, { name: newName, color: newColor });
+              App.toast('태그가 수정되었습니다.', 'success');
+              await this._loadTags(taskId, overlay);
+            } catch { App.toast('태그 수정 실패', 'error'); }
+          });
+          item.querySelector('.tag-cancel-btn').addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            await this._loadTags(taskId, overlay);
+          });
+          item.querySelector('.tag-edit-name').addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') item.querySelector('.tag-save-btn').click();
+            if (ev.key === 'Escape') item.querySelector('.tag-cancel-btn').click();
           });
         });
-      }
+      });
 
-      // 드롭다운에 추가 가능한 태그만 표시
-      if (select) {
-        const attachedIds = taskTags.map(t => String(t.id));
-        const available = allTags.filter(t => !attachedIds.includes(String(t.id)));
-        select.innerHTML = '<option value="">태그 선택...</option>' +
-          available.map(t => `<option value="${t.id}">${escHtml(t.name)}</option>`).join('');
-      }
+      // 태그 삭제
+      container.querySelectorAll('.tag-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const tagId = btn.dataset.tagId;
+          const tag = allTags.find(t => String(t.id) === String(tagId));
+          const confirmed = await App.confirm(`태그 "${tag?.name || ''}"을(를) 삭제하시겠습니까?`);
+          if (!confirmed) return;
+          try {
+            await API.del(`/tags/${tagId}`);
+            App.toast('태그가 삭제되었습니다.', 'success');
+            await this._loadTags(taskId, overlay);
+          } catch { App.toast('태그 삭제 실패', 'error'); }
+        });
+      });
+
     } catch (e) {
       container.innerHTML = '<div style="font-size:12px;color:var(--color-warn-text);">불러오기 실패</div>';
     }
