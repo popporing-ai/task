@@ -1608,18 +1608,21 @@ const TasksView = {
         return;
       }
 
-      container.innerHTML = allTags.map(tag => {
+      // 이름순 정렬 후 컴팩트 그리드로 표시
+      const sorted = [...allTags].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      container.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+      container.innerHTML = sorted.map(tag => {
         const isAttached = attachedIds.includes(String(tag.id));
         return `
-          <div class="tag-select-item${isAttached ? ' tag-selected' : ''}" data-tag-id="${tag.id}" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;border:0.5px solid ${isAttached ? escHtml(tag.color) + '60' : 'var(--color-border)'};background:${isAttached ? escHtml(tag.color) + '18' : 'transparent'};transition:all 0.15s;margin-bottom:4px;">
-            <span style="width:10px;height:10px;border-radius:50%;background:${escHtml(tag.color)};flex-shrink:0;"></span>
-            <span class="tag-select-name" style="flex:1;font-size:12px;color:var(--color-text-primary);font-weight:${isAttached ? '600' : '400'};">${escHtml(tag.name)}</span>
-            ${isAttached ? '<span style="font-size:11px;color:var(--color-done-text);">✓</span>' : ''}
-            <button class="tag-edit-btn" data-tag-id="${tag.id}" title="수정" style="opacity:0;padding:2px;border:none;background:transparent;cursor:pointer;color:var(--color-text-muted);transition:opacity 0.15s;flex-shrink:0;">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <div class="tag-select-item${isAttached ? ' tag-selected' : ''}" data-tag-id="${tag.id}" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:99px;cursor:pointer;border:1px solid ${isAttached ? escHtml(tag.color) + '80' : 'var(--color-border)'};background:${isAttached ? escHtml(tag.color) + '20' : 'transparent'};transition:all 0.15s;font-size:12px;white-space:nowrap;position:relative;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(tag.color)};flex-shrink:0;"></span>
+            <span class="tag-select-name" style="color:${isAttached ? escHtml(tag.color) : 'var(--color-text-primary)'};font-weight:${isAttached ? '600' : '400'};">${escHtml(tag.name)}</span>
+            ${isAttached ? '<span style="font-size:10px;color:var(--color-done-text);margin-left:2px;">✓</span>' : ''}
+            <button class="tag-edit-btn" data-tag-id="${tag.id}" title="수정" style="display:none;padding:1px;border:none;background:transparent;cursor:pointer;color:var(--color-text-muted);flex-shrink:0;">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
             </button>
-            <button class="tag-delete-btn" data-tag-id="${tag.id}" title="삭제" style="opacity:0;padding:2px;border:none;background:transparent;cursor:pointer;color:var(--color-warn-text);transition:opacity 0.15s;flex-shrink:0;">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <button class="tag-delete-btn" data-tag-id="${tag.id}" title="삭제" style="display:none;padding:1px;border:none;background:transparent;cursor:pointer;color:var(--color-warn-text);flex-shrink:0;">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
         `;
@@ -1628,10 +1631,10 @@ const TasksView = {
       // 호버 시 편집/삭제 아이콘 표시
       container.querySelectorAll('.tag-select-item').forEach(item => {
         item.addEventListener('mouseenter', () => {
-          item.querySelectorAll('.tag-edit-btn, .tag-delete-btn').forEach(b => b.style.opacity = '1');
+          item.querySelectorAll('.tag-edit-btn, .tag-delete-btn').forEach(b => b.style.display = 'inline-flex');
         });
         item.addEventListener('mouseleave', () => {
-          item.querySelectorAll('.tag-edit-btn, .tag-delete-btn').forEach(b => b.style.opacity = '0');
+          item.querySelectorAll('.tag-edit-btn, .tag-delete-btn').forEach(b => b.style.display = 'none');
         });
       });
 
