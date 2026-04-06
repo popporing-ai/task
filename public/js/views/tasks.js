@@ -1089,6 +1089,14 @@ const TasksView = {
               </select>
               <button class="btn btn-primary" id="btn-add-tag" style="padding:6px 12px;font-size:12px;">추가</button>
             </div>
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--color-border);">
+              <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;">새 태그 만들기</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="new-tag-name" placeholder="태그 이름" style="flex:1;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
+                <input type="color" id="new-tag-color" value="#4F6EF7" style="width:36px;height:32px;padding:2px;border:0.5px solid var(--color-border);border-radius:6px;cursor:pointer;background:transparent;">
+                <button class="btn btn-primary" id="btn-create-tag" style="font-size:12px;padding:5px 12px;">생성</button>
+              </div>
+            </div>
           </div>
 
           <!-- 체크리스트 탭 -->
@@ -1315,6 +1323,28 @@ const TasksView = {
         await this._loadTags(task.id, overlay);
       } catch (e) {
         App.toast('태그 추가 실패', 'error');
+      }
+    });
+
+    // 새 태그 생성 후 현재 업무에 자동 연결
+    overlay.querySelector('#btn-create-tag')?.addEventListener('click', async () => {
+      const nameInput = overlay.querySelector('#new-tag-name');
+      const colorInput = overlay.querySelector('#new-tag-color');
+      const name = nameInput?.value.trim();
+      if (!name) { App.toast('태그 이름을 입력하세요', 'error'); return; }
+      const color = colorInput?.value || '#4F6EF7';
+      try {
+        const res = await API.post('/tags', { name, color });
+        const newTag = res.data;
+        // 생성된 태그를 현재 업무에 자동 연결
+        await API.post(`/tasks/${task.id}/tags`, { tag_id: newTag.id });
+        nameInput.value = '';
+        colorInput.value = '#4F6EF7';
+        tagsLoaded = false;
+        await this._loadTags(task.id, overlay);
+        App.toast(`태그 "${name}" 생성 및 추가됨`, 'success');
+      } catch (e) {
+        App.toast('태그 생성 실패', 'error');
       }
     });
 

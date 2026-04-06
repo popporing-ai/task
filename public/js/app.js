@@ -40,21 +40,50 @@ const App = {
     this.navigate('dashboard');
   },
 
-  // 사이드바 카운트 뱃지 업데이트
+  // 사이드바 뱃지 업데이트 — 마지막 방문 이후 새로 추가된 항목 수 표시
   async updateSidebarBadges() {
+    if (!this.user) return;
+    const userId = this.user.id;
+
     try {
-      const [tasksRes, contentRes, timelineRes] = await Promise.all([
+      const [tasksRes, contentRes, timelineRes, calendarRes] = await Promise.all([
         API.get('/tasks').catch(() => ({ data: [] })),
         API.get('/content?month=' + new Date().toISOString().slice(0, 7)).catch(() => ({ data: [] })),
         API.get('/timeline?year=' + new Date().getFullYear()).catch(() => ({ data: [] })),
+        API.get('/calendar/upcoming').catch(() => ({ data: [] })),
       ]);
-      const taskCount = (tasksRes.data || []).length;
-      const contentCount = (contentRes.data || []).length;
-      const timelineCount = (timelineRes.data || []).length;
 
-      this._setSidebarBadge('tasks', taskCount);
-      this._setSidebarBadge('content', contentCount);
-      this._setSidebarBadge('timeline', timelineCount);
+      const counts = {
+        tasks:    (tasksRes.data    || []).length,
+        content:  (contentRes.data  || []).length,
+        timeline: (timelineRes.data || []).length,
+        calendar: (calendarRes.data || []).length,
+      };
+
+      for (const [view, total] of Object.entries(counts)) {
+        const key = `task_last_seen_${userId}_${view}`;
+        const lastSeen = parseInt(localStorage.getItem(key)) || 0;
+        const newCount = Math.max(0, total - lastSeen);
+        this._setSidebarBadge(view, newCount);
+      }
+    } catch {}
+  },
+
+  // 해당 뷰 방문 시 현재 카운트를 localStorage에 저장 → 뱃지 0으로 초기화
+  async _markViewSeen(view) {
+    if (!this.user) return;
+    const userId = this.user.id;
+    try {
+      let res;
+      if (view === 'tasks')    res = await API.get('/tasks').catch(() => ({ data: [] }));
+      else if (view === 'content')  res = await API.get('/content?month=' + new Date().toISOString().slice(0, 7)).catch(() => ({ data: [] }));
+      else if (view === 'timeline') res = await API.get('/timeline?year=' + new Date().getFullYear()).catch(() => ({ data: [] }));
+      else if (view === 'calendar') res = await API.get('/calendar/upcoming').catch(() => ({ data: [] }));
+      else return;
+
+      const count = (res.data || []).length;
+      localStorage.setItem(`task_last_seen_${userId}_${view}`, count);
+      this._setSidebarBadge(view, 0);
     } catch {}
   },
 
@@ -190,6 +219,9 @@ const App = {
     };
 
     if (views[view]) views[view].render();
+
+    // 해당 뷰 방문 처리 → 뱃지 초기화
+    this._markViewSeen(view);
   },
 
   // 슬라이드 패널
