@@ -17,6 +17,7 @@ const DashboardView = {
     { id: 'overdue-tasks',     title: '마감 초과 업무',     size: 'half' },
     { id: 'issue-monitor',     title: '활성 이슈 현황',     size: 'half' },
     { id: 'team-kpi',          title: '팀 KPI',             size: 'half' },
+    { id: 'upcoming-events',   title: '다가오는 일정',      size: 'half' },
   ],
 
   // 차트 타입을 지원하는 위젯 목록
@@ -106,6 +107,14 @@ const DashboardView = {
     } catch {
       this._data._issues = [];
       this._data._teamKpi = {};
+    }
+
+    // 다가오는 일정 (캘린더 위젯용)
+    try {
+      const upcomingRes = await API.get('/calendar/upcoming');
+      this._data._upcomingEvents = upcomingRes.data || [];
+    } catch {
+      this._data._upcomingEvents = [];
     }
   },
 
@@ -286,6 +295,9 @@ const DashboardView = {
       case 'team-kpi':
         return this._renderTeamKpi(d);
 
+      case 'upcoming-events':
+        return this._renderUpcomingEvents(d);
+
       default: return '';
     }
   },
@@ -349,6 +361,36 @@ const DashboardView = {
         </div>
       </div>
     `;
+  },
+
+  // 다가오는 일정 위젯
+  _renderUpcomingEvents(d) {
+    const events = d._upcomingEvents || [];
+    if (events.length === 0) {
+      return '<div style="text-align:center;padding:16px;color:var(--color-text-muted);font-size:12px;">다가오는 일정이 없습니다</div>';
+    }
+    const typeColors = {
+      general: '#4F6EF7', meeting: '#7B9BFA', deadline: '#F07070',
+      campaign: '#5DD984', event: '#F5A623', holiday: '#9A9BA3',
+    };
+    const typeLabels = {
+      general: '일반', meeting: '회의', deadline: '마감',
+      campaign: '캠페인', event: '행사', holiday: '휴일',
+    };
+    return events.slice(0, 8).map(ev => {
+      const color = ev.color || typeColors[ev.event_type] || '#4F6EF7';
+      const dateStr = ev.start_date?.slice(0, 10) || '';
+      const d = new Date(dateStr);
+      const dayLabel = `${d.getMonth()+1}/${d.getDate()}`;
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--color-border);">
+          <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+          <span style="font-size:12px;color:var(--color-text-muted);width:40px;flex-shrink:0;">${dayLabel}</span>
+          <span style="flex:1;font-size:13px;color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(ev.title)}</span>
+          <span class="badge" style="background:${color}22;color:${color};font-size:10px;">${typeLabels[ev.event_type] || ev.event_type}</span>
+        </div>
+      `;
+    }).join('');
   },
 
   // 번다운 차트 (완료 추이 vs 계획)
