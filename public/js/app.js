@@ -543,6 +543,9 @@ const App = {
   },
 
   avatar(user) {
+    if (user.avatar_url) {
+      return `<span class="avatar avatar-img"><img src="${escHtml(user.avatar_url)}" alt="${escHtml(user.name || '')}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;"></span>`;
+    }
     const bg = user.avatar_bg || '#EEF1FD';
     const color = user.avatar_text || '#4F6EF7';
     const initial = escHtml((user.name || user.assignee_name || '?').charAt(0));

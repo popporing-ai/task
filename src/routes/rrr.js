@@ -11,10 +11,10 @@ router.use(authMiddleware);
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await db.query(`
-      SELECT r.*, u.name AS user_name, u.avatar_bg, u.avatar_text
+      SELECT r.*, u.name AS user_name, u.avatar_bg, u.avatar_text, u.avatar_url
       FROM rrr_items r
       JOIN users u ON u.id = r.user_id
-      ORDER BY u.name, r.role_type, r.sort_order
+      ORDER BY u.id, r.sort_order, r.id
     `);
 
     // 유저별로 그룹핑
@@ -26,6 +26,7 @@ router.get('/', async (req, res, next) => {
           user_name: row.user_name,
           avatar_bg: row.avatar_bg,
           avatar_text: row.avatar_text,
+          avatar_url: row.avatar_url,
           items: [],
         };
       }
@@ -33,6 +34,19 @@ router.get('/', async (req, res, next) => {
     }
 
     res.json({ data: Object.values(grouped) });
+  } catch (err) { next(err); }
+});
+
+// R&R 항목 순서 저장 (드래그 후 호출)
+router.post('/reorder', async (req, res, next) => {
+  try {
+    // orders: [{id, sort_order}, ...]
+    const { orders } = req.body;
+    if (!Array.isArray(orders)) return res.status(400).json({ error: 'orders 배열이 필요합니다.' });
+    await Promise.all(orders.map(o =>
+      db.query('UPDATE rrr_items SET sort_order=$1 WHERE id=$2', [o.sort_order, o.id])
+    ));
+    res.json({ message: '순서가 저장되었습니다.' });
   } catch (err) { next(err); }
 });
 

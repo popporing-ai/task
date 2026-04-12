@@ -287,6 +287,26 @@ app.get('/task/*', (req, res) => {
 // 에러 핸들러
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Task 서버 실행 중: http://localhost:${PORT}/task`);
+// 시작 시 마이그레이션 자동 실행
+async function runMigrations() {
+  const fs = require('fs');
+  const migrationsDir = path.join(__dirname, 'db');
+  const files = fs.readdirSync(migrationsDir)
+    .filter(f => f.startsWith('migration-') && f.endsWith('.sql'))
+    .sort();
+  for (const file of files) {
+    try {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      await db.query(sql);
+      console.log(`Migration OK: ${file}`);
+    } catch (e) {
+      console.error(`Migration SKIP (${file}): ${e.message}`);
+    }
+  }
+}
+
+runMigrations().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Task 서버 실행 중: http://localhost:${PORT}/task`);
+  });
 });

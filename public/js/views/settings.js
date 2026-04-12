@@ -445,6 +445,41 @@ const SettingsView = {
       </div>
     `;
 
+    // 아바타 업로드
+    document.getElementById('member-tbody')?.addEventListener('change', async (e) => {
+      const input = e.target.closest('.btn-avatar-upload');
+      if (!input || !input.files[0]) return;
+      const userId = input.dataset.id;
+      const formData = new FormData();
+      formData.append('avatar', input.files[0]);
+      try {
+        await API.upload(`/users/${userId}/avatar`, formData);
+        App.toast('프로필 이미지가 변경되었습니다.', 'success');
+        await App.loadMeta();
+        await this._renderMembers();
+      } catch {
+        App.toast('이미지 업로드에 실패했습니다.', 'error');
+      }
+    });
+
+    // 아바타 삭제
+    document.getElementById('member-tbody')?.addEventListener('click', async (e) => {
+      const delBtn = e.target.closest('.btn-avatar-delete');
+      if (delBtn) {
+        const ok = await App.confirm('프로필 이미지를 삭제하시겠습니까?');
+        if (!ok) return;
+        try {
+          await API.del(`/users/${delBtn.dataset.id}/avatar`);
+          App.toast('프로필 이미지가 삭제되었습니다.', 'info');
+          await App.loadMeta();
+          await this._renderMembers();
+        } catch {
+          App.toast('삭제에 실패했습니다.', 'error');
+        }
+        return;
+      }
+    });
+
     // 이벤트 위임
     document.getElementById('member-tbody')?.addEventListener('click', async (e) => {
       const roleBtn = e.target.closest('.btn-toggle-role');
@@ -490,9 +525,18 @@ const SettingsView = {
 
     return `
       <tr class="${isActive ? '' : 'member-inactive-row'}">
-        <td style="display:flex;align-items:center;gap:8px;">
-          ${App.avatar({ name: u.name || '-', avatar_bg: u.avatar_bg, avatar_text: u.avatar_text })}
-          ${escHtml(u.name || '-')}
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label class="avatar-upload-wrap" title="클릭하여 프로필 이미지 변경" style="cursor:pointer;position:relative;">
+              ${App.avatar({ name: u.name || '-', avatar_bg: u.avatar_bg, avatar_text: u.avatar_text, avatar_url: u.avatar_url })}
+              <span class="avatar-upload-overlay">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+              <input type="file" class="btn-avatar-upload" data-id="${u.id}" accept="image/*" style="display:none;">
+            </label>
+            ${u.avatar_url ? `<button class="card-action-btn btn-avatar-delete" data-id="${u.id}" title="프로필 이미지 삭제" style="opacity:0.5;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ''}
+            ${escHtml(u.name || '-')}
+          </div>
         </td>
         <td>${escHtml(u.email || '-')}</td>
         <td>${roleBadge}</td>
