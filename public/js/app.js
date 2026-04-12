@@ -590,7 +590,7 @@ const App = {
   },
 
   // 알림 초기화 — init()에서 호출
-  initNotifications() {
+  async initNotifications() {
     const bell = document.getElementById('notif-bell');
     const dropdown = document.getElementById('notif-dropdown');
     const readAllBtn = document.getElementById('notif-read-all');
