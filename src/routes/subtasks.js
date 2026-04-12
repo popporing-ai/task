@@ -26,15 +26,16 @@ router.get('/:taskId/subtasks', async (req, res, next) => {
 router.post('/:taskId/subtasks', auditMiddleware('subtasks'), async (req, res, next) => {
   try {
     const { taskId } = req.params;
-    const { title, assignee_id, due_date, sort_order } = req.body;
+    const { title, assignee_id, due_date, sort_order, status, points } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ data: null, error: '하위 업무 제목은 필수입니다.' });
     }
     const { rows } = await db.query(`
-      INSERT INTO subtasks (task_id, title, assignee_id, due_date, sort_order)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO subtasks (task_id, title, assignee_id, due_date, sort_order, status, points)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [taskId, title.trim(), assignee_id || null, due_date || null, sort_order || 0]);
+    `, [taskId, title.trim(), assignee_id || null, due_date || null, sort_order || 0,
+        status || 'todo', points || null]);
     res.status(201).json({ data: rows[0], message: '하위 업무가 추가되었습니다.' });
   } catch (err) { next(err); }
 });
@@ -43,14 +44,15 @@ router.post('/:taskId/subtasks', auditMiddleware('subtasks'), async (req, res, n
 router.put('/:taskId/subtasks/:id', auditMiddleware('subtasks'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { title, assignee_id, due_date, sort_order } = req.body;
+    const { title, assignee_id, due_date, sort_order, status, points } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ data: null, error: '하위 업무 제목은 필수입니다.' });
     }
     const { rows } = await db.query(`
-      UPDATE subtasks SET title=$1, assignee_id=$2, due_date=$3, sort_order=$4
-      WHERE id=$5 RETURNING *
-    `, [title.trim(), assignee_id || null, due_date || null, sort_order ?? 0, id]);
+      UPDATE subtasks SET title=$1, assignee_id=$2, due_date=$3, sort_order=$4, status=$5, points=$6
+      WHERE id=$7 RETURNING *
+    `, [title.trim(), assignee_id || null, due_date || null, sort_order ?? 0,
+        status || 'todo', points || null, id]);
     if (!rows.length) return res.status(404).json({ data: null, error: '하위 업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0], message: '하위 업무가 수정되었습니다.' });
   } catch (err) { next(err); }
@@ -61,7 +63,10 @@ router.patch('/:taskId/subtasks/:id/toggle', auditMiddleware('subtasks'), async 
   try {
     const { id, taskId } = req.params;
     const { rows } = await db.query(`
-      UPDATE subtasks SET done = NOT done WHERE id=$1 AND task_id=$2 RETURNING *
+      UPDATE subtasks
+      SET done = NOT done,
+          status = CASE WHEN done THEN 'todo' ELSE 'done' END
+      WHERE id=$1 AND task_id=$2 RETURNING *
     `, [id, taskId]);
     if (!rows.length) return res.status(404).json({ data: null, error: '하위 업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0] });
@@ -77,47 +82,6 @@ router.delete('/:taskId/subtasks/:id', auditMiddleware('subtasks'), async (req, 
     );
     if (!rows.length) return res.status(404).json({ data: null, error: '하위 업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0], message: '하위 업무가 삭제되었습니다.' });
-  } catch (err) { next(err); }
-});
-
-// 업무에 연결된 태그 목록
-router.get('/:taskId/tags', async (req, res, next) => {
-  try {
-    const { rows } = await db.query(`
-      SELECT t.* FROM tags t
-      JOIN task_tags tt ON tt.tag_id = t.id
-      WHERE tt.task_id = $1
-      ORDER BY t.name
-    `, [req.params.taskId]);
-    res.json({ data: rows });
-  } catch (err) { next(err); }
-});
-
-// 업무에 태그 연결
-router.post('/:taskId/tags', auditMiddleware('task_tags'), async (req, res, next) => {
-  try {
-    const { taskId } = req.params;
-    const { tag_id } = req.body;
-    if (!tag_id) {
-      return res.status(400).json({ data: null, error: 'tag_id는 필수입니다.' });
-    }
-    await db.query(
-      'INSERT INTO task_tags (task_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [taskId, tag_id]
-    );
-    res.status(201).json({ data: { task_id: Number(taskId), tag_id }, message: '태그가 연결되었습니다.' });
-  } catch (err) { next(err); }
-});
-
-// 업무에서 태그 해제
-router.delete('/:taskId/tags/:tagId', auditMiddleware('task_tags'), async (req, res, next) => {
-  try {
-    const { taskId, tagId } = req.params;
-    await db.query(
-      'DELETE FROM task_tags WHERE task_id=$1 AND tag_id=$2',
-      [taskId, tagId]
-    );
-    res.json({ data: { task_id: Number(taskId), tag_id: Number(tagId) }, message: '태그 연결이 해제되었습니다.' });
   } catch (err) { next(err); }
 });
 

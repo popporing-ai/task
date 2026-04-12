@@ -229,7 +229,7 @@ app.get('/task/api/search', authMiddleware, async (req, res, next) => {
         FROM tasks t
         LEFT JOIN users u ON u.id = t.assignee_id
         LEFT JOIN task_categories tc ON tc.id = t.category_id
-        WHERE (t.title ILIKE $1 OR t.description ILIKE $1)
+        WHERE (t.title ILIKE $1 OR t.description ILIKE $1 OR u.name ILIKE $1)
           AND t.archived = false
         ORDER BY t.updated_at DESC LIMIT 20
       `, [keyword]),

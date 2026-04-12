@@ -199,7 +199,6 @@ const TasksView = {
       { key: 'category', label: '분류 태그', default: true },
       { key: 'assignee', label: '담당자', default: true },
       { key: 'due_date', label: '마감일', default: true },
-      { key: 'tags', label: '태그', default: true },
       { key: 'subtasks', label: '서브태스크 진행률', default: true },
       { key: 'comments', label: '댓글 수', default: true },
       { key: 'points', label: '난이도 포인트', default: false },
@@ -348,11 +347,10 @@ const TasksView = {
                 <th>담당자</th>
                 <th>마감일</th>
                 <th>상태</th>
-                <th>태그</th>
               </tr>
             </thead>
             <tbody>
-              ${sorted.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--color-text-muted);">업무가 없습니다</td></tr>` :
+              ${sorted.length === 0 ? `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--color-text-muted);">업무가 없습니다</td></tr>` :
                 sorted.map(t => `
                   <tr class="list-row" data-id="${t.id}" ${t.status==='done' ? 'style="opacity:0.65"' : ''}>
                     <td><input type="checkbox" class="list-row-check" data-id="${t.id}" ${this.selectedTaskIds.includes(t.id) ? 'checked' : ''}></td>
@@ -371,7 +369,6 @@ const TasksView = {
                         ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'미진행'}].map(s=>`<option value="${s.v}" ${t.status===s.v?'selected':''}>${s.l}</option>`).join('')}
                       </select>
                     </td>
-                    <td>${(t.tags||[]).map(tag=>`<span class="tag-pill" style="background:${escHtml(tag.color)}20;color:${escHtml(tag.color)}">${escHtml(tag.name)}</span>`).join('')}</td>
                   </tr>
                 `).join('')}
             </tbody>
@@ -834,7 +831,7 @@ const TasksView = {
 
   // 카드 표시 항목 기본값 및 localStorage 읽기/쓰기
   _getCardFieldPrefs() {
-    const defaults = { category: true, assignee: true, due_date: true, tags: true, subtasks: true, comments: true, points: false, checklist: false };
+    const defaults = { category: true, assignee: true, due_date: true, subtasks: true, comments: true, points: false, checklist: false };
     try {
       const saved = localStorage.getItem('kanban_card_fields');
       if (saved) return { ...defaults, ...JSON.parse(saved) };
@@ -888,11 +885,6 @@ const TasksView = {
     // 아카이브 아이콘 (박스에 아래 화살표)
     const archiveIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 5v7a1 1 0 001 1h9a1 1 0 001-1V5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M6 9l2 2 2-2M8 7v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-    // 태그 필 표시 (설정에 따라)
-    const tagPills = prefs.tags ? (t.tags || []).map(tag =>
-      `<span class="tag-pill" style="background:${escHtml(tag.color)}20;color:${escHtml(tag.color)}">${escHtml(tag.name)}</span>`
-    ).join('') : '';
-
     // 서브태스크 진행 상황
     const subtaskBadge = (prefs.subtasks && t.subtask_count > 0)
       ? `<span class="subtask-progress">✓ ${t.subtask_done_count || 0}/${t.subtask_count}</span>`
@@ -913,11 +905,6 @@ const TasksView = {
       ? `<span class="issue-flag-badge" title="${t.open_issue_count}개 이슈">⚠ ${t.open_issue_count}</span>`
       : '';
 
-    // 의존성 잠금 아이콘 (항상 표시 — 중요 정보)
-    const depBadge = t.unresolved_dep_count > 0
-      ? `<span class="dep-lock-badge" title="미해결 선행 업무 ${t.unresolved_dep_count}건">🔒</span>`
-      : '';
-
     // 난이도 포인트
     const pointsBadge = (prefs.points && t.points)
       ? `<span class="points-badge">${t.points}pt</span>`
@@ -936,10 +923,12 @@ const TasksView = {
           <button class="card-action-btn card-archive" title="아카이브">${archiveIcon}</button>
           <button class="card-action-btn card-delete" title="삭제">${deleteIcon}</button>
         </div>
-        ${categoryHtml}
-        ${tagPills ? `<div class="card-tags">${tagPills}</div>` : ''}
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          ${categoryHtml}
+          <span class="task-id-badge" style="margin-left:auto;">T-${String(t.id).padStart(5,'0')}</span>
+        </div>
         <div class="card-title">${escHtml(t.title)}</div>
-        ${subtaskBadge || commentBadge || checklistBadge || issueBadge || depBadge || pointsBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}${issueBadge}${depBadge}${pointsBadge}</div>` : ''}
+        ${subtaskBadge || commentBadge || checklistBadge || issueBadge || pointsBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}${issueBadge}${pointsBadge}</div>` : ''}
         <div class="card-footer">
           ${assignee}
           ${dueDateHtml}
@@ -1052,7 +1041,6 @@ const TasksView = {
           <button class="detail-tab active" data-tab="info">상세</button>
           <button class="detail-tab" data-tab="subtasks">서브태스크</button>
           <button class="detail-tab" data-tab="comments">댓글</button>
-          <button class="detail-tab" data-tab="tags">태그</button>
           <button class="detail-tab" data-tab="checklist">체크리스트</button>
           <button class="detail-tab" data-tab="attachments">첨부파일</button>
         </div>
@@ -1118,29 +1106,30 @@ const TasksView = {
               </div>
             </div>
 
-            <!-- 의존성 섹션 -->
-            <div class="detail-section-block">
-              <div class="detail-section-title">의존성 (선행 업무)</div>
-              <div id="dep-list" style="margin-bottom:8px;">
-                <div style="font-size:12px;color:var(--color-text-muted);">불러오는 중...</div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <select id="f-dep-task" style="flex:1;font-size:12px;height:32px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
-                  <option value="">선행 업무 선택...</option>
-                </select>
-                <button class="btn btn-primary" id="btn-add-dep" style="font-size:12px;padding:5px 12px;">추가</button>
-              </div>
-            </div>
           </div>
 
           <!-- 서브태스크 탭 -->
           <div class="detail-tab-pane" data-pane="subtasks" style="display:none;">
+            <div id="subtask-progress-bar" style="margin-bottom:12px;"></div>
             <div class="subtask-list" id="subtask-list">
               <div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:12px;">불러오는 중...</div>
             </div>
-            <div class="subtask-add">
-              <input type="text" placeholder="서브태스크 추가..." id="new-subtask">
-              <button class="btn btn-primary" id="btn-add-subtask" style="padding:6px 12px;font-size:12px;">추가</button>
+            <div class="subtask-add" style="flex-direction:column;gap:6px;padding-top:10px;border-top:0.5px solid var(--color-border);margin-top:10px;">
+              <input type="text" placeholder="서브태스크 제목..." id="new-subtask" style="width:100%;">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <select id="new-subtask-assignee" style="flex:1;min-width:100px;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
+                  <option value="">담당자 선택</option>
+                  ${App.users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
+                </select>
+                <select id="new-subtask-status" style="width:100px;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
+                  <option value="todo">할 일</option>
+                  <option value="in_progress">진행 중</option>
+                  <option value="done">완료</option>
+                </select>
+                <input type="number" id="new-subtask-points" placeholder="포인트" min="0" style="width:80px;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
+                <input type="date" id="new-subtask-due" style="flex:1;min-width:120px;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
+                <button class="btn btn-primary" id="btn-add-subtask" style="padding:6px 14px;font-size:12px;">추가</button>
+              </div>
             </div>
           </div>
 
@@ -1152,22 +1141,6 @@ const TasksView = {
             <div class="comment-add">
               <textarea placeholder="댓글을 입력하세요... (@이름으로 멘션)" id="new-comment" rows="3"></textarea>
               <button class="btn btn-primary" id="btn-add-comment">등록</button>
-            </div>
-          </div>
-
-          <!-- 태그 탭 -->
-          <div class="detail-tab-pane" data-pane="tags" style="display:none;">
-            <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">태그 선택 (클릭하여 토글)</div>
-            <div id="task-tags-list" style="display:flex;flex-direction:column;gap:0;margin-bottom:16px;">
-              <div style="font-size:12px;color:var(--color-text-muted);">불러오는 중...</div>
-            </div>
-            <div style="margin-top:4px;padding-top:12px;border-top:1px solid var(--color-border);">
-              <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;">새 태그 만들기</div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" id="new-tag-name" placeholder="태그 이름" style="flex:1;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
-                <input type="color" id="new-tag-color" value="#4F6EF7" style="width:36px;height:32px;padding:2px;border:0.5px solid var(--color-border);border-radius:6px;cursor:pointer;background:transparent;">
-                <button class="btn btn-primary" id="btn-create-tag" style="font-size:12px;padding:5px 12px;">생성</button>
-              </div>
             </div>
           </div>
 
@@ -1250,9 +1223,8 @@ const TasksView = {
       });
     });
 
-    // 이슈 및 의존성 즉시 로드 (상세 탭이 기본)
+    // 이슈 즉시 로드 (상세 탭이 기본)
     this._loadIssues(task.id, overlay);
-    this._loadDependencies(task.id, overlay);
 
     // 이슈 보고 폼 토글
     overlay.querySelector('#btn-report-issue')?.addEventListener('click', () => {
@@ -1277,24 +1249,18 @@ const TasksView = {
       } catch { App.toast('이슈 등록 실패', 'error'); }
     });
 
-    // 의존성 추가
-    overlay.querySelector('#btn-add-dep')?.addEventListener('click', async () => {
-      const depTaskId = overlay.querySelector('#f-dep-task').value;
-      if (!depTaskId) return;
-      try {
-        await API.post(`/tasks/${task.id}/dependencies`, { depends_on_id: depTaskId });
-        App.toast('의존성이 추가되었습니다.', 'success');
-        await this._loadDependencies(task.id, overlay);
-      } catch { App.toast('의존성 추가 실패', 'error'); }
-    });
-
     // 서브태스크 추가
     overlay.querySelector('#btn-add-subtask')?.addEventListener('click', async () => {
       const input = overlay.querySelector('#new-subtask');
       const title = input?.value.trim();
       if (!title) return;
+      const assignee_id = overlay.querySelector('#new-subtask-assignee')?.value || null;
+      const status = overlay.querySelector('#new-subtask-status')?.value || 'todo';
+      const pointsVal = overlay.querySelector('#new-subtask-points')?.value;
+      const points = pointsVal ? parseInt(pointsVal) : null;
+      const due_date = overlay.querySelector('#new-subtask-due')?.value || null;
       try {
-        await API.post(`/tasks/${task.id}/subtasks`, { title });
+        await API.post(`/tasks/${task.id}/subtasks`, { title, assignee_id, status, points, due_date });
         input.value = '';
         subtasksLoaded = false;
         await this._loadSubtasks(task.id, overlay);
@@ -1434,30 +1400,68 @@ const TasksView = {
   // 서브태스크 로드 및 렌더
   async _loadSubtasks(taskId, overlay) {
     const container = overlay.querySelector('#subtask-list');
+    const progressWrap = overlay.querySelector('#subtask-progress-bar');
     if (!container) return;
     try {
       const res = await API.get(`/tasks/${taskId}/subtasks`);
       const subtasks = res.data || [];
+
+      // 진행 바
+      if (progressWrap) {
+        if (subtasks.length > 0) {
+          const done = subtasks.filter(s => s.status === 'done').length;
+          const pct = Math.round((done / subtasks.length) * 100);
+          progressWrap.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <div style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${pct}%;background:var(--color-primary);border-radius:3px;transition:width 0.3s;"></div>
+              </div>
+              <span style="font-size:11px;color:var(--color-text-muted);flex-shrink:0;">${done}/${subtasks.length} 완료</span>
+            </div>`;
+        } else {
+          progressWrap.innerHTML = '';
+        }
+      }
+
       if (subtasks.length === 0) {
         container.innerHTML = '<div style="padding:12px;color:var(--color-text-muted);font-size:12px;text-align:center;">서브태스크가 없습니다</div>';
         return;
       }
-      container.innerHTML = subtasks.map(s => `
-        <div class="subtask-item${s.done ? ' done' : ''}" data-subtask-id="${s.id}">
-          <input type="checkbox" class="subtask-check" ${s.done ? 'checked' : ''}>
-          <span class="subtask-title">${escHtml(s.title)}</span>
-          <button class="subtask-delete" title="삭제">✕</button>
-        </div>
-      `).join('');
 
-      // 체크박스 토글
+      const statusLabel = { todo: '할 일', in_progress: '진행 중', done: '완료' };
+      const statusClass = { todo: 'subtask-status-todo', in_progress: 'subtask-status-in_progress', done: 'subtask-status-done' };
+
+      container.innerHTML = subtasks.map(s => {
+        const st = s.status || (s.done ? 'done' : 'todo');
+        const assigneeHtml = s.assignee_name
+          ? `<span style="font-size:11px;color:var(--color-text-muted);margin-left:4px;">@${escHtml(s.assignee_name)}</span>`
+          : '';
+        const pointsHtml = s.points ? `<span class="subtask-points-badge">${s.points}pt</span>` : '';
+        const dueHtml = s.due_date
+          ? `<span style="font-size:10px;color:var(--color-text-hint);">${s.due_date.slice(0,10)}</span>`
+          : '';
+        return `
+          <div class="subtask-item${st === 'done' ? ' done' : ''}" data-subtask-id="${s.id}">
+            <input type="checkbox" class="subtask-check" ${st === 'done' ? 'checked' : ''}>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span class="subtask-title">${escHtml(s.title)}</span>
+                <span class="subtask-status-badge ${statusClass[st] || 'subtask-status-todo'}">${statusLabel[st] || st}</span>
+                ${pointsHtml}${assigneeHtml}${dueHtml}
+              </div>
+            </div>
+            <button class="subtask-delete" title="삭제">✕</button>
+          </div>`;
+      }).join('');
+
+      // 체크박스 토글 → status 동기화
       container.querySelectorAll('.subtask-check').forEach(cb => {
         cb.addEventListener('change', async () => {
-          const id = cb.closest('.subtask-item').dataset.subtaskId;
+          const item = cb.closest('.subtask-item');
+          const id = item.dataset.subtaskId;
           try {
             await API.patch(`/tasks/${taskId}/subtasks/${id}/toggle`, {});
-            const item = cb.closest('.subtask-item');
-            item.classList.toggle('done', cb.checked);
+            await this._loadSubtasks(taskId, overlay);
           } catch (e) {
             App.toast('업데이트 실패', 'error');
             cb.checked = !cb.checked;
@@ -1465,16 +1469,14 @@ const TasksView = {
         });
       });
 
-      // 삭제 버튼
+      // 삭제
       container.querySelectorAll('.subtask-delete').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = btn.closest('.subtask-item').dataset.subtaskId;
           try {
             await API.del(`/tasks/${taskId}/subtasks/${id}`);
-            btn.closest('.subtask-item').remove();
-          } catch (e) {
-            App.toast('삭제 실패', 'error');
-          }
+            await this._loadSubtasks(taskId, overlay);
+          } catch { App.toast('삭제 실패', 'error'); }
         });
       });
     } catch (e) {

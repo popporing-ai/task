@@ -99,15 +99,10 @@ router.get('/', async (req, res, next) => {
              tc.name AS category_name, tc.color AS category_color,
              cu.name AS created_by_name,
              (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)::int AS subtask_count,
-             (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.done = true)::int AS subtask_done_count,
+             (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done')::int AS subtask_done_count,
              (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id)::int AS comment_count,
              (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id)::int AS checklist_count,
              (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id AND ci.done = true)::int AS checklist_done,
-             COALESCE((
-               SELECT json_agg(json_build_object('id', tg.id, 'name', tg.name, 'color', tg.color))
-               FROM task_tags tt JOIN tags tg ON tg.id = tt.tag_id
-               WHERE tt.task_id = t.id
-             ), '[]'::json) AS tags
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assignee_id
       LEFT JOIN task_categories tc ON tc.id = t.category_id
@@ -215,22 +210,6 @@ router.patch('/:id/status', auditMiddleware('tasks'), async (req, res, next) => 
       }
     }
 
-    // 의존성 검증: in_progress로 변경 시 선행 업무가 모두 done인지 확인
-    if (status === 'in_progress') {
-      const { rows: deps } = await db.query(`
-        SELECT td.depends_on_id, t.title, t.status
-        FROM task_dependencies td
-        JOIN tasks t ON t.id = td.depends_on_id
-        WHERE td.task_id = $1 AND t.status != 'done'
-      `, [req.params.id]);
-      if (deps.length > 0) {
-        const names = deps.map(d => d.title).join(', ');
-        return res.status(400).json({
-          error: `선행 업무가 완료되지 않았습니다: ${names}`
-        });
-      }
-    }
-
     const { rows } = await db.query(
       'UPDATE tasks SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING *',
       [status, req.params.id]
@@ -281,73 +260,6 @@ router.patch('/:id/archive', auditMiddleware('tasks'), async (req, res, next) =>
     );
     if (rows.length === 0) return res.status(404).json({ error: '업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0], message: archived ? '아카이브되었습니다.' : '복원되었습니다.' });
-  } catch (err) { next(err); }
-});
-
-// === 의존성 관리 ===
-
-// 의존성 목록 조회
-router.get('/:id/dependencies', async (req, res, next) => {
-  try {
-    const { rows } = await db.query(`
-      SELECT td.id, td.depends_on_id, td.created_at,
-             t.title AS depends_on_title, t.status AS depends_on_status,
-             u.name AS assignee_name
-      FROM task_dependencies td
-      JOIN tasks t ON t.id = td.depends_on_id
-      LEFT JOIN users u ON u.id = t.assignee_id
-      WHERE td.task_id = $1
-      ORDER BY td.created_at
-    `, [req.params.id]);
-    res.json({ data: rows });
-  } catch (err) { next(err); }
-});
-
-// 의존성 추가
-router.post('/:id/dependencies', auditMiddleware('task_dependencies'), async (req, res, next) => {
-  try {
-    const taskId = req.params.id;
-    const { depends_on_id } = req.body;
-
-    if (!depends_on_id) {
-      return res.status(400).json({ error: 'depends_on_id는 필수입니다.' });
-    }
-    if (parseInt(taskId) === parseInt(depends_on_id)) {
-      return res.status(400).json({ error: '자기 자신에 대한 의존성은 설정할 수 없습니다.' });
-    }
-
-    // 대상 업무 존재 확인
-    const target = (await db.query('SELECT id FROM tasks WHERE id = $1', [depends_on_id])).rows;
-    if (!target.length) {
-      return res.status(404).json({ error: '대상 업무를 찾을 수 없습니다.' });
-    }
-
-    const { rows } = await db.query(`
-      INSERT INTO task_dependencies (task_id, depends_on_id)
-      VALUES ($1, $2)
-      RETURNING *
-    `, [taskId, depends_on_id]);
-
-    res.json({ data: rows[0], message: '의존성이 추가되었습니다.' });
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(409).json({ error: '이미 등록된 의존성입니다.' });
-    }
-    next(err);
-  }
-});
-
-// 의존성 삭제
-router.delete('/:id/dependencies/:depId', auditMiddleware('task_dependencies'), async (req, res, next) => {
-  try {
-    const { rows } = await db.query(
-      'DELETE FROM task_dependencies WHERE task_id = $1 AND id = $2 RETURNING *',
-      [req.params.id, req.params.depId]
-    );
-    if (!rows.length) {
-      return res.status(404).json({ error: '의존성을 찾을 수 없습니다.' });
-    }
-    res.json({ data: rows[0], message: '의존성이 삭제되었습니다.' });
   } catch (err) { next(err); }
 });
 
