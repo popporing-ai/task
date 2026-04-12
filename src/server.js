@@ -291,21 +291,25 @@ app.use(errorHandler);
 async function runMigrations() {
   const fs = require('fs');
   const migrationsDir = path.join(__dirname, 'db');
-  const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.startsWith('migration-') && f.endsWith('.sql'))
-    .sort();
-  for (const file of files) {
-    try {
-      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-      await db.query(sql);
-      console.log(`Migration OK: ${file}`);
-    } catch (e) {
-      console.error(`Migration SKIP (${file}): ${e.message}`);
+  try {
+    const files = fs.readdirSync(migrationsDir)
+      .filter(f => f.startsWith('migration-') && f.endsWith('.sql'))
+      .sort();
+    for (const file of files) {
+      try {
+        const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+        await db.query(sql);
+        console.log(`Migration OK: ${file}`);
+      } catch (e) {
+        console.error(`Migration SKIP (${file}): ${e.message}`);
+      }
     }
+  } catch (e) {
+    console.error('Migration runner error:', e.message);
   }
 }
 
-runMigrations().then(() => {
+runMigrations().catch(e => console.error('Migration failed:', e.message)).finally(() => {
   app.listen(PORT, () => {
     console.log(`Task 서버 실행 중: http://localhost:${PORT}/task`);
   });
