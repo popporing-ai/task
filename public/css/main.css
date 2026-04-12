@@ -1174,6 +1174,16 @@ input[type="month"] {
   border: 0.5px solid rgba(79,110,247,0.30);
 }
 
+/* === 내 계정 === */
+.settings-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.my-account-wrap { display: flex; flex-direction: column; gap: 0; }
+
 /* === 설정 읽기 전용 안내 === */
 .settings-readonly-notice {
   font-size: 12px;

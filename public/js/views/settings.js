@@ -1,7 +1,7 @@
 // 설정 뷰 — 분류 / 제품 / 채널 / 콘텐츠 타입 관리 (탭 기반)
 const SettingsView = {
   // 현재 활성 탭
-  activeTab: 'categories',
+  activeTab: 'myaccount',
 
   // 채널 코드 + 설명 (시스템 정의)
   CHANNELS: [
@@ -43,6 +43,12 @@ const SettingsView = {
     // 탭 + 콘텐츠 골격 렌더링
     container.innerHTML = `
       <div class="settings-tabs-bar">
+        <button class="filter-btn ${this.activeTab === 'myaccount' ? 'active' : ''}" data-tab="myaccount">
+          <span class="settings-tab-icon">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            내 계정
+          </span>
+        </button>
         <button class="filter-btn ${this.activeTab === 'categories' ? 'active' : ''}" data-tab="categories">
           <span class="settings-tab-icon">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>
@@ -97,12 +103,127 @@ const SettingsView = {
 
   async _renderActiveTab() {
     switch (this.activeTab) {
+      case 'myaccount':  await this._renderMyAccount();  break;
       case 'categories': await this._renderCategories(); break;
       case 'products':   await this._renderProducts();   break;
       case 'channels':   this._renderChannels();         break;
       case 'types':      this._renderContentTypes();     break;
       case 'members':    await this._renderMembers();    break;
     }
+  },
+
+  // ─────────────────────────────────────────
+  // 내 계정 탭
+  // ─────────────────────────────────────────
+  async _renderMyAccount() {
+    const wrap = document.getElementById('settings-tab-content');
+    document.getElementById('topbar-actions').innerHTML = '';
+    const u = App.user;
+
+    wrap.innerHTML = `
+      <div class="my-account-wrap">
+        <!-- 프로필 이미지 -->
+        <div class="card" style="padding:24px;">
+          <div class="settings-section-title">프로필 이미지</div>
+          <div style="display:flex;align-items:center;gap:20px;margin-top:16px;">
+            <label class="avatar-upload-wrap" title="클릭하여 이미지 변경" style="cursor:pointer;width:64px;height:64px;border-radius:50%;flex-shrink:0;">
+              ${u.avatar_url
+                ? `<span class="avatar" style="width:64px;height:64px;font-size:24px;"><img src="${escHtml(u.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;"></span>`
+                : `<span class="avatar" style="width:64px;height:64px;font-size:24px;background:${escHtml(u.avatar_bg)};color:${escHtml(u.avatar_text)}">${escHtml(u.name.charAt(0))}</span>`
+              }
+              <span class="avatar-upload-overlay" style="inset:0;width:64px;height:64px;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+              <input type="file" id="my-avatar-input" accept="image/*" style="display:none;">
+            </label>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);margin-bottom:4px;">${escHtml(u.name)}</div>
+              <div style="font-size:12px;color:var(--color-text-muted);">${escHtml(u.email)}</div>
+              ${u.avatar_url ? `<button class="btn btn-danger" id="btn-del-avatar" style="margin-top:10px;font-size:12px;padding:4px 12px;">이미지 삭제</button>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <!-- 비밀번호 변경 -->
+        <div class="card" style="padding:24px;margin-top:16px;">
+          <div class="settings-section-title">비밀번호 변경</div>
+          <div style="max-width:360px;margin-top:16px;">
+            <div class="form-group">
+              <label>현재 비밀번호</label>
+              <input type="password" id="pw-current" placeholder="현재 비밀번호 입력">
+            </div>
+            <div class="form-group">
+              <label>새 비밀번호 <span style="color:var(--color-text-hint);font-size:11px;">(8자 이상)</span></label>
+              <input type="password" id="pw-new" placeholder="새 비밀번호 입력">
+            </div>
+            <div class="form-group">
+              <label>새 비밀번호 확인</label>
+              <input type="password" id="pw-confirm" placeholder="새 비밀번호 재입력">
+            </div>
+            <button class="btn btn-primary" id="btn-change-pw" style="width:100%;">비밀번호 변경</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 아바타 업로드
+    document.getElementById('my-avatar-input')?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('avatar', file);
+      try {
+        await API.upload(`/users/${u.id}/avatar`, formData);
+        App.toast('프로필 이미지가 변경되었습니다.', 'success');
+        const res = await API.get('/auth/me');
+        App.user = res.data;
+        App.renderUserInfo();
+        await this._renderMyAccount();
+      } catch {
+        App.toast('이미지 업로드에 실패했습니다.', 'error');
+      }
+    });
+
+    // 아바타 삭제
+    document.getElementById('btn-del-avatar')?.addEventListener('click', async () => {
+      const ok = await App.confirm('프로필 이미지를 삭제하시겠습니까?');
+      if (!ok) return;
+      try {
+        await API.del(`/users/${u.id}/avatar`);
+        App.toast('이미지가 삭제되었습니다.', 'info');
+        const res = await API.get('/auth/me');
+        App.user = res.data;
+        App.renderUserInfo();
+        await this._renderMyAccount();
+      } catch {
+        App.toast('삭제에 실패했습니다.', 'error');
+      }
+    });
+
+    // 비밀번호 변경
+    document.getElementById('btn-change-pw')?.addEventListener('click', async () => {
+      const current = document.getElementById('pw-current').value;
+      const newPw = document.getElementById('pw-new').value;
+      const confirm = document.getElementById('pw-confirm').value;
+      if (!current || !newPw || !confirm) {
+        App.toast('모든 항목을 입력해주세요.', 'error'); return;
+      }
+      if (newPw !== confirm) {
+        App.toast('새 비밀번호가 일치하지 않습니다.', 'error'); return;
+      }
+      if (newPw.length < 8) {
+        App.toast('새 비밀번호는 8자 이상이어야 합니다.', 'error'); return;
+      }
+      try {
+        await API.patch('/auth/me/password', { current_password: current, new_password: newPw });
+        App.toast('비밀번호가 변경되었습니다.', 'success');
+        document.getElementById('pw-current').value = '';
+        document.getElementById('pw-new').value = '';
+        document.getElementById('pw-confirm').value = '';
+      } catch (e) {
+        App.toast(e.message || '변경에 실패했습니다.', 'error');
+      }
+    });
   },
 
   // ─────────────────────────────────────────
@@ -445,41 +566,6 @@ const SettingsView = {
       </div>
     `;
 
-    // 아바타 업로드
-    document.getElementById('member-tbody')?.addEventListener('change', async (e) => {
-      const input = e.target.closest('.btn-avatar-upload');
-      if (!input || !input.files[0]) return;
-      const userId = input.dataset.id;
-      const formData = new FormData();
-      formData.append('avatar', input.files[0]);
-      try {
-        await API.upload(`/users/${userId}/avatar`, formData);
-        App.toast('프로필 이미지가 변경되었습니다.', 'success');
-        await App.loadMeta();
-        await this._renderMembers();
-      } catch {
-        App.toast('이미지 업로드에 실패했습니다.', 'error');
-      }
-    });
-
-    // 아바타 삭제
-    document.getElementById('member-tbody')?.addEventListener('click', async (e) => {
-      const delBtn = e.target.closest('.btn-avatar-delete');
-      if (delBtn) {
-        const ok = await App.confirm('프로필 이미지를 삭제하시겠습니까?');
-        if (!ok) return;
-        try {
-          await API.del(`/users/${delBtn.dataset.id}/avatar`);
-          App.toast('프로필 이미지가 삭제되었습니다.', 'info');
-          await App.loadMeta();
-          await this._renderMembers();
-        } catch {
-          App.toast('삭제에 실패했습니다.', 'error');
-        }
-        return;
-      }
-    });
-
     // 이벤트 위임
     document.getElementById('member-tbody')?.addEventListener('click', async (e) => {
       const roleBtn = e.target.closest('.btn-toggle-role');
@@ -527,14 +613,7 @@ const SettingsView = {
       <tr class="${isActive ? '' : 'member-inactive-row'}">
         <td>
           <div style="display:flex;align-items:center;gap:8px;">
-            <label class="avatar-upload-wrap" title="클릭하여 프로필 이미지 변경" style="cursor:pointer;position:relative;">
-              ${App.avatar({ name: u.name || '-', avatar_bg: u.avatar_bg, avatar_text: u.avatar_text, avatar_url: u.avatar_url })}
-              <span class="avatar-upload-overlay">
-                <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
-              </span>
-              <input type="file" class="btn-avatar-upload" data-id="${u.id}" accept="image/*" style="display:none;">
-            </label>
-            ${u.avatar_url ? `<button class="card-action-btn btn-avatar-delete" data-id="${u.id}" title="프로필 이미지 삭제" style="opacity:0.5;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H5a1 1 0 01-1-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ''}
+            ${App.avatar({ name: u.name || '-', avatar_bg: u.avatar_bg, avatar_text: u.avatar_text, avatar_url: u.avatar_url })}
             ${escHtml(u.name || '-')}
           </div>
         </td>

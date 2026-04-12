@@ -143,8 +143,29 @@ router.get('/me', authMiddleware, (req, res) => {
       role: req.user.role,
       avatar_bg: req.user.avatar_bg,
       avatar_text: req.user.avatar_text,
+      avatar_url: req.user.avatar_url || null,
     }
   });
+});
+
+// 내 비밀번호 변경
+router.patch('/me/password', authMiddleware, async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: '현재 비밀번호와 새 비밀번호를 입력해주세요.' });
+    }
+    if (new_password.length < 8) {
+      return res.status(400).json({ error: '새 비밀번호는 8자 이상이어야 합니다.' });
+    }
+    const { rows } = await db.query('SELECT password_hash FROM users WHERE id=$1', [req.user.id]);
+    const valid = await bcrypt.compare(current_password, rows[0].password_hash);
+    if (!valid) return res.status(401).json({ error: '현재 비밀번호가 올바르지 않습니다.' });
+
+    const newHash = await bcrypt.hash(new_password, 10);
+    await db.query('UPDATE users SET password_hash=$1 WHERE id=$2', [newHash, req.user.id]);
+    res.json({ message: '비밀번호가 변경되었습니다.' });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

@@ -145,9 +145,15 @@ const App = {
   renderUserInfo() {
     const avatar = document.getElementById('sb-avatar');
     const name = document.getElementById('sb-user-name');
-    avatar.textContent = this.user.name.charAt(0);
-    avatar.style.background = this.user.avatar_bg;
-    avatar.style.color = this.user.avatar_text;
+    if (this.user.avatar_url) {
+      avatar.innerHTML = `<img src="${escHtml(this.user.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;">`;
+      avatar.style.background = '';
+      avatar.style.color = '';
+    } else {
+      avatar.textContent = this.user.name.charAt(0);
+      avatar.style.background = this.user.avatar_bg;
+      avatar.style.color = this.user.avatar_text;
+    }
     name.textContent = this.user.name;
 
     document.getElementById('btn-logout').addEventListener('click', async () => {

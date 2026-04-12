@@ -29,9 +29,12 @@ const avatarUpload = multer({
   },
 });
 
-// 아바타 이미지 업로드
+// 아바타 이미지 업로드 (본인만 가능)
 router.post('/:id/avatar', avatarUpload.single('avatar'), async (req, res, next) => {
   try {
+    if (String(req.user.id) !== String(req.params.id)) {
+      return res.status(403).json({ error: '본인의 프로필만 변경할 수 있습니다.' });
+    }
     if (!req.file) return res.status(400).json({ error: '파일이 없습니다.' });
 
     // 기존 아바타 파일 삭제
@@ -51,9 +54,12 @@ router.post('/:id/avatar', avatarUpload.single('avatar'), async (req, res, next)
   } catch (err) { next(err); }
 });
 
-// 아바타 이미지 삭제
+// 아바타 이미지 삭제 (본인만 가능)
 router.delete('/:id/avatar', async (req, res, next) => {
   try {
+    if (String(req.user.id) !== String(req.params.id)) {
+      return res.status(403).json({ error: '본인의 프로필만 변경할 수 있습니다.' });
+    }
     const prev = await db.query('SELECT avatar_url FROM users WHERE id=$1', [req.params.id]);
     if (prev.rows[0]?.avatar_url) {
       const oldPath = path.join(__dirname, '..', '..', prev.rows[0].avatar_url.replace('/task/uploads/', 'uploads/'));
