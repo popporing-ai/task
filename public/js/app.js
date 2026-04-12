@@ -156,7 +156,10 @@ const App = {
     }
     name.textContent = this.user.name;
 
-    document.getElementById('btn-logout').addEventListener('click', async () => {
+    const logoutBtn = document.getElementById('btn-logout');
+    const newLogout = logoutBtn.cloneNode(true);
+    logoutBtn.parentNode.replaceChild(newLogout, logoutBtn);
+    newLogout.addEventListener('click', async () => {
       clearInterval(this._notifTimer);
       await API.post('/auth/logout');
       window.location.href = '/task/login.html';
@@ -262,9 +265,13 @@ const App = {
       if (result !== false) this.closePanel();
     });
 
-    // 패널 내 폼에서 Ctrl+Enter 또는 단순 Enter(textarea 제외) 저장
+    // 패널 내 폼에서 Ctrl+Enter 저장 (cloneNode로 이전 리스너 제거)
     const panelBody = document.getElementById('panel-body');
-    panelBody.addEventListener('keydown', (e) => {
+    const newPanelBody = panelBody.cloneNode(false);
+    panelBody.parentNode.replaceChild(newPanelBody, panelBody);
+    newPanelBody.id = 'panel-body';
+    newPanelBody.innerHTML = panelBody.innerHTML;
+    newPanelBody.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         document.getElementById('panel-save')?.click();

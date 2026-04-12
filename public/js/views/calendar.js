@@ -346,7 +346,7 @@ const CalendarView = {
       const ok = await App.confirm('이 일정을 삭제하시겠습니까?');
       if (!ok) return;
       try {
-        await API.delete(`/calendar/${ev.id}`);
+        await API.del(`/calendar/${ev.id}`);
         App.toast('일정이 삭제되었습니다.', 'success');
         await this.loadEvents();
         this.renderCalendar();

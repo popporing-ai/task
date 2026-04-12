@@ -265,10 +265,10 @@ const AuditView = {
   exportCsv() {
     let url = '/task/api/audit/export.csv?';
     const params = [];
-    if (this.filterTable) params.push(`table_name=${this.filterTable}`);
-    if (this.filterUser) params.push(`user_id=${this.filterUser}`);
-    if (this.dateFrom) params.push(`date_from=${this.dateFrom}`);
-    if (this.dateTo) params.push(`date_to=${this.dateTo}`);
+    if (this.filterTable) params.push(`table_name=${encodeURIComponent(this.filterTable)}`);
+    if (this.filterUser) params.push(`user_id=${encodeURIComponent(this.filterUser)}`);
+    if (this.dateFrom) params.push(`date_from=${encodeURIComponent(this.dateFrom)}`);
+    if (this.dateTo) params.push(`date_to=${encodeURIComponent(this.dateTo)}`);
     url += params.join('&');
     window.open(url, '_blank');
   },

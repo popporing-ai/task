@@ -129,9 +129,11 @@ const RRRView = {
       btn.addEventListener('click', async () => {
         const confirmed = await App.confirm('이 항목을 삭제하시겠습니까?');
         if (confirmed) {
-          await API.del(`/rrr/${btn.dataset.rrrDel}`);
-          App.toast('항목이 삭제되었습니다.', 'info');
-          this.render();
+          try {
+            await API.del(`/rrr/${btn.dataset.rrrDel}`);
+            App.toast('항목이 삭제되었습니다.', 'info');
+            this.render();
+          } catch { App.toast('삭제에 실패했습니다.', 'error'); }
         }
       });
     });
@@ -150,9 +152,11 @@ const RRRView = {
         const userName = userData ? userData.user_name : '이 팀원';
         const confirmed = await App.confirm(`${userName}의 R&R 전체를 삭제하시겠습니까?`);
         if (confirmed) {
-          await Promise.all((userData?.items || []).map(item => API.del(`/rrr/${item.id}`)));
-          App.toast('R&R이 모두 삭제되었습니다.', 'info');
-          this.render();
+          try {
+            await Promise.all((userData?.items || []).map(item => API.del(`/rrr/${item.id}`)));
+            App.toast('R&R이 모두 삭제되었습니다.', 'info');
+            this.render();
+          } catch { App.toast('삭제에 실패했습니다.', 'error'); }
         }
       });
     });
