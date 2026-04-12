@@ -924,15 +924,13 @@ const TasksView = {
           <button class="card-action-btn card-archive" title="아카이브">${archiveIcon}</button>
           <button class="card-action-btn card-delete" title="삭제">${deleteIcon}</button>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-          ${categoryHtml}
-          <span class="task-id-badge" style="margin-left:auto;">T-${String(t.id).padStart(5,'0')}</span>
-        </div>
+        ${categoryHtml ? `<div style="margin-bottom:4px;">${categoryHtml}</div>` : ''}
         <div class="card-title">${escHtml(t.title)}</div>
         ${subtaskBadge || commentBadge || checklistBadge || issueBadge || pointsBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}${issueBadge}${pointsBadge}</div>` : ''}
         <div class="card-footer">
           ${assignee}
           ${dueDateHtml}
+          <span class="task-id-badge" style="margin-left:auto;">T-${String(t.id).padStart(5,'0')}</span>
         </div>
       </div>
     `;
@@ -1016,6 +1014,8 @@ const TasksView = {
       : '<span style="color:var(--color-text-hint)">없음</span>';
 
     const createdAt = task.created_at ? task.created_at.slice(0, 10) : '-';
+    const pointsLabel = { 1:'1pt — 1시간 이내', 2:'2pt — 1~3시간', 3:'3pt — 반나절', 4:'4pt — 1일', 5:'5pt — 2~3일', 6:'6pt — 3~5일', 7:'7pt — 1~2주', 8:'8pt — 2주', 9:'9pt — 2~4주', 10:'10pt — 1개월+' };
+    const pointsHtml = task.points ? `<span style="font-weight:600;color:var(--color-primary);">${pointsLabel[task.points] || task.points + 'pt'}</span>` : '<span style="color:var(--color-text-hint)">미설정</span>';
 
     const overlay = document.createElement('div');
     overlay.className = 'popover-overlay';
@@ -1073,6 +1073,14 @@ const TasksView = {
               <div>
                 <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">생성일</div>
                 <div style="font-size:13px;">${createdAt}</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">난이도 포인트</div>
+                <div style="font-size:13px;">${pointsHtml}</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">업무 ID</div>
+                <div style="font-size:13px;"><span class="task-id-badge">T-${String(task.id).padStart(5,'0')}</span></div>
               </div>
             </div>
 
