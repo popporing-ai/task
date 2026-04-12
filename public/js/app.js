@@ -621,35 +621,144 @@ const App = {
       Notification.requestPermission();
     }
 
-    // 최초 배지 갱신 + 30초 주기 폴링
+    // 최초 기존 알림 ID 수집 (팝업 중복 방지)
+    this._shownNotifIds = new Set();
     this._prevUnreadCount = 0;
+    try {
+      const initRes = await API.get('/notifications');
+      (initRes.data || []).forEach(n => this._shownNotifIds.add(n.id));
+      this._prevUnreadCount = (initRes.data || []).filter(n => !n.is_read).length;
+    } catch {}
+
+    // 배지 갱신 + 15초 주기 폴링
     this._fetchUnreadCount();
-    this._notifTimer = setInterval(() => this._fetchUnreadCount(), 30000);
+    this._notifTimer = setInterval(() => this._fetchUnreadCount(), 15000);
   },
 
-  // 미읽음 수 조회 → 배지 업데이트
+  // 미읽음 수 조회 → 배지 업데이트 + 팝업 표시
   async _fetchUnreadCount() {
     try {
       const res = await API.get('/notifications/unread-count');
       const count = res.data?.count ?? 0;
       const badge = document.getElementById('notif-badge');
-      if (!badge) return;
-      if (count > 0) {
-        badge.textContent = count > 99 ? '99+' : count;
-        badge.style.display = '';
-      } else {
-        badge.style.display = 'none';
-      }
-      // 새 알림 발생 시 브라우저 푸시 알림 표시
-      if (count > (this._prevUnreadCount || 0)) {
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('마케팅 업무 현황', { body: `${count}개의 새 알림이 있습니다` });
+      if (badge) {
+        if (count > 0) {
+          badge.textContent = count > 99 ? '99+' : count;
+          badge.style.display = '';
+        } else {
+          badge.style.display = 'none';
         }
       }
+      // 새 알림 발생 시 팝업 표시
+      if (count > (this._prevUnreadCount || 0)) {
+        await this._showNewNotifPopups();
+      }
       this._prevUnreadCount = count;
-    } catch {
-      // 백엔드 미구현 시 무시
+    } catch {}
+  },
+
+  // 새 알림 팝업 표시
+  async _showNewNotifPopups() {
+    try {
+      const res = await API.get('/notifications');
+      const notifs = res.data || [];
+      for (const n of notifs) {
+        if (!n.is_read && !this._shownNotifIds.has(n.id)) {
+          this._shownNotifIds.add(n.id);
+          this._showNotifPopup(n);
+        }
+      }
+    } catch {}
+  },
+
+  // 팝업 카드 생성 및 표시
+  _showNotifPopup(notif) {
+    const container = document.getElementById('notif-popup-container');
+    if (!container) return;
+
+    const typeMap = {
+      task_assigned: { label: '업무 배정', color: '#4F6EF7', icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8h6M5 5.5h6M5 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>' },
+      task_updated: { label: '업무 수정', color: '#8B5CF6', icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>' },
+      comment_added: { label: '댓글', color: '#10B981', icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2h12v9H9l-3 3v-3H2V2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>' },
+      mention: { label: '멘션', color: '#F59E0B', icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M11 8c0 2.2-1.3 3-3 3-2.2 0-3-1.8-3-3s.8-3 3-3 3 .8 3 3z" stroke="currentColor" stroke-width="1.4"/><path d="M11 8v1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' },
+      due_soon: { label: '마감 임박', color: '#EF4444', icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.5l2 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' },
+    };
+    const t = typeMap[notif.type] || { label: '알림', color: '#4F6EF7', icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2a5 5 0 015 5v3l1.5 2h-13L3 10V7a5 5 0 015-5zM6.5 13.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' };
+
+    const popup = document.createElement('div');
+    popup.className = 'notif-popup';
+    popup.dataset.notifId = notif.id;
+    popup.style.setProperty('--np-color', t.color);
+    popup.innerHTML = `
+      <div class="notif-popup-header">
+        <span class="notif-popup-badge" style="background:${t.color}22;color:${t.color}">
+          ${t.icon}${t.label}
+        </span>
+        <button class="notif-popup-close" title="닫기">✕</button>
+      </div>
+      <div class="notif-popup-msg">${escHtml(notif.message)}</div>
+      <div class="notif-popup-footer">
+        <span class="notif-popup-time">${this._timeAgoNotif(notif.created_at)}</span>
+        ${notif.link_view ? `<span class="notif-popup-action">바로가기 →</span>` : ''}
+      </div>
+      <div class="notif-popup-progress"><div class="notif-popup-progress-bar"></div></div>
+    `;
+
+    container.appendChild(popup);
+
+    // 슬라이드 인
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => popup.classList.add('show'));
+    });
+
+    // 닫기 버튼
+    popup.querySelector('.notif-popup-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._dismissNotifPopup(popup);
+    });
+
+    // 클릭 → 이동
+    if (notif.link_view) {
+      popup.style.cursor = 'pointer';
+      popup.addEventListener('click', () => {
+        this.navigate(notif.link_view);
+        this._markRead(notif.id);
+        this._dismissNotifPopup(popup);
+      });
     }
+
+    // 자동 닫힘 (6초)
+    let elapsed = 0;
+    const bar = popup.querySelector('.notif-popup-progress-bar');
+    const DURATION = 6000;
+    const TICK = 50;
+    let timer = setInterval(() => {
+      elapsed += TICK;
+      if (bar) bar.style.width = `${100 - (elapsed / DURATION) * 100}%`;
+      if (elapsed >= DURATION) {
+        clearInterval(timer);
+        this._dismissNotifPopup(popup);
+      }
+    }, TICK);
+
+    // 호버 시 타이머 일시정지
+    popup.addEventListener('mouseenter', () => clearInterval(timer));
+    popup.addEventListener('mouseleave', () => {
+      timer = setInterval(() => {
+        elapsed += TICK;
+        if (bar) bar.style.width = `${100 - (elapsed / DURATION) * 100}%`;
+        if (elapsed >= DURATION) {
+          clearInterval(timer);
+          this._dismissNotifPopup(popup);
+        }
+      }, TICK);
+    });
+  },
+
+  _dismissNotifPopup(popup) {
+    popup.classList.remove('show');
+    popup.classList.add('hide');
+    setTimeout(() => popup.remove(), 350);
   },
 
   // 드롭다운 표시/숨김 토글

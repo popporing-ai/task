@@ -1184,6 +1184,101 @@ input[type="month"] {
 }
 .my-account-wrap { display: flex; flex-direction: column; gap: 0; }
 
+/* === 슬랙형 알림 팝업 === */
+#notif-popup-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9990;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  width: 320px;
+}
+.notif-popup {
+  background: #1E1F2E;
+  border: 0.5px solid rgba(255,255,255,0.1);
+  border-left: 3px solid var(--np-color, #4F6EF7);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  padding: 14px 14px 0 14px;
+  pointer-events: auto;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+.notif-popup.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+.notif-popup.hide {
+  opacity: 0;
+  transform: translateX(20px);
+}
+.notif-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.notif-popup-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+.notif-popup-close {
+  background: none;
+  border: none;
+  color: var(--color-text-hint);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+.notif-popup-close:hover { color: var(--color-text-primary); background: rgba(255,255,255,0.08); }
+.notif-popup-msg {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+.notif-popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.notif-popup-time {
+  font-size: 11px;
+  color: var(--color-text-hint);
+}
+.notif-popup-action {
+  font-size: 11px;
+  color: var(--np-color, #4F6EF7);
+  font-weight: 500;
+}
+.notif-popup-progress {
+  height: 2px;
+  background: rgba(255,255,255,0.06);
+  margin: 0 -14px;
+}
+.notif-popup-progress-bar {
+  height: 100%;
+  background: var(--np-color, #4F6EF7);
+  width: 100%;
+  transition: width 0.05s linear;
+  opacity: 0.7;
+}
+
 /* === 설정 읽기 전용 안내 === */
 .settings-readonly-notice {
   font-size: 12px;
