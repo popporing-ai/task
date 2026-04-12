@@ -24,6 +24,13 @@ services:
       - db
     volumes:
       - ./uploads:/app/uploads
+    networks:
+      - default
+      - virnect-net
 
 volumes:
   pgdata:
+
+networks:
+  virnect-net:
+    external: true
