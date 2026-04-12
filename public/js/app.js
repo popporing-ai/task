@@ -632,7 +632,7 @@ const App = {
 
     // 배지 갱신 + 15초 주기 폴링
     this._fetchUnreadCount();
-    this._notifTimer = setInterval(() => this._fetchUnreadCount(), 15000);
+    this._notifTimer = setInterval(() => this._fetchUnreadCount(), 8000);
   },
 
   // 미읽음 수 조회 → 배지 업데이트 + 팝업 표시
