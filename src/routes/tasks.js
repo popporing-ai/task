@@ -102,7 +102,7 @@ router.get('/', async (req, res, next) => {
              (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done')::int AS subtask_done_count,
              (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id)::int AS comment_count,
              (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id)::int AS checklist_count,
-             (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id AND ci.done = true)::int AS checklist_done,
+             (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id AND ci.done = true)::int AS checklist_done
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assignee_id
       LEFT JOIN task_categories tc ON tc.id = t.category_id
@@ -118,18 +118,18 @@ router.get('/', async (req, res, next) => {
 // 업무 생성
 router.post('/', auditMiddleware('tasks'), async (req, res, next) => {
   try {
-    const { title, description, category_id, assignee_id, status, due_date } = req.body;
+    const { title, description, category_id, assignee_id, status, due_date, points } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: '업무명을 입력해주세요.' });
     }
 
     const { rows } = await db.query(`
-      INSERT INTO tasks (title, description, category_id, assignee_id, status, due_date, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO tasks (title, description, category_id, assignee_id, status, due_date, points, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `, [title, description || null, category_id || null, assignee_id || null,
-        status || 'todo', due_date || null, req.user.id]);
+        status || 'todo', due_date || null, points || null, req.user.id]);
 
     // 담당자에게 배정 알림 발송 (본인 제외)
     const task = rows[0];
@@ -150,7 +150,7 @@ router.post('/', auditMiddleware('tasks'), async (req, res, next) => {
 // 업무 수정
 router.put('/:id', auditMiddleware('tasks'), async (req, res, next) => {
   try {
-    const { title, description, category_id, assignee_id, status, due_date } = req.body;
+    const { title, description, category_id, assignee_id, status, due_date, points } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: '업무명을 입력해주세요.' });
@@ -158,10 +158,10 @@ router.put('/:id', auditMiddleware('tasks'), async (req, res, next) => {
 
     const { rows } = await db.query(`
       UPDATE tasks SET title=$1, description=$2, category_id=$3, assignee_id=$4,
-             status=$5, due_date=$6, updated_at=NOW()
-      WHERE id=$7 RETURNING *
+             status=$5, due_date=$6, points=$7, updated_at=NOW()
+      WHERE id=$8 RETURNING *
     `, [title, description || null, category_id || null, assignee_id || null,
-        status, due_date || null, req.params.id]);
+        status, due_date || null, points || null, req.params.id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: '업무를 찾을 수 없습니다.' });

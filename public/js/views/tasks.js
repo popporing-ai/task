@@ -356,6 +356,7 @@ const TasksView = {
                     <td><input type="checkbox" class="list-row-check" data-id="${t.id}" ${this.selectedTaskIds.includes(t.id) ? 'checked' : ''}></td>
                     <td class="list-cell-title" data-field="title" data-id="${t.id}">
                       <span class="list-cell-display">${escHtml(t.title)}</span>
+                      <span class="task-id-badge" style="margin-left:6px;">T-${String(t.id).padStart(5,'0')}</span>
                     </td>
                     <td>${t.category_name ? categoryTag(t.category_name) : '<span style="color:var(--color-text-hint)">-</span>'}</td>
                     <td class="list-cell-assignee" data-field="assignee_id" data-id="${t.id}">
@@ -1188,7 +1189,6 @@ const TasksView = {
     const tabPanes = overlay.querySelectorAll('.detail-tab-pane');
     let subtasksLoaded = false;
     let commentsLoaded = false;
-    let tagsLoaded = false;
     let checklistLoaded = false;
     let attachmentsLoaded = false;
 
@@ -1207,10 +1207,6 @@ const TasksView = {
         if (btn.dataset.tab === 'comments' && !commentsLoaded) {
           commentsLoaded = true;
           await this._loadComments(task.id, overlay);
-        }
-        if (btn.dataset.tab === 'tags' && !tagsLoaded) {
-          tagsLoaded = true;
-          await this._loadTags(task.id, overlay);
         }
         if (btn.dataset.tab === 'checklist' && !checklistLoaded) {
           checklistLoaded = true;
@@ -1363,7 +1359,6 @@ const TasksView = {
         await API.post(`/tasks/${task.id}/tags`, { tag_id: newTag.id });
         nameInput.value = '';
         colorInput.value = '#4F6EF7';
-        tagsLoaded = false;
         await this._loadTags(task.id, overlay);
         App.toast(`태그 "${name}" 생성 및 추가됨`, 'success');
       } catch (e) {

@@ -34,8 +34,8 @@ router.post('/:taskId/subtasks', auditMiddleware('subtasks'), async (req, res, n
       INSERT INTO subtasks (task_id, title, assignee_id, due_date, sort_order, status, points)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [taskId, title.trim(), assignee_id || null, due_date || null, sort_order || 0,
-        status || 'todo', points || null]);
+    `, [taskId, title.trim(), assignee_id || null, due_date || null, sort_order ?? 0,
+        status || 'todo', points ?? null]);
     res.status(201).json({ data: rows[0], message: '하위 업무가 추가되었습니다.' });
   } catch (err) { next(err); }
 });
@@ -52,7 +52,7 @@ router.put('/:taskId/subtasks/:id', auditMiddleware('subtasks'), async (req, res
       UPDATE subtasks SET title=$1, assignee_id=$2, due_date=$3, sort_order=$4, status=$5, points=$6
       WHERE id=$7 RETURNING *
     `, [title.trim(), assignee_id || null, due_date || null, sort_order ?? 0,
-        status || 'todo', points || null, id]);
+        status || 'todo', points ?? null, id]);
     if (!rows.length) return res.status(404).json({ data: null, error: '하위 업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0], message: '하위 업무가 수정되었습니다.' });
   } catch (err) { next(err); }
