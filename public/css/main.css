@@ -795,31 +795,59 @@ input[type="month"] {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 0.5px solid var(--color-border);
 }
 .rrr-drag-handle {
   color: var(--color-text-hint);
   cursor: grab;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, width 0.15s, margin 0.15s;
   flex-shrink: 0;
   line-height: 0;
+  width: 0;
+  overflow: hidden;
+  margin-right: -10px;
 }
-.rrr-card:hover .rrr-drag-handle { opacity: 1; }
-.rrr-card-header .avatar { width: 32px; height: 32px; font-size: 14px; flex-shrink: 0; }
-.rrr-card-name { font-size: 14px; font-weight: 600; color: var(--color-text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rrr-card:hover .rrr-drag-handle { opacity: 1; width: 12px; margin-right: 0; }
+.rrr-card-header .avatar { width: 34px; height: 34px; font-size: 14px; flex-shrink: 0; margin-left: 0; }
+.rrr-card-name { font-size: 14px; font-weight: 600; color: var(--color-text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 34px; }
 
 .rrr-sections-wrap { flex: 1; }
-.rrr-section { margin-bottom: 12px; }
+.rrr-section { margin-bottom: 14px; }
 .rrr-section-title {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rrr-section-title .rrr-section-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.rrr-section-title .rrr-section-icon.lead { background: rgba(79,110,247,0.18); color: #7B9BFF; }
+.rrr-section-title .rrr-section-icon.func { background: rgba(52,199,89,0.18); color: #5CD47E; }
+.rrr-section-count {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.08);
   color: var(--color-text-hint);
-  margin-bottom: 6px;
-  padding-bottom: 4px;
-  border-bottom: 0.5px solid var(--color-border);
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 2px;
 }
 
 .rrr-item-list {
@@ -828,20 +856,29 @@ input[type="month"] {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 .rrr-item {
   font-size: 13px;
   color: var(--color-text-primary);
-  padding: 5px 6px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: background 0.12s;
+  gap: 8px;
+  transition: background 0.12s, box-shadow 0.12s;
   cursor: default;
+  background: rgba(255,255,255,0.025);
+  border: 0.5px solid rgba(255,255,255,0.04);
+  border-left: 3px solid transparent;
 }
-.rrr-item:hover { background: rgba(255,255,255,0.05); }
+.rrr-item-list[data-role-type="solution_lead"] .rrr-item {
+  border-left-color: #4F6EF7;
+}
+.rrr-item-list[data-role-type="function"] .rrr-item {
+  border-left-color: #34C759;
+}
+.rrr-item:hover { background: rgba(255,255,255,0.06); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
 .rrr-item.rrr-item-dragging { opacity: 0.35; cursor: grabbing; }
 .rrr-item.rrr-item-drag-over { outline: 1px dashed var(--color-primary); border-radius: 6px; }
 
@@ -854,7 +891,7 @@ input[type="month"] {
   line-height: 0;
 }
 .rrr-item:hover .rrr-item-drag { opacity: 1; }
-.rrr-item-text { flex: 1; min-width: 0; word-break: break-word; line-height: 1.4; }
+.rrr-item-text { flex: 1; min-width: 0; word-break: break-word; line-height: 1.45; font-size: 13px; color: var(--color-text-primary); }
 
 .rrr-item-actions { display: none; gap: 2px; flex-shrink: 0; }
 .rrr-item:hover .rrr-item-actions { display: flex; }
@@ -872,7 +909,7 @@ input[type="month"] {
   flex-shrink: 0;
 }
 .rrr-card:hover .rrr-card-delete { opacity: 1; }
-.rrr-add-area { margin-top: 12px; }
+.rrr-add-area { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--color-border); }
 .rrr-add-btn { font-size: 12px; width: 100%; }
 
 /* 아바타 업로드 오버레이 */

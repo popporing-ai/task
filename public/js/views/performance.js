@@ -43,12 +43,13 @@ const PerformanceView = {
     const totalDone = teamRows.reduce((s, r) => s + (parseInt(r.completed) || 0), 0);
     const totalDelayed = teamRows.reduce((s, r) => s + (parseInt(r.delayed) || 0), 0);
     const totalAll = teamRows.reduce((s, r) => s + (parseInt(r.total) || 0), 0);
+    const totalPoints = teamRows.reduce((s, r) => s + (parseInt(r.total_points) || 0), 0);
     const avgCompletionRate = totalAll > 0 ? Math.round((totalDone / totalAll) * 1000) / 10 : 0;
-    const avgDaysArr = teamRows.map(r => parseFloat(r.completion_rate)).filter(v => !isNaN(v));
     this._teamData = {
       summary: {
         total_done: totalDone,
         total_overdue: totalDelayed,
+        total_points: totalPoints,
         completion_rate: avgCompletionRate,
         avg_days: null,
         in_progress: 0,
@@ -186,8 +187,8 @@ const PerformanceView = {
           <div class="perf-metric-value" style="color:var(--color-warn-text)">${s.total_overdue || 0}</div>
         </div>
         <div class="perf-metric-card">
-          <div class="perf-metric-label">평균 소요일</div>
-          <div class="perf-metric-value">${s.avg_days != null ? Number(s.avg_days).toFixed(1) : '-'}일</div>
+          <div class="perf-metric-label">총 포인트</div>
+          <div class="perf-metric-value"><span class="points-badge" style="font-size:18px;">${s.total_points || 0}pt</span></div>
         </div>
         <div class="perf-metric-card">
           <div class="perf-metric-label">팀 완료율</div>
@@ -277,28 +278,52 @@ const PerformanceView = {
       const params = this._buildDateParams();
       const res = await API.get(`/performance/user/${userId}${params}`);
       const d = res.data || {};
+      const stats = d.stats || {};
+      const monthlyTrend = d.monthly_trend || [];
+      const byCategory = d.by_category || [];
       const overlay = document.createElement('div');
       overlay.className = 'popover-overlay';
       overlay.innerHTML = `
-        <div class="popover" style="max-width:480px;">
+        <div class="popover" style="max-width:520px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-            <div style="font-size:16px;font-weight:700;color:var(--color-text-primary);">${escHtml(d.name || '팀원')} 상세 성과</div>
+            <div style="font-size:16px;font-weight:700;color:var(--color-text-primary);">개인 상세 성과</div>
             <button class="popover-close" id="perf-detail-close">×</button>
           </div>
-          <div class="perf-metric-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
-            <div class="perf-metric-card"><div class="perf-metric-label">완료</div><div class="perf-metric-value" style="font-size:18px;color:var(--color-done-text)">${d.done_count || 0}</div></div>
-            <div class="perf-metric-card"><div class="perf-metric-label">지연</div><div class="perf-metric-value" style="font-size:18px;color:var(--color-warn-text)">${d.overdue_count || 0}</div></div>
-            <div class="perf-metric-card"><div class="perf-metric-label">포인트</div><div class="perf-metric-value" style="font-size:18px;">${d.total_points || 0}pt</div></div>
+          <div class="perf-metric-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+            <div class="perf-metric-card"><div class="perf-metric-label">완료</div><div class="perf-metric-value" style="font-size:18px;color:var(--color-done-text)">${stats.completed || 0}</div></div>
+            <div class="perf-metric-card"><div class="perf-metric-label">지연</div><div class="perf-metric-value" style="font-size:18px;color:var(--color-warn-text)">${stats.delayed || 0}</div></div>
+            <div class="perf-metric-card"><div class="perf-metric-label">포인트</div><div class="perf-metric-value" style="font-size:18px;">${stats.total_points || 0}pt</div></div>
+            <div class="perf-metric-card"><div class="perf-metric-label">완료율</div><div class="perf-metric-value" style="font-size:18px;color:var(--color-primary)">${stats.completion_rate != null ? Number(stats.completion_rate).toFixed(0) : 0}%</div></div>
           </div>
-          ${d.recent_tasks && d.recent_tasks.length > 0 ? `
-            <div style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:8px;">최근 업무</div>
-            <div style="display:flex;flex-direction:column;gap:4px;">
-              ${d.recent_tasks.slice(0, 10).map(t => `
-                <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--color-bg-secondary);border-radius:6px;border:0.5px solid var(--color-border);">
-                  ${App.statusBadge(t.status)}
-                  <span style="flex:1;font-size:12px;">${escHtml(t.title)}</span>
-                </div>
+          <div class="perf-metric-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+            <div class="perf-metric-card"><div class="perf-metric-label">진행 중</div><div class="perf-metric-value" style="font-size:16px;">${stats.in_progress || 0}</div></div>
+            <div class="perf-metric-card"><div class="perf-metric-label">할 일</div><div class="perf-metric-value" style="font-size:16px;">${stats.todo || 0}</div></div>
+            <div class="perf-metric-card"><div class="perf-metric-label">평균 소요일</div><div class="perf-metric-value" style="font-size:16px;">${stats.avg_completion_days != null ? Number(stats.avg_completion_days).toFixed(1) : '-'}일</div></div>
+          </div>
+          ${byCategory.length > 0 ? `
+            <div style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:8px;">카테고리별 업무</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+              ${byCategory.map(c => `
+                <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--color-bg-secondary);border-radius:6px;border:0.5px solid var(--color-border);font-size:12px;">
+                  ${escHtml(c.category_name)} <strong>${c.count}</strong>
+                </span>
               `).join('')}
+            </div>
+          ` : ''}
+          ${monthlyTrend.length > 0 ? `
+            <div style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:8px;">월별 완료 추이</div>
+            <div style="display:flex;align-items:flex-end;gap:6px;height:60px;margin-bottom:8px;">
+              ${(() => {
+                const maxV = Math.max(...monthlyTrend.map(m => m.completed || 0), 1);
+                return monthlyTrend.map(m => {
+                  const pct = Math.round(((m.completed || 0) / maxV) * 100);
+                  return '<div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:2px;">' +
+                    '<span style="font-size:10px;font-weight:600;color:var(--color-text-primary);">' + (m.completed || 0) + '</span>' +
+                    '<div style="width:100%;max-width:32px;height:' + Math.max(pct, 4) + '%;background:var(--color-primary);border-radius:4px;"></div>' +
+                    '<span style="font-size:9px;color:var(--color-text-hint);">' + escHtml((m.month || '').slice(5)) + '</span>' +
+                    '</div>';
+                }).join('');
+              })()}
             </div>
           ` : ''}
           <div style="display:flex;justify-content:flex-end;margin-top:16px;">

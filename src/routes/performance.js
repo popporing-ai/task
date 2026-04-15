@@ -58,6 +58,7 @@ router.get('/user/:id', async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'todo')::int AS todo,
         COUNT(*)::int AS total,
         COALESCE(SUM(points) FILTER (WHERE status = 'done'), 0)::int AS total_points,
+        COALESCE(SUM(points), 0)::int AS all_points,
         ROUND(AVG(
           CASE WHEN status = 'done' AND due_date IS NOT NULL
             THEN EXTRACT(EPOCH FROM (updated_at - created_at)) / 86400
@@ -67,7 +68,12 @@ router.get('/user/:id', async (req, res, next) => {
           WHEN COUNT(*) > 0
           THEN ROUND((COUNT(*) FILTER (WHERE status = 'done')::numeric / COUNT(*)) * 100, 1)
           ELSE 0
-        END AS completion_rate
+        END AS completion_rate,
+        CASE
+          WHEN COUNT(*) > 0
+          THEN ROUND((COUNT(*) FILTER (WHERE status = 'blocked')::numeric / COUNT(*)) * 100, 1)
+          ELSE 0
+        END AS delay_rate
       FROM tasks
       WHERE assignee_id = $1 AND archived = false
     `, [userId])).rows[0];

@@ -69,7 +69,11 @@ const RRRView = {
         <div class="rrr-sections-wrap">
           ${leads.length > 0 ? `
             <div class="rrr-section">
-              <div class="rrr-section-title">솔루션 리드</div>
+              <div class="rrr-section-title">
+                <span class="rrr-section-icon lead"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M8 1l2.2 4.4L15 6.1l-3.5 3.4.8 4.9L8 12.1 3.7 14.4l.8-4.9L1 6.1l4.8-.7z" fill="currentColor"/></svg></span>
+                솔루션 리드
+                <span class="rrr-section-count">${leads.length}</span>
+              </div>
               <ul class="rrr-item-list" data-user-id="${user.user_id}" data-role-type="solution_lead">
                 ${leads.map(item => this._itemHtml(item)).join('')}
               </ul>
@@ -77,7 +81,11 @@ const RRRView = {
           ` : ''}
           ${funcs.length > 0 ? `
             <div class="rrr-section">
-              <div class="rrr-section-title">역할/기능</div>
+              <div class="rrr-section-title">
+                <span class="rrr-section-icon func"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M6.5 1A5.5 5.5 0 0112 6.5c0 1.3-.5 2.5-1.2 3.4l4.4 4.3-.7.7-4.4-4.3A5.5 5.5 0 116.5 1zm0 1a4.5 4.5 0 100 9 4.5 4.5 0 000-9z" fill="currentColor"/></svg></span>
+                역할/기능
+                <span class="rrr-section-count">${funcs.length}</span>
+              </div>
               <ul class="rrr-item-list" data-user-id="${user.user_id}" data-role-type="function">
                 ${funcs.map(item => this._itemHtml(item)).join('')}
               </ul>
