@@ -95,7 +95,7 @@ router.get('/', async (req, res, next) => {
     const whereClause = 'WHERE ' + where.join(' AND ');
 
     const { rows } = await db.query(`
-      SELECT t.*, u.name AS assignee_name, u.avatar_bg, u.avatar_text,
+      SELECT t.*, u.name AS assignee_name, u.avatar_bg, u.avatar_text, u.avatar_url,
              tc.name AS category_name, tc.color AS category_color,
              cu.name AS created_by_name,
              (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)::int AS subtask_count,

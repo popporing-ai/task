@@ -14,7 +14,7 @@ router.get('/:taskId/comments', async (req, res, next) => {
     const { taskId } = req.params;
     const { rows } = await db.query(`
       SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, c.updated_at,
-             u.name AS user_name, u.avatar_bg, u.avatar_text
+             u.name AS user_name, u.avatar_bg, u.avatar_text, u.avatar_url
       FROM comments c
       JOIN users u ON u.id = c.user_id
       WHERE c.task_id = $1
@@ -40,7 +40,7 @@ router.post('/:taskId/comments', auditMiddleware('comments'), async (req, res, n
     // 작성자 정보 포함하여 반환
     const { rows: full } = await db.query(`
       SELECT c.id, c.task_id, c.user_id, c.content, c.created_at, c.updated_at,
-             u.name AS user_name, u.avatar_bg, u.avatar_text
+             u.name AS user_name, u.avatar_bg, u.avatar_text, u.avatar_url
       FROM comments c
       JOIN users u ON u.id = c.user_id
       WHERE c.id = $1
@@ -71,7 +71,7 @@ router.post('/:taskId/comments', auditMiddleware('comments'), async (req, res, n
       const { rows: mentionedUsers } = await db.query(
         'SELECT id FROM users WHERE name = $1', [mentionedName]
       );
-      if (mentionedUsers.length > 0 && mentionedUsers[0].id !== req.user.id) {
+      if (mentionedUsers.length > 0) {
         createNotification(
           mentionedUsers[0].id,
           'mention',

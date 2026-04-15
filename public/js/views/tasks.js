@@ -1501,12 +1501,12 @@ const TasksView = {
       const currentUserId = App.user?.id;
       container.innerHTML = comments.map(c => {
         const timeAgo = this._timeAgo(c.created_at);
-        const initial = (c.user_name || '?').charAt(0);
         const isOwn = c.user_id == currentUserId;
+        const avatarHtml = App.avatar({ name: c.user_name, avatar_bg: c.avatar_bg, avatar_text: c.avatar_text, avatar_url: c.avatar_url });
         return `
           <div class="comment-item" data-comment-id="${c.id}">
             <div class="comment-header">
-              <span class="avatar" style="background:${escHtml(c.avatar_bg||'#4F6EF7')};color:${escHtml(c.avatar_text||'#fff')};width:28px;height:28px;font-size:12px;">${escHtml(initial)}</span>
+              ${avatarHtml}
               <strong>${escHtml(c.user_name || '-')}</strong>
               <span class="comment-time">${timeAgo}</span>
               ${isOwn ? `
