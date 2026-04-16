@@ -118,18 +118,22 @@ router.get('/', async (req, res, next) => {
 // 업무 생성
 router.post('/', auditMiddleware('tasks'), async (req, res, next) => {
   try {
-    const { title, description, category_id, assignee_id, status, due_date, points } = req.body;
+    const { title, description, category_id, assignee_id, status, due_date, points, work_type } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: '업무명을 입력해주세요.' });
     }
 
+    // work_type 검증 (허용값: regular/extra/project, 기본값: regular)
+    const allowedWorkTypes = ['regular', 'extra', 'project'];
+    const safeWorkType = allowedWorkTypes.includes(work_type) ? work_type : 'regular';
+
     const { rows } = await db.query(`
-      INSERT INTO tasks (title, description, category_id, assignee_id, status, due_date, points, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO tasks (title, description, category_id, assignee_id, status, due_date, points, work_type, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [title, description || null, category_id || null, assignee_id || null,
-        status || 'todo', due_date || null, points || null, req.user.id]);
+        status || 'todo', due_date || null, points || null, safeWorkType, req.user.id]);
 
     // 담당자에게 배정 알림 발송 (본인 제외)
     const task = rows[0];
@@ -150,18 +154,22 @@ router.post('/', auditMiddleware('tasks'), async (req, res, next) => {
 // 업무 수정
 router.put('/:id', auditMiddleware('tasks'), async (req, res, next) => {
   try {
-    const { title, description, category_id, assignee_id, status, due_date, points } = req.body;
+    const { title, description, category_id, assignee_id, status, due_date, points, work_type } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: '업무명을 입력해주세요.' });
     }
 
+    // work_type 검증 (허용값: regular/extra/project, 기본값: regular)
+    const allowedWorkTypes = ['regular', 'extra', 'project'];
+    const safeWorkType = allowedWorkTypes.includes(work_type) ? work_type : 'regular';
+
     const { rows } = await db.query(`
       UPDATE tasks SET title=$1, description=$2, category_id=$3, assignee_id=$4,
-             status=$5, due_date=$6, points=$7, updated_at=NOW()
-      WHERE id=$8 RETURNING *
+             status=$5, due_date=$6, points=$7, work_type=$8, updated_at=NOW()
+      WHERE id=$9 RETURNING *
     `, [title, description || null, category_id || null, assignee_id || null,
-        status, due_date || null, points || null, req.params.id]);
+        status, due_date || null, points || null, safeWorkType, req.params.id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: '업무를 찾을 수 없습니다.' });

@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS tasks (
               CHECK (status IN ('todo','in_progress','done','blocked')),
   due_date    DATE,
   points      INTEGER DEFAULT 0,
+  work_type   VARCHAR(20) NOT NULL DEFAULT 'regular'
+              CHECK (work_type IN ('regular','extra','project')),
   sort_order  INTEGER DEFAULT 0,
   archived    BOOLEAN NOT NULL DEFAULT false,
   created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -349,6 +351,39 @@ CREATE TABLE IF NOT EXISTS performance_alerts (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_perf_alerts_user ON performance_alerts(user_id, is_resolved);
+
+-- 29. monthly_evaluations (관리자 월간 정성 평가 — 마이그레이션 010)
+CREATE TABLE IF NOT EXISTS monthly_evaluations (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  admin_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  eval_month  DATE NOT NULL,
+  score_timeliness    INTEGER CHECK (score_timeliness BETWEEN 1 AND 5),
+  score_quality       INTEGER CHECK (score_quality BETWEEN 1 AND 5),
+  score_collaboration INTEGER CHECK (score_collaboration BETWEEN 1 AND 5),
+  score_initiative    INTEGER CHECK (score_initiative BETWEEN 1 AND 5),
+  score_growth        INTEGER CHECK (score_growth BETWEEN 1 AND 5),
+  memo        TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, eval_month)
+);
+CREATE INDEX IF NOT EXISTS idx_monthly_eval_user ON monthly_evaluations(user_id, eval_month DESC);
+
+-- 30. semi_annual_reports (반기 리포트 메타 — 마이그레이션 010)
+CREATE TABLE IF NOT EXISTS semi_annual_reports (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period      VARCHAR(20) NOT NULL CHECK (period IN ('H1','H2')),
+  year        INTEGER NOT NULL,
+  admin_notes TEXT,
+  finalized   BOOLEAN NOT NULL DEFAULT false,
+  created_by  INTEGER REFERENCES users(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, period, year)
+);
+CREATE INDEX IF NOT EXISTS idx_semi_annual_user ON semi_annual_reports(user_id, year DESC, period);
 
 -- 28. calendar_events (마케팅 일정)
 CREATE TABLE IF NOT EXISTS calendar_events (

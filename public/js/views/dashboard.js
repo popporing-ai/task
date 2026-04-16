@@ -18,6 +18,8 @@ const DashboardView = {
     { id: 'issue-monitor',     title: '활성 이슈 현황',     size: 'half' },
     { id: 'team-kpi',          title: '팀 KPI',             size: 'half' },
     { id: 'upcoming-events',   title: '다가오는 일정',      size: 'half' },
+    { id: 'delay-monitor',     title: '팀 지연 모니터',     size: 'half' },
+    { id: 'work-distribution', title: '업무 분포',          size: 'half' },
   ],
 
   // 차트 타입을 지원하는 위젯 목록
@@ -116,6 +118,37 @@ const DashboardView = {
     } catch {
       this._data._upcomingEvents = [];
     }
+
+    // 업무 분포 (관리자 전용 엔드포인트 — 실패 시 _allTasks에서 클라이언트 집계)
+    try {
+      if (App.user?.role === 'admin') {
+        const distRes = await API.get(`/evaluations/work-distribution?year=${new Date().getFullYear()}`);
+        this._data._workDistribution = distRes.data || [];
+      } else {
+        // 비관리자: _allTasks에서 클라이언트 집계
+        this._data._workDistribution = this._aggregateWorkDistribution(this._data._allTasks || []);
+      }
+    } catch {
+      this._data._workDistribution = this._aggregateWorkDistribution(this._data._allTasks || []);
+    }
+  },
+
+  // _allTasks로부터 담당자별 업무 유형 분포 집계 (폴백)
+  _aggregateWorkDistribution(tasks) {
+    const byUser = {};
+    for (const t of tasks) {
+      if (!t.assignee_id) continue;
+      if (!byUser[t.assignee_id]) {
+        byUser[t.assignee_id] = {
+          user_id: t.assignee_id,
+          name: t.assignee_name || '-',
+          regular: 0, extra: 0, project: 0,
+        };
+      }
+      const wt = t.work_type || 'regular';
+      byUser[t.assignee_id][wt] = (byUser[t.assignee_id][wt] || 0) + 1;
+    }
+    return Object.values(byUser);
   },
 
   toggleEditMode() {
@@ -298,8 +331,82 @@ const DashboardView = {
       case 'upcoming-events':
         return this._renderUpcomingEvents(d);
 
+      case 'delay-monitor':
+        return this._renderDelayMonitor(d);
+
+      case 'work-distribution':
+        return this._renderWorkDistribution(d);
+
       default: return '';
     }
+  },
+
+  // 팀 지연 모니터 위젯 — 상위 5개 지연 업무 (_allTasks에서 계산)
+  _renderDelayMonitor(d) {
+    const today = new Date().toISOString().slice(0, 10);
+    const allTasks = d._allTasks || [];
+    const overdue = allTasks
+      .filter(t => t.due_date && t.due_date.slice(0, 10) < today && t.status !== 'done')
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))
+      .slice(0, 5);
+    if (overdue.length === 0) {
+      return '<div style="text-align:center;padding:16px;color:var(--color-text-muted);font-size:12px;">현재 지연된 업무가 없습니다</div>';
+    }
+    return overdue.map(t => {
+      const due = t.due_date ? new Date(t.due_date) : null;
+      const days = due ? Math.floor((Date.now() - due.getTime()) / 86400000) : 0;
+      const severityColor = days >= 7 ? 'var(--color-warn-text)' : days >= 3 ? '#F5A623' : 'var(--color-primary)';
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--color-border);">
+          <span style="display:inline-block;min-width:42px;padding:2px 6px;border-radius:4px;background:${severityColor}22;color:${severityColor};font-size:10px;font-weight:600;text-align:center;">D+${days}</span>
+          <span style="flex:1;font-size:12px;color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.title)}</span>
+          <span style="font-size:11px;color:var(--color-text-muted);white-space:nowrap;">${escHtml(t.assignee_name || '-')}</span>
+        </div>
+      `;
+    }).join('');
+  },
+
+  // 업무 분포 위젯 — 담당자별 업무 유형 요약
+  _renderWorkDistribution(d) {
+    const users = d._workDistribution || [];
+    if (users.length === 0) {
+      return '<div style="text-align:center;padding:16px;color:var(--color-text-muted);font-size:12px;">데이터 없음</div>';
+    }
+    const topUsers = users
+      .map(u => ({ ...u, total: (u.regular || 0) + (u.extra || 0) + (u.project || 0) }))
+      .filter(u => u.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    if (topUsers.length === 0) {
+      return '<div style="text-align:center;padding:16px;color:var(--color-text-muted);font-size:12px;">업무 할당 없음</div>';
+    }
+
+    return topUsers.map(u => {
+      const total = u.total;
+      const pctReg = Math.round((u.regular || 0) / total * 100);
+      const pctExt = Math.round((u.extra || 0) / total * 100);
+      const pctProj = 100 - pctReg - pctExt;
+      return `
+        <div style="padding:6px 0;border-bottom:0.5px solid var(--color-border);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="flex:1;font-size:12px;color:var(--color-text-primary);">${escHtml(u.name)}</span>
+            <span style="font-size:11px;color:var(--color-text-muted);">${total}건</span>
+          </div>
+          <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--color-bg-secondary);">
+            <div style="width:${pctReg}%;background:#4F6EF7;" title="정규 ${u.regular || 0}"></div>
+            <div style="width:${pctExt}%;background:#F5A623;" title="추가 ${u.extra || 0}"></div>
+            <div style="width:${pctProj}%;background:#9B59B6;" title="프로젝트 ${u.project || 0}"></div>
+          </div>
+        </div>
+      `;
+    }).join('') + `
+      <div style="display:flex;gap:10px;margin-top:8px;font-size:10px;color:var(--color-text-muted);">
+        <span><span style="display:inline-block;width:8px;height:8px;background:#4F6EF7;border-radius:2px;vertical-align:middle;"></span> 정규</span>
+        <span><span style="display:inline-block;width:8px;height:8px;background:#F5A623;border-radius:2px;vertical-align:middle;"></span> 추가</span>
+        <span><span style="display:inline-block;width:8px;height:8px;background:#9B59B6;border-radius:2px;vertical-align:middle;"></span> 프로젝트</span>
+      </div>
+    `;
   },
 
   // 활성 이슈 현황 위젯

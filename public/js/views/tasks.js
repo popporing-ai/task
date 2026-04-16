@@ -917,6 +917,13 @@ const TasksView = {
     // 마감일 (설정에 따라)
     const dueDateHtml = prefs.due_date ? `<span style="margin-left:auto">${App.dday(t.due_date, t.status)}</span>` : '';
 
+    // 업무 유형 뱃지 (항상 표시 — extra/project만, regular은 기본이므로 생략)
+    const workType = t.work_type || 'regular';
+    const workTypeLabels = { regular: '정규', extra: '추가', project: '프로젝트' };
+    const workTypeBadge = workType !== 'regular'
+      ? `<span class="work-type-badge work-type-${workType}" title="${workTypeLabels[workType]} 업무">${workTypeLabels[workType]}</span>`
+      : '';
+
     return `
       <div class="kanban-card${this.compactMode ? ' compact-card' : ''}" draggable="true" data-id="${t.id}">
         <div class="card-actions">
@@ -924,7 +931,7 @@ const TasksView = {
           <button class="card-action-btn card-archive" title="아카이브">${archiveIcon}</button>
           <button class="card-action-btn card-delete" title="삭제">${deleteIcon}</button>
         </div>
-        ${categoryHtml ? `<div style="margin-bottom:4px;">${categoryHtml}</div>` : ''}
+        ${(categoryHtml || workTypeBadge) ? `<div style="margin-bottom:4px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;">${categoryHtml}${workTypeBadge}</div>` : ''}
         <div class="card-title">${escHtml(t.title)}</div>
         ${subtaskBadge || commentBadge || checklistBadge || issueBadge || pointsBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}${issueBadge}${pointsBadge}</div>` : ''}
         <div class="card-footer">
@@ -2123,6 +2130,15 @@ const TasksView = {
         </select>
         <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">예상 소요 시간 기준으로 선택</div>
       </div>
+      <div class="form-group">
+        <label>업무 유형</label>
+        <select id="f-work-type" style="width:100%">
+          <option value="regular" ${(!task?.work_type || task?.work_type==='regular')?'selected':''}>정규 업무 (R&R)</option>
+          <option value="extra" ${task?.work_type==='extra'?'selected':''}>추가 업무</option>
+          <option value="project" ${task?.work_type==='project'?'selected':''}>프로젝트</option>
+        </select>
+        <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">업무의 성격 분류 (반기 리포트에서 집계됨)</div>
+      </div>
       ${statusHtml}
     `;
 
@@ -2134,6 +2150,7 @@ const TasksView = {
         assignee_id: document.getElementById('f-assignee').value || null,
         due_date: document.getElementById('f-due').value || null,
         points: parseInt(document.getElementById('f-points').value) || 0,
+        work_type: document.getElementById('f-work-type')?.value || 'regular',
         status: isEdit ? document.querySelector('input[name="f-status"]:checked').value : 'todo',
       };
       if (!data.title) {

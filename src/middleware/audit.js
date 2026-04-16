@@ -1,7 +1,7 @@
 const db = require('../db');
 
 // 허용된 테이블 화이트리스트 (SQL 인젝션 방지)
-const ALLOWED_TABLES = ['tasks', 'timeline_items', 'content_items', 'rrr_items', 'task_categories', 'products', 'subtasks', 'comments', 'tags', 'task_tags', 'attachments', 'checklists', 'checklist_items', 'task_issues', 'task_dependencies', 'team_goals', 'feedbacks', 'kpi_records', 'users', 'performance_scores', 'meetings', 'performance_alerts', 'calendar_events'];
+const ALLOWED_TABLES = ['tasks', 'timeline_items', 'content_items', 'rrr_items', 'task_categories', 'products', 'subtasks', 'comments', 'tags', 'task_tags', 'attachments', 'checklists', 'checklist_items', 'task_issues', 'task_dependencies', 'team_goals', 'feedbacks', 'kpi_records', 'users', 'performance_scores', 'meetings', 'performance_alerts', 'calendar_events', 'monthly_evaluations', 'semi_annual_reports'];
 
 // 감사 로그 자동 기록 미들웨어
 function auditMiddleware(tableName) {

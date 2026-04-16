@@ -182,6 +182,11 @@ const App = {
   },
 
   navigate(view) {
+    // 관리자 전용 뷰 접근 차단 (비관리자는 대시보드로 이동)
+    const adminOnlyViews = ['audit', 'evaluation'];
+    if (adminOnlyViews.includes(view) && this.user?.role !== 'admin') {
+      view = 'dashboard';
+    }
     this.currentView = view;
 
     // 네비게이션 활성 상태
@@ -198,6 +203,7 @@ const App = {
       rrr: 'R&R 현황',
       calendar: '팀 캘린더',
       performance: '성과 관리',
+      evaluation: '평가 관리',
       settings: '설정',
       audit: '변경 이력',
     };
@@ -223,6 +229,7 @@ const App = {
       rrr: RRRView,
       calendar: CalendarView,
       performance: PerformanceView,
+      evaluation: typeof EvaluationView !== 'undefined' ? EvaluationView : null,
       settings: SettingsView,
       audit: AuditView,
     };
