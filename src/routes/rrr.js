@@ -40,6 +40,9 @@ router.get('/', async (req, res, next) => {
 // R&R 항목 순서 저장 (드래그 후 호출)
 router.post('/reorder', async (req, res, next) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: '관리자만 수정할 수 있습니다.' });
+    }
     // orders: [{id, sort_order}, ...]
     const { orders } = req.body;
     if (!Array.isArray(orders)) return res.status(400).json({ error: 'orders 배열이 필요합니다.' });
@@ -53,6 +56,9 @@ router.post('/reorder', async (req, res, next) => {
 // R&R 항목 추가
 router.post('/', auditMiddleware('rrr_items'), async (req, res, next) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: '관리자만 수정할 수 있습니다.' });
+    }
     const { user_id, role_type, description, frequency, sort_order } = req.body;
 
     if (!user_id || !role_type || !description) {
@@ -71,6 +77,9 @@ router.post('/', auditMiddleware('rrr_items'), async (req, res, next) => {
 // R&R 항목 수정
 router.put('/:id', auditMiddleware('rrr_items'), async (req, res, next) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: '관리자만 수정할 수 있습니다.' });
+    }
     const { role_type, description, frequency, sort_order } = req.body;
 
     const { rows } = await db.query(`
@@ -89,6 +98,9 @@ router.put('/:id', auditMiddleware('rrr_items'), async (req, res, next) => {
 // R&R 항목 삭제
 router.delete('/:id', auditMiddleware('rrr_items'), async (req, res, next) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: '관리자만 수정할 수 있습니다.' });
+    }
     const { rows } = await db.query(
       'DELETE FROM rrr_items WHERE id=$1 RETURNING *', [req.params.id]
     );

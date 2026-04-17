@@ -7,13 +7,14 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
-// 관리자 전용 접근 제한
-router.use((req, res, next) => {
+// 관리자 전용 접근 제한 헬퍼
+function requireAdmin(req, res) {
   if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: '관리자만 접근할 수 있습니다.' });
+    res.status(403).json({ error: '관리자만 접근할 수 있습니다.' });
+    return false;
   }
-  next();
-});
+  return true;
+}
 
 // =============================================================
 // 월간 정성 평가 (monthly_evaluations)
@@ -23,6 +24,10 @@ router.use((req, res, next) => {
 router.get('/monthly/user/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
+    // 본인 데이터이거나 관리자만 접근 가능
+    if (String(userId) !== String(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: '본인 데이터만 조회할 수 있습니다.' });
+    }
     const year = parseInt(req.query.year) || new Date().getFullYear();
 
     const { rows } = await db.query(`
@@ -41,6 +46,7 @@ router.get('/monthly/user/:userId', async (req, res, next) => {
 // GET /monthly/:id — 단건 조회
 router.get('/monthly/:id', async (req, res, next) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const { rows } = await db.query(`
       SELECT me.*, u.name AS user_name, a.name AS admin_name
       FROM monthly_evaluations me
@@ -58,6 +64,7 @@ router.get('/monthly/:id', async (req, res, next) => {
 // POST /monthly — 월간 평가 생성/업데이트 (upsert)
 router.post('/monthly', auditMiddleware('monthly_evaluations'), async (req, res, next) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const {
       user_id, eval_month,
       score_timeliness, score_quality, score_collaboration,
@@ -111,6 +118,7 @@ router.post('/monthly', auditMiddleware('monthly_evaluations'), async (req, res,
 // DELETE /monthly/:id
 router.delete('/monthly/:id', auditMiddleware('monthly_evaluations'), async (req, res, next) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const { rows } = await db.query(
       'DELETE FROM monthly_evaluations WHERE id = $1 RETURNING *',
       [req.params.id]
@@ -137,6 +145,7 @@ function getSemiAnnualRange(year, period) {
 // GET /semi-annual/user/:userId?year=YYYY&period=H1 — 자동 집계 리포트
 router.get('/semi-annual/user/:userId', async (req, res, next) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const { userId } = req.params;
     const year = parseInt(req.query.year) || new Date().getFullYear();
     const period = req.query.period === 'H2' ? 'H2' : 'H1';
@@ -266,6 +275,7 @@ router.get('/semi-annual/user/:userId', async (req, res, next) => {
 // POST /semi-annual — admin_notes 저장 / finalize
 router.post('/semi-annual', auditMiddleware('semi_annual_reports'), async (req, res, next) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const { user_id, year, period, admin_notes, finalized } = req.body;
 
     if (!user_id || !year || !['H1', 'H2'].includes(period)) {
@@ -289,6 +299,7 @@ router.post('/semi-annual', auditMiddleware('semi_annual_reports'), async (req, 
 // GET /semi-annual/export?user_id=...&year=...&period=... — CSV 내보내기
 router.get('/semi-annual/export', async (req, res, next) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const userId = parseInt(req.query.user_id);
     const year = parseInt(req.query.year) || new Date().getFullYear();
     const period = req.query.period === 'H2' ? 'H2' : 'H1';
@@ -356,6 +367,7 @@ router.get('/semi-annual/export', async (req, res, next) => {
 // GET /delay-overview — 팀 지연 모니터링 데이터
 router.get('/delay-overview', async (req, res, next) => {
   try {
+    if (!requireAdmin(req, res)) return;
     // 현재 지연 중인 업무 (오래된 순)
     const overdue = await db.query(`
       SELECT t.id, t.title, t.status, t.due_date, t.work_type,
@@ -424,6 +436,7 @@ router.get('/delay-overview', async (req, res, next) => {
 // GET /work-distribution — 담당자별 업무 유형 분포
 router.get('/work-distribution', async (req, res, next) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const year = parseInt(req.query.year) || new Date().getFullYear();
     const period = req.query.period; // 'H1' / 'H2' / undefined(전체)
 

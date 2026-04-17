@@ -115,21 +115,22 @@ const PerformanceView = {
 
   _renderMain(content) {
     const isAdmin = App.user?.role === 'admin';
+    // 모든 사용자 탭
     const tabs = [
-      { key: 'overview',      label: '팀 현황' },
-      { key: 'delay',         label: '지연 체감' },
-      { key: 'distribution',  label: '업무 분포' },
+      { key: 'overview',  label: '팀 현황' },
+      { key: 'goals',     label: '팀 목표' },
+      { key: 'feedback',  label: '피드백' },
+      { key: 'my-score',  label: '내 성과' },
     ];
+    // 관리자 전용 탭
     if (isAdmin) {
-      tabs.push({ key: 'monthly',    label: '월간 평가' });
-      tabs.push({ key: 'semiAnnual', label: '반기 리포트' });
-      tabs.push({ key: 'scores',     label: '성과 스코어' });
-      tabs.push({ key: 'meetings',   label: '면담 기록' });
-    }
-    tabs.push({ key: 'goals',    label: '팀 목표' });
-    tabs.push({ key: 'feedback', label: '피드백' });
-    if (isAdmin) {
-      tabs.push({ key: 'alerts', label: '경고 현황' });
+      tabs.push({ key: 'delay',        label: '지연 체감' });
+      tabs.push({ key: 'distribution', label: '업무 분포' });
+      tabs.push({ key: 'monthly',      label: '월간 평가' });
+      tabs.push({ key: 'semiAnnual',   label: '반기 리포트' });
+      tabs.push({ key: 'scores',       label: '성과 스코어' });
+      tabs.push({ key: 'meetings',     label: '면담 기록' });
+      tabs.push({ key: 'alerts',       label: '경고 현황' });
     }
 
     content.innerHTML = `
@@ -194,6 +195,103 @@ const PerformanceView = {
       case 'goals':        this._renderGoals(container); break;
       case 'feedback':     this._renderFeedback(container); break;
       case 'alerts':       this._renderAlerts(container); break;
+      case 'my-score':     this._renderMyScore(container); break;
+    }
+  },
+
+  // ── 내 성과 (본인 데이터) ──
+  async _renderMyScore(container) {
+    const myId = App.user?.id;
+    if (!myId) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-title">사용자 정보를 불러올 수 없습니다</div></div>';
+      return;
+    }
+
+    container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>내 성과 불러오는 중...</span></div>';
+
+    try {
+      const [userRes, scoresRes, evalsRes, feedbackRes] = await Promise.all([
+        API.get(`/performance/user/${myId}`).catch(() => ({ data: null })),
+        API.get(`/performance/scores/user/${myId}`).catch(() => ({ data: [] })),
+        API.get(`/evaluations/monthly/user/${myId}`).catch(() => ({ data: [] })),
+        API.get('/feedbacks/received').catch(() => ({ data: [] })),
+      ]);
+
+      const stats = userRes.data?.stats || {};
+      const scores = Array.isArray(scoresRes.data) ? scoresRes.data : [];
+      const evals = Array.isArray(evalsRes.data) ? evalsRes.data : [];
+      const feedbacks = Array.isArray(feedbackRes.data) ? feedbackRes.data : [];
+
+      // 최신 스코어
+      const latestScore = scores[0] || null;
+
+      // 최근 피드백 (최대 5개)
+      const recentFeedbacks = feedbacks.slice(0, 5);
+
+      // 월간 평가 평균
+      const scoreKeys = ['score_timeliness', 'score_quality', 'score_collaboration', 'score_initiative', 'score_growth'];
+      const scoreLabels = { score_timeliness: '시의성', score_quality: '품질', score_collaboration: '협업', score_initiative: '주도성', score_growth: '성장' };
+      const avgScores = {};
+      for (const key of scoreKeys) {
+        const vals = evals.map(e => e[key]).filter(v => v != null);
+        avgScores[key] = vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+      }
+
+      // 업무 분포 (regular/extra/project)
+      const monthly = userRes.data?.monthly_trend || [];
+
+      container.innerHTML = `
+        <div class="perf-metric-grid">
+          <div class="perf-metric-card">
+            <div class="perf-metric-label">완료</div>
+            <div class="perf-metric-value" style="color:var(--color-done-text)">${stats.completed ?? 0}</div>
+          </div>
+          <div class="perf-metric-card">
+            <div class="perf-metric-label">지연</div>
+            <div class="perf-metric-value" style="color:var(--color-warn-text)">${stats.delayed ?? 0}</div>
+          </div>
+          <div class="perf-metric-card">
+            <div class="perf-metric-label">완료율</div>
+            <div class="perf-metric-value" style="color:var(--color-primary)">${stats.completion_rate != null ? Number(stats.completion_rate).toFixed(0) : 0}%</div>
+            <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${stats.completion_rate || 0}%"></div></div>
+          </div>
+          <div class="perf-metric-card">
+            <div class="perf-metric-label">등급</div>
+            <div class="perf-metric-value">${latestScore ? `<span class="grade-badge grade-${latestScore.grade?.toLowerCase()}">${latestScore.grade}</span>` : '-'}</div>
+          </div>
+        </div>
+
+        ${avgScores && Object.values(avgScores).some(v => v !== null) ? `
+        <div class="card" style="padding:16px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);margin-bottom:12px;">월간 평가 평균</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            ${scoreKeys.map(key => avgScores[key] !== null ? `
+              <div style="text-align:center;">
+                <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">${scoreLabels[key]}</div>
+                <div style="font-size:18px;font-weight:700;color:var(--color-primary);">${avgScores[key]}</div>
+                <div style="font-size:10px;color:var(--color-text-muted);">/ 5</div>
+              </div>
+            ` : '').join('')}
+          </div>
+        </div>
+        ` : ''}
+
+        ${recentFeedbacks.length > 0 ? `
+        <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--color-border);font-size:13px;font-weight:600;">최근 받은 피드백</div>
+          <ul style="margin:0;padding:0;list-style:none;">
+            ${recentFeedbacks.map(f => `
+              <li style="padding:12px 16px;border-bottom:1px solid var(--color-border);font-size:13px;">
+                <div style="color:var(--color-text-muted);font-size:11px;margin-bottom:4px;">${escHtml(f.sender_name || '')} · ${f.created_at ? new Date(f.created_at).toLocaleDateString('ko-KR') : ''}</div>
+                <div>${escHtml(f.content || '')}</div>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+        ` : ''}
+      `;
+    } catch (e) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-title">내 성과를 불러올 수 없습니다</div></div>';
     }
   },
 

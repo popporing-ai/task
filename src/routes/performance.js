@@ -48,6 +48,10 @@ router.get('/team', async (req, res, next) => {
 router.get('/user/:id', async (req, res, next) => {
   try {
     const userId = req.params.id;
+    // 본인 데이터이거나 관리자만 접근 가능
+    if (String(userId) !== String(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: '본인 데이터만 조회할 수 있습니다.' });
+    }
 
     // 기본 통계
     const stats = (await db.query(`
@@ -523,8 +527,11 @@ router.post('/scores/generate', auditMiddleware('performance_scores'), async (re
 // 개인 스코어 이력
 router.get('/scores/user/:id', async (req, res, next) => {
   try {
-    if (!requireAdmin(req, res)) return;
     const { id } = req.params;
+    // 본인 데이터이거나 관리자만 접근 가능
+    if (String(id) !== String(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: '본인 데이터만 조회할 수 있습니다.' });
+    }
     const { rows } = await db.query(`
       SELECT ps.*, u.name AS user_name
       FROM performance_scores ps
