@@ -278,7 +278,7 @@ const ContentView = {
       <div class="form-row">
         <div class="form-group">
           <label>담당자</label>
-          <select id="f-assignee">${App.userOptions(item?.assignee_id)}</select>
+          <select id="f-form-assignee">${App.userOptions(item?.assignee_id)}</select>
         </div>
         <div class="form-group">
           <label>배포 예정일</label>
@@ -318,7 +318,7 @@ const ContentView = {
         product_id: document.getElementById('f-product').value || null,
         channel: document.getElementById('f-channel').value,
         content_type: document.getElementById('f-type').value,
-        assignee_id: document.getElementById('f-assignee').value || null,
+        assignee_id: document.getElementById('f-form-assignee').value || null,
         publish_date: document.getElementById('f-date').value || null,
         content_id: document.getElementById('f-content-id').value || null,
         inflow_url: document.getElementById('f-inflow-url').value || null,
@@ -343,7 +343,23 @@ const ContentView = {
       this.render();
     });
 
-    // 콘텐츠 ID 미리보기
+    // 제품별 기본 URL 매핑
+    const PRODUCT_URLS = {
+      'Core': 'https://virnect.com/core',
+      'Remote': 'https://virnect.com/remote',
+      'Bodycam': 'https://virnect.com/bodycam',
+      'VisionX': 'https://virnect.com/visionx',
+      'Make&View': 'https://virnect.com/makeview',
+      'Robotics': 'https://virnect.com/robotics',
+      'Inspect': 'https://virnect.com/inspect',
+      'HoloX': 'https://virnect.com/holox',
+      'Twin': 'https://virnect.com/twin',
+      'XR': 'https://virnect.com/xr',
+      'AutoGuide': 'https://virnect.com/autoguide',
+      'Workstation': 'https://virnect.com/workstation',
+    };
+
+    // 콘텐츠 ID + 유입 URL 자동 생성
     const updatePreview = async () => {
       const date = document.getElementById('f-date').value;
       const ch = document.getElementById('f-channel').value;
@@ -351,16 +367,33 @@ const ContentView = {
       if (date && ch && type) {
         try {
           const res = await API.get(`/content/preview-id?publish_date=${date}&channel=${ch}&content_type=${type}`);
-          document.getElementById('f-id-preview').textContent = res.data.content_id;
+          const contentId = res.data.content_id;
+          document.getElementById('f-id-preview').textContent = contentId;
           if (!document.getElementById('f-content-id').value) {
-            document.getElementById('f-content-id').value = res.data.content_id;
+            document.getElementById('f-content-id').value = contentId;
           }
+          // 유입 URL 자동 생성
+          updateInflowUrl(contentId);
         } catch {}
+      }
+    };
+
+    const updateInflowUrl = (contentId) => {
+      const inflowInput = document.getElementById('f-inflow-url');
+      if (!inflowInput || inflowInput.value) return; // 수동 입력값 있으면 건드리지 않음
+      const productSelect = document.getElementById('f-product');
+      const productName = productSelect?.selectedOptions[0]?.text || '';
+      const cid = contentId || document.getElementById('f-content-id').value;
+      if (cid && productName && PRODUCT_URLS[productName]) {
+        inflowInput.value = `${PRODUCT_URLS[productName]}?src=${cid}`;
+      } else if (cid) {
+        inflowInput.value = `https://virnect.com?src=${cid}`;
       }
     };
 
     document.getElementById('f-date')?.addEventListener('change', updatePreview);
     document.getElementById('f-channel')?.addEventListener('change', updatePreview);
     document.getElementById('f-type')?.addEventListener('change', updatePreview);
+    document.getElementById('f-product')?.addEventListener('change', () => updateInflowUrl());
   },
 };
