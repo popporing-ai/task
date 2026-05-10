@@ -250,20 +250,19 @@ const WeeklyReportView = {
         ${this._totalCard('미진행',  totals.blocked, '#F07070')}
         ${this._totalCard('지연',    totals.overdue, '#F5A94A')}
         ${this._totalCard('콘텐츠',  totals.content, '#B08CF9')}
-        ${this._totalCard('총 점수', totals.points, '#4F6EF7', 'pt')}
       </div>
       <div class="ta-matrix-card">
         <table class="ta-matrix-table">
           <thead>
             <tr>
               <th class="sticky-l">담당자</th>
-              <th>완료</th><th>진행</th><th>미진행</th><th>지연</th>
-              <th>콘텐츠</th><th>댓글</th><th>점수</th>
+              <th>완료</th><th>진행 중</th><th>미진행</th><th>지연</th>
+              <th>콘텐츠</th><th>댓글</th>
               <th>일별 추이</th><th>최근 활동</th>
             </tr>
           </thead>
           <tbody>
-            ${users.length === 0 ? `<tr><td colspan="10" class="ta-empty">활성 사용자가 없습니다</td></tr>` : ''}
+            ${users.length === 0 ? `<tr><td colspan="9" class="ta-empty">활성 사용자가 없습니다</td></tr>` : ''}
             ${users.map(u => `
               <tr class="ta-matrix-row" data-user-id="${u.id}">
                 <td class="sticky-l">
@@ -278,7 +277,6 @@ const WeeklyReportView = {
                 <td class="ta-num" style="color:${u.overdue_count > 0 ? '#F5A94A' : 'var(--color-text-muted)'};">${u.overdue_count}</td>
                 <td class="ta-num">${u.content_done}<span class="ta-num-sub">/${u.content_total}</span></td>
                 <td class="ta-num" style="color:var(--color-text-muted);">${u.comment_count}</td>
-                <td class="ta-num" style="font-weight:600;">${u.total_points}</td>
                 <td>${this._sparkline(u.sparkline)}</td>
                 <td class="ta-last-act">${u.last_activity_at ? this._timeAgo(u.last_activity_at) : '<span style="color:var(--color-text-hint);">-</span>'}</td>
               </tr>
@@ -437,9 +435,11 @@ const WeeklyReportView = {
     if (!d) return;
     const s = d.summary;
     const periodLabel = this._formatPeriodLabel(d.period.from, d.period.to);
+    // admin 사용자는 셀렉트에서 제외 (팀원 위주 조회)
+    const selectableUsers = App.users.filter(u => u.role !== 'admin' || u.id === this._selectedUserId);
     const userSelector = this._isAdmin ? `
       <select id="ta-user-select" class="ta-user-select-inline">
-        ${App.users.map(u => `<option value="${u.id}" ${u.id == this._selectedUserId ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+        ${selectableUsers.map(u => `<option value="${u.id}" ${u.id == this._selectedUserId ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
       </select>
     ` : '';
 
@@ -467,7 +467,6 @@ const WeeklyReportView = {
           ${this._sumCard('미진행',     s.tasks_blocked,  '건', '#F07070')}
           ${this._sumCard('콘텐츠 발행', s.content_published, '건', '#F5A94A')}
           ${this._sumCard('댓글',       s.comments_added, '개', '#B08CF9')}
-          ${this._sumCard('획득 점수',  s.total_points,   'pt', '#4F6EF7')}
         </div>
 
         <div class="ta-charts-row">
@@ -526,14 +525,12 @@ const WeeklyReportView = {
       <th>분류</th><th>업무</th>
       ${mode==='mixed' ? '<th style="width:64px;">상태</th>' : ''}
       <th style="width:64px;">${mode==='done' ? '완료' : '마감'}</th>
-      <th style="width:42px;text-align:right;">점수</th>
     </tr></thead><tbody>
       ${tasks.map(t => `<tr>
         <td>${t.category_name ? `<span class="ta-cat-chip" style="background:${escHtml(t.category_color||'#EEF1FD')}33;color:${escHtml(t.category_color||'#4F6EF7')};">${escHtml(t.category_name)}</span>` : '-'}</td>
         <td>${escHtml(t.title)}${t.work_type && t.work_type!=='regular' ? ` <span class="ta-wt-chip ta-wt-${t.work_type}">${t.work_type==='extra'?'추가':'프로젝트'}</span>` : ''}</td>
         ${mode==='mixed' ? `<td>${App.statusBadge(t.status)}</td>` : ''}
         <td class="ta-mini-date">${this._fmtShortDate(mode==='done' ? t.updated_at : t.due_date)}</td>
-        <td style="text-align:right;color:var(--color-text-muted);">${t.points || 0}</td>
       </tr>`).join('')}
     </tbody></table>`;
   },
@@ -820,7 +817,7 @@ const WeeklyReportView = {
     if (this._activeTab === 'matrix' && this._matrixData) {
       const lines = [`📊 팀 매트릭스 — ${this._formatPeriodLabel(this._periodFrom, this._periodTo)}`, ''];
       this._matrixData.forEach(u => {
-        lines.push(`▸ ${u.name}: 완료 ${u.done_count} / 진행 ${u.in_progress_count} / 미진행 ${u.blocked_count} / 지연 ${u.overdue_count} / 콘텐츠 ${u.content_done} / ${u.total_points}pt`);
+        lines.push(`▸ ${u.name}: 완료 ${u.done_count} / 진행 중 ${u.in_progress_count} / 미진행 ${u.blocked_count} / 지연 ${u.overdue_count} / 콘텐츠 ${u.content_done}`);
       });
       await this._copyText(lines.join('\n'));
       return;
@@ -845,15 +842,15 @@ const WeeklyReportView = {
       lines.push('');
     }
     lines.push('【요약】');
-    lines.push(`완료 ${d.summary.tasks_completed}건 / 진행 ${d.summary.tasks_in_progress}건 / 미진행 ${d.summary.tasks_blocked}건 / 콘텐츠 ${d.summary.content_published}건 / ${d.summary.total_points}pt`);
+    lines.push(`완료 ${d.summary.tasks_completed}건 / 진행 중 ${d.summary.tasks_in_progress}건 / 미진행 ${d.summary.tasks_blocked}건 / 콘텐츠 ${d.summary.content_published}건`);
     lines.push('');
     if (d.completed_tasks.length) {
       lines.push('✅ 완료');
-      d.completed_tasks.forEach(t => lines.push(`  - ${t.category_name?`[${t.category_name}] `:''}${t.title}${t.points?` (${t.points}pt)`:''}`));
+      d.completed_tasks.forEach(t => lines.push(`  - ${t.category_name?`[${t.category_name}] `:''}${t.title}`));
       lines.push('');
     }
     if (d.in_progress_tasks.length) {
-      lines.push('🔄 진행/예정');
+      lines.push('🔄 진행 중 / 예정');
       d.in_progress_tasks.forEach(t => lines.push(`  - ${t.category_name?`[${t.category_name}] `:''}${t.title}${t.due_date?` (마감 ${this._fmtShortDate(t.due_date)})`:''}`));
       lines.push('');
     }

@@ -113,20 +113,21 @@ router.get('/team-matrix', async (req, res, next) => {
         WHERE created_at::date BETWEEN $1::date AND $2::date
         GROUP BY user_id
       ) la ON la.user_id = u.id
-      WHERE u.is_active = true
+      WHERE u.is_active = true AND u.role != 'admin'
       ORDER BY done_count DESC, u.name
     `, [from, to]);
 
-    // 일별 완료 추이 (sparkline용)
+    // 일별 완료 추이 (sparkline용) — admin 제외
     const { rows: spark } = await db.query(`
-      SELECT assignee_id AS user_id,
-             updated_at::date AS date,
+      SELECT t.assignee_id AS user_id,
+             t.updated_at::date AS date,
              COUNT(*)::int AS count
-      FROM tasks
-      WHERE status = 'done' AND archived = false
-        AND assignee_id IS NOT NULL
-        AND updated_at::date BETWEEN $1::date AND $2::date
-      GROUP BY assignee_id, updated_at::date
+      FROM tasks t
+      JOIN users u ON u.id = t.assignee_id
+      WHERE t.status = 'done' AND t.archived = false
+        AND u.role != 'admin'
+        AND t.updated_at::date BETWEEN $1::date AND $2::date
+      GROUP BY t.assignee_id, t.updated_at::date
     `, [from, to]);
 
     // user_id별 sparkline 매핑
@@ -182,12 +183,14 @@ router.get('/activity-feed', async (req, res, next) => {
     }
 
     // audit_logs 기반 — task 완료 / 생성, 콘텐츠 발행
+    // admin 사용자는 자동 제외 (이름 출력은 그대로 두되 활동만 숨김)
     const params = [from, to];
     let userClause = '';
     if (userFilter) {
       params.push(userFilter);
-      userClause = `AND user_id = $3`;
+      userClause = `AND al.user_id = $3`;
     }
+    const adminFilter = `AND al.user_id NOT IN (SELECT id FROM users WHERE role = 'admin')`;
 
     const auditQ = await db.query(`
       WITH events AS (
@@ -207,6 +210,7 @@ router.get('/activity-feed', async (req, res, next) => {
           AND COALESCE(al.old_value->>'status','') != 'done'
           AND al.created_at::date BETWEEN $1::date AND $2::date
           ${userClause}
+          ${adminFilter}
 
         UNION ALL
 
@@ -220,6 +224,7 @@ router.get('/activity-feed', async (req, res, next) => {
           AND al.action = 'CREATE'
           AND al.created_at::date BETWEEN $1::date AND $2::date
           ${userClause}
+          ${adminFilter}
 
         UNION ALL
 
@@ -234,6 +239,7 @@ router.get('/activity-feed', async (req, res, next) => {
           AND COALESCE(al.old_value->>'status','') != 'done'
           AND al.created_at::date BETWEEN $1::date AND $2::date
           ${userClause}
+          ${adminFilter}
 
         UNION ALL
 
@@ -247,6 +253,7 @@ router.get('/activity-feed', async (req, res, next) => {
           AND al.action = 'CREATE'
           AND al.created_at::date BETWEEN $1::date AND $2::date
           ${userClause}
+          ${adminFilter}
       )
       SELECT * FROM events
       ORDER BY created_at DESC
@@ -275,6 +282,7 @@ router.get('/activity-feed', async (req, res, next) => {
       JOIN users u ON u.id = c.user_id
       JOIN tasks t ON t.id = c.task_id
       WHERE c.created_at::date BETWEEN $1::date AND $2::date
+        AND u.role != 'admin'
       ${commentUserClause}
       ORDER BY c.created_at DESC
       LIMIT ${limit}
@@ -302,6 +310,7 @@ router.get('/activity-feed', async (req, res, next) => {
       JOIN users u ON u.id = ti.reporter_id
       JOIN tasks t ON t.id = ti.task_id
       WHERE ti.created_at::date BETWEEN $1::date AND $2::date
+        AND u.role != 'admin'
       ${issueUserClause}
       ORDER BY ti.created_at DESC
       LIMIT ${limit}
