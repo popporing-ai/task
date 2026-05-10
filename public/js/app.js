@@ -61,6 +61,13 @@ const App = {
 
     // 새 버전 업데이트 안내 팝업 (1회)
     setTimeout(() => { try { ReleaseNotes.showLatest(); } catch {} }, 600);
+
+    // 사이드바 하단 버전 라벨 + 클릭 시 전체 릴리즈 노트
+    try {
+      const verEl = document.getElementById('sb-version-text');
+      if (verEl && typeof CURRENT_VERSION !== 'undefined') verEl.textContent = `v${CURRENT_VERSION}`;
+      document.getElementById('sb-version')?.addEventListener('click', () => ReleaseNotes.showAll());
+    } catch {}
   },
 
   // 사이드바 뱃지 업데이트 — 마지막 방문 이후 새로 추가된 항목 수 표시
