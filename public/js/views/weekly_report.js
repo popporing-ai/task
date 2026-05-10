@@ -1,22 +1,30 @@
 // 팀 활동 뷰 (구 주간보고)
 // — 3개 탭: 팀 매트릭스 / 활동 피드 / 개인 상세
-// — admin: 매트릭스 기본 진입, 행 클릭 → 개인 상세
-// — user: 본인 개인 상세만 진입
-// — 작성 입력 화면 일체 없음. 완전 자동 집계.
+// — 실시간 반영: data-changed 이벤트 + 30초 폴링 + visibilitychange
+// — AI 정리 도우미 (대화형 채팅)
 const WeeklyReportView = {
   // 상태
   _isAdmin: false,
-  _activeTab: 'matrix',          // matrix | feed | personal
-  _periodFrom: null,             // 'YYYY-MM-DD'
+  _activeTab: 'matrix',
+  _periodFrom: null,
   _periodTo:   null,
-  _periodPreset: 'week',         // week | month | quarter | custom
-  _selectedUserId: null,         // 개인 상세 대상
+  _periodPreset: 'week',
+  _selectedUserId: null,
   _matrixData: null,
   _feedData: null,
   _personalData: null,
-  _aiSummary: null,
   _aiLoading: false,
-  _feedFilter: 'all',            // 활동 피드 이벤트 타입 필터
+  _feedFilter: 'all',
+  // 채팅
+  _chatOpen: false,
+  _chatMessages: [],
+  _chatLoading: false,
+  // 갱신 인프라
+  _isActive: false,
+  _pollTimer: null,
+  _eventUnsub: null,
+  _visHandler: null,
+  _initialized: false,
 
   render() {
     this._isAdmin = App.user.role === 'admin';
@@ -24,10 +32,18 @@ const WeeklyReportView = {
     if (!this._periodFrom || !this._periodTo) this._applyPreset('week');
     if (!this._isAdmin) this._activeTab = 'personal';
 
+    this._setupAutoRefresh();
+
     const actions = document.getElementById('topbar-actions');
     actions.innerHTML = `
-      <button class="btn btn-default" id="ta-copy" title="텍스트로 복사">📋 복사</button>
-      <button class="btn btn-default" id="ta-print" title="인쇄/PDF">🖨 인쇄</button>
+      <button class="btn btn-default ta-mini-btn" id="ta-copy" title="텍스트로 복사">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="9" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M11 4V3a1 1 0 00-1-1H4a1 1 0 00-1 1v8a1 1 0 001 1h1" stroke="currentColor" stroke-width="1.4"/></svg>
+        복사
+      </button>
+      <button class="btn btn-default ta-mini-btn" id="ta-print" title="인쇄/PDF">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 6V2h10v4M3 11H2v-3a2 2 0 012-2h8a2 2 0 012 2v3h-1M5 9h6v5H5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        인쇄
+      </button>
     `;
     document.getElementById('ta-copy').addEventListener('click', () => this._copyAsText());
     document.getElementById('ta-print').addEventListener('click', () => window.print());
@@ -38,16 +54,28 @@ const WeeklyReportView = {
         <div class="ta-presets" id="ta-presets"></div>
         <div class="ta-period-custom">
           <input type="date" id="ta-from" value="${escHtml(this._periodFrom)}">
-          <span style="color:var(--color-text-muted);font-size:12px;">~</span>
+          <span class="ta-period-sep">~</span>
           <input type="date" id="ta-to" value="${escHtml(this._periodTo)}">
-          <button class="btn btn-primary" id="ta-apply">적용</button>
+          <button class="btn btn-primary ta-mini-btn" id="ta-apply">적용</button>
+        </div>
+        <div class="ta-live-indicator" title="자동 갱신 중">
+          <span class="ta-live-dot"></span> 실시간
         </div>
       </div>
       ${this._isAdmin ? `
         <div class="ta-tabs">
-          <button class="ta-tab ${this._activeTab==='matrix'?'active':''}" data-tab="matrix">팀 매트릭스</button>
-          <button class="ta-tab ${this._activeTab==='feed'?'active':''}" data-tab="feed">활동 피드</button>
-          <button class="ta-tab ${this._activeTab==='personal'?'active':''}" data-tab="personal">개인 상세</button>
+          <button class="ta-tab ${this._activeTab==='matrix'?'active':''}" data-tab="matrix">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+            팀 매트릭스
+          </button>
+          <button class="ta-tab ${this._activeTab==='feed'?'active':''}" data-tab="feed">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3h10M3 8h10M3 13h7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            활동 피드
+          </button>
+          <button class="ta-tab ${this._activeTab==='personal'?'active':''}" data-tab="personal">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            개인 상세
+          </button>
         </div>
       ` : ''}
       <div id="ta-body"><div class="loading-state"><div class="loading-spinner"></div></div></div>
@@ -60,6 +88,66 @@ const WeeklyReportView = {
       });
     }
     this._loadActiveTab();
+  },
+
+  // ─── 자동 갱신 인프라 ───
+  _setupAutoRefresh() {
+    this._isActive = true;
+    if (this._initialized) return;
+    this._initialized = true;
+
+    // 1. 데이터 변경 이벤트 → 즉시 갱신 (디바운스 800ms)
+    let debTimer = null;
+    this._eventUnsub = App.events.on('data-changed', (ev) => {
+      if (!this._isActive || App.currentView !== 'weekly-report') return;
+      // 팀 활동에 영향 주는 entity만 처리
+      const relevant = ['tasks', 'content', 'rrr'];
+      if (!relevant.includes(ev.entity)) return;
+      clearTimeout(debTimer);
+      debTimer = setTimeout(() => this._silentRefresh(), 800);
+    });
+
+    // 2. 30초 폴링 (다른 사용자가 수정한 경우 반영)
+    this._pollTimer = setInterval(() => {
+      if (this._isActive && App.currentView === 'weekly-report' && document.visibilityState === 'visible') {
+        this._silentRefresh();
+      }
+    }, 30000);
+
+    // 3. 탭 visible 복귀 시 즉시 갱신
+    this._visHandler = () => {
+      if (document.visibilityState === 'visible' && this._isActive && App.currentView === 'weekly-report') {
+        this._silentRefresh();
+      }
+    };
+    document.addEventListener('visibilitychange', this._visHandler);
+
+    // 4. 다른 뷰로 이동 시 _isActive=false
+    App.events.on('view-changed', (view) => {
+      this._isActive = (view === 'weekly-report');
+    });
+  },
+
+  // 백그라운드 무음 갱신 (로딩 스피너 없이 활성 탭만 갱신)
+  async _silentRefresh() {
+    try {
+      if (this._activeTab === 'matrix' && document.querySelector('.ta-matrix-table')) {
+        const url = `/team-activity/team-matrix?date_from=${this._periodFrom}&date_to=${this._periodTo}`;
+        const res = await API.get(url);
+        this._matrixData = res.data || [];
+        this._renderMatrix();
+      } else if (this._activeTab === 'feed' && document.querySelector('.ta-feed-card')) {
+        const url = `/team-activity/activity-feed?date_from=${this._periodFrom}&date_to=${this._periodTo}&limit=300`;
+        const res = await API.get(url);
+        this._feedData = res.data || [];
+        this._renderFeed();
+      } else if (this._activeTab === 'personal' && document.querySelector('.ta-personal')) {
+        const url = `/weekly-reports/activity?user_id=${this._selectedUserId}&date_from=${this._periodFrom}&date_to=${this._periodTo}`;
+        const res = await API.get(url);
+        this._personalData = res.data;
+        this._renderPersonal();
+      }
+    } catch {}
   },
 
   // ─── 기간 프리셋 ───
@@ -80,7 +168,7 @@ const WeeklyReportView = {
       const q = Math.floor(today.getMonth() / 3) * 3;
       from = new Date(today.getFullYear(), q, 1);
       to   = new Date(today.getFullYear(), q + 3, 0);
-    } else { // week
+    } else {
       from = this._getWeekStart(today);
       to   = new Date(from); to.setDate(to.getDate() + 6);
     }
@@ -141,49 +229,37 @@ const WeeklyReportView = {
       this._matrixData = res.data || [];
       this._renderMatrix();
     } catch (e) {
-      body.innerHTML = '<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">불러오기 실패</div></div>';
+      body.innerHTML = `<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">불러오기 실패</div><div class="empty-state-desc">${escHtml(e.message || '알 수 없는 오류')}</div></div>`;
     }
   },
 
   _renderMatrix() {
     const body = document.getElementById('ta-body');
     const users = this._matrixData || [];
-
-    // 팀 합계 카드
     const totals = users.reduce((acc, u) => {
-      acc.done += u.done_count;
-      acc.in_progress += u.in_progress_count;
-      acc.blocked += u.blocked_count;
-      acc.overdue += u.overdue_count;
-      acc.content += u.content_done;
-      acc.points += u.total_points;
+      acc.done += u.done_count; acc.in_progress += u.in_progress_count;
+      acc.blocked += u.blocked_count; acc.overdue += u.overdue_count;
+      acc.content += u.content_done; acc.points += u.total_points;
       return acc;
     }, { done: 0, in_progress: 0, blocked: 0, overdue: 0, content: 0, points: 0 });
 
     body.innerHTML = `
       <div class="ta-team-totals">
-        ${this._totalCard('완료',       totals.done, '#5DD984')}
-        ${this._totalCard('진행 중',    totals.in_progress, '#7B9BFA')}
-        ${this._totalCard('미진행',     totals.blocked, '#F07070')}
-        ${this._totalCard('지연',       totals.overdue, '#F5A94A')}
-        ${this._totalCard('콘텐츠',     totals.content, '#B08CF9')}
-        ${this._totalCard('총 점수',    totals.points, '#4F6EF7', 'pt')}
+        ${this._totalCard('완료',    totals.done, '#5DD984')}
+        ${this._totalCard('진행 중', totals.in_progress, '#7B9BFA')}
+        ${this._totalCard('미진행',  totals.blocked, '#F07070')}
+        ${this._totalCard('지연',    totals.overdue, '#F5A94A')}
+        ${this._totalCard('콘텐츠',  totals.content, '#B08CF9')}
+        ${this._totalCard('총 점수', totals.points, '#4F6EF7', 'pt')}
       </div>
-
       <div class="ta-matrix-card">
         <table class="ta-matrix-table">
           <thead>
             <tr>
               <th class="sticky-l">담당자</th>
-              <th>완료</th>
-              <th>진행</th>
-              <th>미진행</th>
-              <th>지연</th>
-              <th>콘텐츠</th>
-              <th>댓글</th>
-              <th>점수</th>
-              <th>일별 추이</th>
-              <th>최근 활동</th>
+              <th>완료</th><th>진행</th><th>미진행</th><th>지연</th>
+              <th>콘텐츠</th><th>댓글</th><th>점수</th>
+              <th>일별 추이</th><th>최근 활동</th>
             </tr>
           </thead>
           <tbody>
@@ -210,10 +286,8 @@ const WeeklyReportView = {
           </tbody>
         </table>
       </div>
-
       <div class="ta-hint">행을 클릭하면 그 담당자의 상세 활동을 볼 수 있습니다.</div>
     `;
-
     body.querySelectorAll('.ta-matrix-row').forEach(row => {
       row.addEventListener('click', () => {
         this._selectedUserId = parseInt(row.dataset.userId);
@@ -241,9 +315,10 @@ const WeeklyReportView = {
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
     const total = arr.reduce((a, b) => a + b, 0);
-    return `<svg viewBox="0 0 ${W} ${H}" style="width:${W}px;height:${H}px;display:block;" aria-label="일별 완료 ${total}건">
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:${W}px;height:${H}px;display:block;">
       <polyline points="${points}" fill="none" stroke="#5DD984" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
       ${arr.map((v, i) => v > 0 ? `<circle cx="${(i*stepX).toFixed(1)}" cy="${(H - (v/max)*(H-4) - 2).toFixed(1)}" r="1.5" fill="#5DD984"/>` : '').join('')}
+      <title>일별 완료 ${total}건</title>
     </svg>`;
   },
 
@@ -257,18 +332,14 @@ const WeeklyReportView = {
       this._feedData = res.data || [];
       this._renderFeed();
     } catch (e) {
-      body.innerHTML = '<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">불러오기 실패</div></div>';
+      body.innerHTML = `<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">불러오기 실패</div><div class="empty-state-desc">${escHtml(e.message || '')}</div></div>`;
     }
   },
 
   _renderFeed() {
     const body = document.getElementById('ta-body');
     const all = this._feedData || [];
-
-    // 필터
     const filtered = this._feedFilter === 'all' ? all : all.filter(e => e.event_type === this._feedFilter);
-
-    // 일자별 그룹
     const byDate = {};
     filtered.forEach(e => {
       const d = new Date(e.created_at);
@@ -278,21 +349,22 @@ const WeeklyReportView = {
     const dateKeys = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
     const filterTypes = [
-      { key: 'all',               label: '전체',     count: all.length },
-      { key: 'task_completed',    label: '✅ 완료',   count: all.filter(e => e.event_type==='task_completed').length },
-      { key: 'task_created',      label: '🆕 생성',   count: all.filter(e => e.event_type==='task_created').length },
-      { key: 'content_published', label: '📢 발행',   count: all.filter(e => e.event_type==='content_published').length },
-      { key: 'comment_added',     label: '💬 댓글',   count: all.filter(e => e.event_type==='comment_added').length },
-      { key: 'issue_reported',    label: '⚠ 이슈',   count: all.filter(e => e.event_type==='issue_reported').length },
+      { key: 'all',               label: '전체' },
+      { key: 'task_completed',    label: '완료' },
+      { key: 'task_created',      label: '생성' },
+      { key: 'content_published', label: '발행' },
+      { key: 'comment_added',     label: '댓글' },
+      { key: 'issue_reported',    label: '이슈' },
     ];
 
     body.innerHTML = `
       <div class="ta-feed-filters">
-        ${filterTypes.map(f => `
-          <button class="ta-feed-filter-btn ${this._feedFilter===f.key?'active':''}" data-filter="${f.key}">
-            ${escHtml(f.label)} <span class="ta-feed-filter-count">${f.count}</span>
-          </button>
-        `).join('')}
+        ${filterTypes.map(f => {
+          const cnt = f.key === 'all' ? all.length : all.filter(e => e.event_type === f.key).length;
+          return `<button class="ta-feed-filter-btn ${this._feedFilter===f.key?'active':''}" data-filter="${f.key}">
+            ${escHtml(f.label)} <span class="ta-feed-filter-count">${cnt}</span>
+          </button>`;
+        }).join('')}
       </div>
       <div class="ta-feed-card">
         ${dateKeys.length === 0 ? '<div class="ta-empty">기간 내 활동이 없습니다</div>' : dateKeys.map(date => `
@@ -303,7 +375,6 @@ const WeeklyReportView = {
         `).join('')}
       </div>
     `;
-
     body.querySelectorAll('.ta-feed-filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this._feedFilter = btn.dataset.filter;
@@ -322,7 +393,7 @@ const WeeklyReportView = {
     const iconMap = {
       task_completed:    { i: '✓', c: '#5DD984', t: '완료' },
       task_created:      { i: '+', c: '#7B9BFA', t: '생성' },
-      content_published: { i: '📢', c: '#B08CF9', t: '발행' },
+      content_published: { i: '◉', c: '#B08CF9', t: '발행' },
       content_created:   { i: '○', c: '#B08CF9', t: '예정' },
       comment_added:     { i: '💬', c: '#9A9BA3', t: '댓글' },
       issue_reported:    { i: '⚠', c: '#F07070', t: '이슈' },
@@ -348,14 +419,15 @@ const WeeklyReportView = {
   async _loadPersonal() {
     const body = document.getElementById('ta-body');
     body.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div></div>';
-    this._aiSummary = null;
+    this._chatOpen = false;
+    this._chatMessages = [];
     try {
       const url = `/weekly-reports/activity?user_id=${this._selectedUserId}&date_from=${this._periodFrom}&date_to=${this._periodTo}`;
       const res = await API.get(url);
       this._personalData = res.data;
       this._renderPersonal();
     } catch (e) {
-      body.innerHTML = '<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">불러오기 실패</div></div>';
+      body.innerHTML = `<div class="empty-state"><span class="empty-state-icon">⚠</span><div class="empty-state-title">불러오기 실패</div><div class="empty-state-desc">${escHtml(e.message || '')}</div></div>`;
     }
   },
 
@@ -367,9 +439,7 @@ const WeeklyReportView = {
     const periodLabel = this._formatPeriodLabel(d.period.from, d.period.to);
     const userSelector = this._isAdmin ? `
       <select id="ta-user-select" class="ta-user-select-inline">
-        ${App.users.map(u =>
-          `<option value="${u.id}" ${u.id == this._selectedUserId ? 'selected' : ''}>${escHtml(u.name)}</option>`
-        ).join('')}
+        ${App.users.map(u => `<option value="${u.id}" ${u.id == this._selectedUserId ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
       </select>
     ` : '';
 
@@ -383,12 +453,13 @@ const WeeklyReportView = {
               <div class="ta-period-label">${escHtml(periodLabel)}</div>
             </div>
           </div>
-          <button class="btn btn-primary" id="ta-ai-btn">
-            <span id="ta-ai-icon">✨</span> <span id="ta-ai-text">AI 요약 생성</span>
+          <button class="btn btn-primary ta-ai-toggle" id="ta-chat-toggle">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v8H6l-3 3v-3H2V3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 6h6M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            AI 정리 도우미
           </button>
         </div>
 
-        <div id="ta-ai-result"></div>
+        <div id="ta-chat-panel" style="display:none;"></div>
 
         <div class="ta-summary-cards">
           ${this._sumCard('완료',       s.tasks_completed, '건', '#5DD984')}
@@ -425,7 +496,6 @@ const WeeklyReportView = {
       </div>
     `;
 
-    // user 셀렉트 변경
     const userSel = document.getElementById('ta-user-select');
     if (userSel) {
       userSel.addEventListener('change', () => {
@@ -433,9 +503,7 @@ const WeeklyReportView = {
         this._loadPersonal();
       });
     }
-
-    // AI 요약 버튼
-    document.getElementById('ta-ai-btn').addEventListener('click', () => this._requestAISummary());
+    document.getElementById('ta-chat-toggle').addEventListener('click', () => this._toggleChat());
   },
 
   _sumCard(label, value, unit, color) {
@@ -526,7 +594,6 @@ const WeeklyReportView = {
     const dt = new Date(from);
     while (dt <= to) { days.push(this._fmtDate(dt)); dt.setDate(dt.getDate() + 1); }
     if (days.length > 60) return '<div class="ta-empty">기간이 너무 길어 차트 생략</div>';
-
     const map = {};
     (d.daily_activity || []).forEach(r => {
       const ds = (typeof r.date === 'string') ? r.date.slice(0,10) : new Date(r.date).toISOString().slice(0,10);
@@ -535,7 +602,6 @@ const WeeklyReportView = {
     const counts = days.map(day => map[day] || 0);
     const max = Math.max(...counts, 1);
     if (counts.every(v => v === 0)) return '<div class="ta-empty">완료된 업무가 없습니다</div>';
-
     const W = 380, H = 90, padL = 22, padB = 16;
     const innerW = W - padL - 4, innerH = H - padB;
     const stepX = days.length > 1 ? innerW / (days.length - 1) : innerW;
@@ -586,59 +652,173 @@ const WeeklyReportView = {
     }).join('');
   },
 
-  // ───────── AI 요약 ─────────
-  async _requestAISummary() {
-    if (this._aiLoading) return;
-    const btn = document.getElementById('ta-ai-btn');
-    const result = document.getElementById('ta-ai-result');
-    if (!btn || !result) return;
-    this._aiLoading = true;
-    btn.disabled = true;
-    document.getElementById('ta-ai-text').textContent = '생성 중...';
-    document.getElementById('ta-ai-icon').textContent = '⏳';
-    result.innerHTML = '<div class="ta-ai-loading"><div class="loading-spinner"></div><span>AI가 활동을 요약하고 있습니다...</span></div>';
+  // ───────── AI 정리 도우미 (대화형) ─────────
+  _toggleChat() {
+    this._chatOpen = !this._chatOpen;
+    const panel = document.getElementById('ta-chat-panel');
+    if (!panel) return;
+    if (this._chatOpen) {
+      panel.style.display = 'block';
+      if (this._chatMessages.length === 0) {
+        const userName = this._personalData?.user?.name || '구성원';
+        this._chatMessages.push({
+          role: 'assistant',
+          content: `${userName}님의 ${this._formatPeriodLabel(this._periodFrom, this._periodTo)} 활동을 어떻게 정리해드릴까요?\n\n예시: "이번 주 핵심 성과만 5줄로", "콘텐츠만 표로 정리", "다음 주 액션 아이템 뽑아줘", "지연된 업무 원인 추정해줘"`,
+        });
+      }
+      this._renderChatPanel();
+      setTimeout(() => document.getElementById('ta-chat-input')?.focus(), 100);
+    } else {
+      panel.style.display = 'none';
+    }
+  },
 
+  _renderChatPanel() {
+    const panel = document.getElementById('ta-chat-panel');
+    if (!panel) return;
+
+    const suggestions = [
+      '이번 주 핵심 성과 5줄 요약',
+      '콘텐츠만 표로 정리',
+      '다음 주 액션 아이템 추출',
+      '지연된 업무 짚어줘',
+    ];
+
+    panel.innerHTML = `
+      <div class="ta-chat-card">
+        <div class="ta-chat-header">
+          <div class="ta-chat-header-l">
+            <span class="ta-chat-avatar">✨</span>
+            <div>
+              <div class="ta-chat-title">AI 정리 도우미</div>
+              <div class="ta-chat-sub">대화로 원하는 형태로 정리</div>
+            </div>
+          </div>
+          <button class="ta-chat-close" id="ta-chat-close" title="닫기">✕</button>
+        </div>
+        <div class="ta-chat-body" id="ta-chat-body">
+          ${this._chatMessages.map(m => this._renderChatMessage(m)).join('')}
+          ${this._chatLoading ? `<div class="ta-chat-msg ta-chat-msg-ai">
+            <div class="ta-chat-bubble ta-chat-typing"><span></span><span></span><span></span></div>
+          </div>` : ''}
+        </div>
+        <div class="ta-chat-suggestions">
+          ${suggestions.map(s => `<button class="ta-chat-sug" data-text="${escHtml(s)}">${escHtml(s)}</button>`).join('')}
+        </div>
+        <div class="ta-chat-input-row">
+          <input type="text" id="ta-chat-input" class="ta-chat-input" placeholder="원하는 정리 방식을 자유롭게 입력하세요…" autocomplete="off" ${this._chatLoading ? 'disabled' : ''}>
+          <button class="ta-chat-send" id="ta-chat-send" ${this._chatLoading ? 'disabled' : ''}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-6-5 14-2-6-5-2z" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('ta-chat-close').addEventListener('click', () => this._toggleChat());
+    const input = document.getElementById('ta-chat-input');
+    const send  = document.getElementById('ta-chat-send');
+    const submit = () => {
+      const text = input.value.trim();
+      if (!text || this._chatLoading) return;
+      input.value = '';
+      this._sendChat(text);
+    };
+    send.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    panel.querySelectorAll('.ta-chat-sug').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (this._chatLoading) return;
+        this._sendChat(btn.dataset.text);
+      });
+    });
+
+    // 스크롤 맨 아래로
+    const body = document.getElementById('ta-chat-body');
+    if (body) body.scrollTop = body.scrollHeight;
+  },
+
+  _renderChatMessage(m) {
+    const isUser = m.role === 'user';
+    return `<div class="ta-chat-msg ${isUser ? 'ta-chat-msg-user' : 'ta-chat-msg-ai'}">
+      ${!isUser ? '<span class="ta-chat-msg-avatar">✨</span>' : ''}
+      <div class="ta-chat-bubble">${this._renderMarkdown(m.content)}</div>
+    </div>`;
+  },
+
+  // 매우 간단한 markdown (escape + bold + 줄바꿈 + 표)
+  _renderMarkdown(text) {
+    let safe = escHtml(text);
+    // 표 (간단한 마크다운 파이프 표 변환)
+    if (/\|.+\|/.test(safe) && /\n\s*\|[\s:|-]+\|/.test(safe)) {
+      const lines = safe.split('\n');
+      let out = []; let inTable = false; let tableRows = []; let header = null;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/^\s*\|.+\|\s*$/.test(line)) {
+          if (!inTable) {
+            inTable = true;
+            header = line.split('|').slice(1, -1).map(s => s.trim());
+            // skip separator line
+            if (i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i+1])) i++;
+          } else {
+            tableRows.push(line.split('|').slice(1, -1).map(s => s.trim()));
+          }
+        } else {
+          if (inTable) {
+            out.push(this._buildTable(header, tableRows));
+            inTable = false; header = null; tableRows = [];
+          }
+          out.push(line);
+        }
+      }
+      if (inTable) out.push(this._buildTable(header, tableRows));
+      safe = out.join('\n');
+    }
+    // bold **text**
+    safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // bullets
+    safe = safe.replace(/^- (.+)$/gm, '<div class="ta-chat-bullet">• $1</div>');
+    // newlines
+    safe = safe.replace(/\n/g, '<br>');
+    // br before/after table 정리
+    safe = safe.replace(/<br>(<table)/g, '$1').replace(/(<\/table>)<br>/g, '$1');
+    return safe;
+  },
+
+  _buildTable(header, rows) {
+    if (!header) return '';
+    return `<table class="ta-chat-table"><thead><tr>${header.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  },
+
+  async _sendChat(text) {
+    this._chatMessages.push({ role: 'user', content: text });
+    this._chatLoading = true;
+    this._renderChatPanel();
     try {
-      const res = await API.post('/team-activity/ai-summary', {
+      const res = await API.post('/team-activity/chat', {
+        messages: this._chatMessages,
+        context_type: 'personal_activity',
         user_id: this._selectedUserId,
         date_from: this._periodFrom,
         date_to: this._periodTo,
       });
-      const summary = res.data?.summary || '';
-      this._aiSummary = summary;
-      result.innerHTML = `
-        <div class="ta-ai-card">
-          <div class="ta-ai-header">
-            <span class="ta-ai-badge">✨ AI 요약</span>
-            <span class="ta-ai-model">${escHtml(res.data?.model || '')}</span>
-            <button class="ta-ai-copy-btn" id="ta-ai-copy-btn">복사</button>
-          </div>
-          <div class="ta-ai-text">${escHtml(summary).replace(/\n/g, '<br>')}</div>
-        </div>
-      `;
-      document.getElementById('ta-ai-copy-btn').addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(summary);
-          App.toast('AI 요약이 복사되었습니다', 'success');
-        } catch { App.toast('복사 실패', 'error'); }
-      });
+      const reply = res.data?.reply || '응답을 생성하지 못했습니다.';
+      this._chatMessages.push({ role: 'assistant', content: reply });
     } catch (e) {
-      const msg = e.message || 'AI 요약 생성 실패';
-      result.innerHTML = `<div class="ta-ai-error">⚠ ${escHtml(msg)}<br><span style="font-size:11px;color:var(--color-text-muted);">서버 환경변수 LLM_API_URL, LLM_MODEL 설정을 확인하세요.</span></div>`;
+      this._chatMessages.push({
+        role: 'assistant',
+        content: `⚠ 응답 실패: ${e.message || '알 수 없는 오류'}\n\n서버 LLM 설정을 확인해주세요.`,
+      });
     } finally {
-      this._aiLoading = false;
-      btn.disabled = false;
-      document.getElementById('ta-ai-text').textContent = 'AI 요약 생성';
-      document.getElementById('ta-ai-icon').textContent = '✨';
+      this._chatLoading = false;
+      this._renderChatPanel();
     }
   },
 
   // ───────── 텍스트 복사 ─────────
   async _copyAsText() {
     if (this._activeTab === 'matrix' && this._matrixData) {
-      const lines = [];
-      lines.push(`📊 팀 매트릭스 — ${this._formatPeriodLabel(this._periodFrom, this._periodTo)}`);
-      lines.push('');
+      const lines = [`📊 팀 매트릭스 — ${this._formatPeriodLabel(this._periodFrom, this._periodTo)}`, ''];
       this._matrixData.forEach(u => {
         lines.push(`▸ ${u.name}: 완료 ${u.done_count} / 진행 ${u.in_progress_count} / 미진행 ${u.blocked_count} / 지연 ${u.overdue_count} / 콘텐츠 ${u.content_done} / ${u.total_points}pt`);
       });
@@ -654,15 +834,14 @@ const WeeklyReportView = {
       await this._copyText(lines.join('\n'));
       return;
     }
-    // personal
     const d = this._personalData;
     if (!d) return;
-    const lines = [];
-    lines.push(`📊 ${d.user.name} 활동 리포트 — ${this._formatPeriodLabel(d.period.from, d.period.to)}`);
-    lines.push('');
-    if (this._aiSummary) {
-      lines.push('【AI 요약】');
-      lines.push(this._aiSummary);
+    const lines = [`📊 ${d.user.name} 활동 리포트 — ${this._formatPeriodLabel(d.period.from, d.period.to)}`, ''];
+    // AI 채팅에서 마지막 assistant 응답이 있으면 포함
+    const lastAi = [...this._chatMessages].reverse().find(m => m.role === 'assistant' && m.content && !m.content.startsWith('⚠'));
+    if (lastAi && this._chatMessages.length > 1) {
+      lines.push('【AI 정리】');
+      lines.push(lastAi.content);
       lines.push('');
     }
     lines.push('【요약】');
@@ -713,9 +892,7 @@ const WeeklyReportView = {
     d.setHours(0,0,0,0);
     return d;
   },
-  _fmtDate(d) {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  },
+  _fmtDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
   _fmtShortDate(s) {
     if (!s) return '-';
     const d = new Date(s);

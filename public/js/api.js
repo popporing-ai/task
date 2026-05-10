@@ -28,7 +28,33 @@ const API = {
     }
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '요청 실패');
+    if (!res.ok) throw new Error(data.error || data.message || '요청 실패');
+
+    // ─── 자동 이벤트 발행: 변경 메서드일 때 path 기반으로 entity-changed 이벤트 emit ───
+    // 같은 브라우저 내 다른 뷰가 즉시 자동 갱신할 수 있게 함
+    if (method !== 'GET' && typeof AppEvents !== 'undefined') {
+      const entityMap = [
+        { match: /^\/tasks(\/|$|\?)/,        entity: 'tasks' },
+        { match: /^\/subtasks/,              entity: 'tasks' },
+        { match: /^\/comments/,              entity: 'tasks' },
+        { match: /^\/checklists/,            entity: 'tasks' },
+        { match: /^\/attachments/,           entity: 'tasks' },
+        { match: /^\/issues/,                entity: 'tasks' },
+        { match: /^\/content(\/|$|\?)/,      entity: 'content' },
+        { match: /^\/timeline/,              entity: 'timeline' },
+        { match: /^\/calendar/,              entity: 'calendar' },
+        { match: /^\/rrr/,                   entity: 'rrr' },
+        { match: /^\/users/,                 entity: 'users' },
+        { match: /^\/categories/,            entity: 'categories' },
+        { match: /^\/products/,              entity: 'products' },
+      ];
+      const matched = entityMap.find(m => m.match.test(path));
+      if (matched) {
+        AppEvents.emit('data-changed', { entity: matched.entity, method, path });
+        AppEvents.emit(`${matched.entity}-changed`, { method, path });
+      }
+    }
+
     return data;
   },
 

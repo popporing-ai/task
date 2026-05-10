@@ -475,4 +475,215 @@ ${issues.map(i => `- ${i.task_title}: ${i.description} (${i.issue_type}, ${i.sta
   }
 });
 
+// ────────── 4. POST /chat ──────────
+// LLM 대화형 인터페이스 (개인 활동 정리 도우미 + 업무 현황 Q&A)
+// body:
+//   - messages: [{role, content}, ...]  대화 history
+//   - context_type: 'personal_activity' | 'tasks_overview'
+//   - user_id, date_from, date_to   (personal_activity일 때)
+router.post('/chat', async (req, res, next) => {
+  try {
+    const apiUrl = process.env.LLM_API_URL;
+    const model  = process.env.LLM_MODEL || 'gpt-3.5-turbo';
+
+    if (!apiUrl) {
+      return res.status(503).json({
+        data: null,
+        message: 'AI 채팅이 설정되지 않았습니다. 서버 환경변수 LLM_API_URL을 설정하세요.'
+      });
+    }
+
+    const { messages, context_type } = req.body;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ data: null, message: '메시지가 비어있습니다.' });
+    }
+
+    // 마지막 사용자 메시지 길이 제한 (DoS 방지)
+    const lastMsg = messages[messages.length - 1];
+    if (typeof lastMsg?.content !== 'string' || lastMsg.content.length > 2000) {
+      return res.status(400).json({ data: null, message: '메시지가 너무 길거나 형식이 잘못되었습니다.' });
+    }
+
+    // ─── 컨텍스트 데이터 수집 ───
+    let contextBlock = '';
+    if (context_type === 'personal_activity') {
+      const { user_id, date_from, date_to } = req.body;
+      let targetUserId = req.user.id;
+      if (user_id) {
+        const reqUid = parseInt(user_id);
+        if (Number.isFinite(reqUid)) {
+          if (req.user.role === 'admin' || reqUid === req.user.id) {
+            targetUserId = reqUid;
+          } else {
+            return res.status(403).json({ data: null, message: '권한이 없습니다.' });
+          }
+        }
+      }
+      const { from, to } = resolvePeriod({ date_from, date_to });
+
+      const { rows: completed } = await db.query(`
+        SELECT t.title, t.points, t.work_type, t.updated_at::date AS done_date,
+               tc.name AS category_name
+        FROM tasks t
+        LEFT JOIN task_categories tc ON tc.id = t.category_id
+        WHERE t.assignee_id = $1
+          AND t.status = 'done'
+          AND t.updated_at::date BETWEEN $2::date AND $3::date
+          AND t.archived = false
+        ORDER BY t.updated_at DESC
+      `, [targetUserId, from, to]);
+
+      const { rows: inProg } = await db.query(`
+        SELECT t.title, t.due_date, t.status, tc.name AS category_name
+        FROM tasks t
+        LEFT JOIN task_categories tc ON tc.id = t.category_id
+        WHERE t.assignee_id = $1
+          AND t.status IN ('in_progress', 'todo', 'blocked')
+          AND t.archived = false
+        ORDER BY t.due_date NULLS LAST
+        LIMIT 30
+      `, [targetUserId]);
+
+      const { rows: contentRows } = await db.query(`
+        SELECT title, channel, publish_date, status
+        FROM content_items
+        WHERE assignee_id = $1
+          AND publish_date BETWEEN $2::date AND $3::date
+        ORDER BY publish_date DESC
+      `, [targetUserId, from, to]);
+
+      const { rows: issueRows } = await db.query(`
+        SELECT ti.issue_type, ti.description, ti.status, t.title AS task_title
+        FROM task_issues ti
+        JOIN tasks t ON t.id = ti.task_id
+        WHERE ti.reporter_id = $1
+          AND ti.created_at::date BETWEEN $2::date AND $3::date
+      `, [targetUserId, from, to]);
+
+      const { rows: userRows } = await db.query(
+        'SELECT name FROM users WHERE id = $1', [targetUserId]
+      );
+      const userName = userRows[0]?.name || '구성원';
+
+      contextBlock = `
+[대상] ${userName} / [기간] ${from} ~ ${to}
+
+[완료한 업무 ${completed.length}건]
+${completed.map(t => `- ${t.done_date} [${t.category_name||'미분류'}] ${t.title} (${t.points||0}pt, ${t.work_type})`).join('\n') || '없음'}
+
+[현재 진행/예정/미진행]
+${inProg.map(t => `- [${t.category_name||'미분류'}] ${t.title} (${t.status}, 마감 ${t.due_date||'미정'})`).join('\n') || '없음'}
+
+[기간 내 콘텐츠]
+${contentRows.map(c => `- [${c.channel}] ${c.title} (${c.publish_date}, ${c.status})`).join('\n') || '없음'}
+
+[보고된 이슈]
+${issueRows.map(i => `- ${i.task_title}: ${i.description} (${i.issue_type}, ${i.status})`).join('\n') || '없음'}
+`;
+    } else if (context_type === 'tasks_overview') {
+      // 전체 업무 현황 컨텍스트 (admin은 전체, user는 본인 + 팀)
+      const today = new Date().toISOString().slice(0, 10);
+      const { rows: tasks } = await db.query(`
+        SELECT t.id, t.title, t.status, t.due_date, t.points, t.work_type,
+               u.name AS assignee_name, tc.name AS category_name
+        FROM tasks t
+        LEFT JOIN users u ON u.id = t.assignee_id
+        LEFT JOIN task_categories tc ON tc.id = t.category_id
+        WHERE t.archived = false
+        ORDER BY
+          CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END,
+          t.due_date
+        LIMIT 200
+      `);
+      const completedCount = tasks.filter(t => t.status === 'done').length;
+      const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
+      const todoCount = tasks.filter(t => t.status === 'todo').length;
+      const blockedCount = tasks.filter(t => t.status === 'blocked').length;
+      const overdueCount = tasks.filter(t => t.due_date && t.due_date.toString().slice(0, 10) < today && t.status !== 'done').length;
+
+      contextBlock = `
+[현재 업무 현황 — 오늘 ${today}]
+전체 ${tasks.length}건 / 완료 ${completedCount} / 진행중 ${inProgressCount} / 할일 ${todoCount} / 미진행 ${blockedCount} / 지연 ${overdueCount}
+
+[업무 목록 (최대 200건)]
+${tasks.map(t => {
+  const due = t.due_date ? new Date(t.due_date).toISOString().slice(0,10) : '없음';
+  const overdue = t.due_date && due < today && t.status !== 'done' ? ' ⚠지연' : '';
+  return `- [${t.category_name||'미분류'}] ${t.title} (${t.status}, 마감 ${due}, ${t.assignee_name||'미배정'}, ${t.points||0}pt)${overdue}`;
+}).join('\n')}
+`;
+    } else {
+      contextBlock = '컨텍스트 없음';
+    }
+
+    // ─── 시스템 프롬프트 (가드레일 포함) ───
+    const systemPrompt = `당신은 VIRNECT 마케팅팀의 업무 현황 조회 보조 AI입니다.
+
+# 절대 규칙
+- 한국어로만 답변합니다.
+- 아래 [데이터]에 있는 사실만으로 답변합니다. 추측·창작 금지.
+- 데이터에 없는 정보를 물으면 "데이터에 없습니다"라고 답합니다.
+- 마케팅 업무·콘텐츠·일정·담당자 외의 질문(예: 일반 상식, 잡담, 정치, 코딩 도움 등)은
+  정중히 거절하고 "이 화면은 마케팅 업무 현황 조회 전용입니다"라고 안내합니다.
+- 답변은 간결하게. 표가 더 명확하면 마크다운 표 사용.
+- 외부 링크·이미지·코드 블록은 만들지 않습니다 (단, 마크다운 표는 OK).
+- 답변 끝에 사족 붙이지 말고 바로 본론.
+
+# 답변 스타일
+- "정리해줘" → 마크다운 불릿 또는 표
+- "요약해줘" → 3~5줄 단락
+- "누가 ~했어?" / "마감 임박은?" → 핵심만 단답
+- 사용자가 형식을 지정하면 그 형식 따름
+
+# 데이터
+${contextBlock}
+`;
+
+    // ─── LLM 호출 ───
+    const llmMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.slice(-10).map(m => ({  // 최근 10개만 (컨텍스트 길이 절약)
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content || '').slice(0, 2000),
+      })),
+    ];
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (process.env.LLM_API_KEY) {
+      headers['Authorization'] = `Bearer ${process.env.LLM_API_KEY}`;
+    }
+
+    const llmRes = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: llmMessages,
+        temperature: 0.2,
+        max_tokens: 800,
+      }),
+    });
+
+    if (!llmRes.ok) {
+      const errText = await llmRes.text().catch(() => '');
+      console.error('LLM 채팅 실패:', llmRes.status, errText);
+      return res.status(502).json({
+        data: null,
+        message: `LLM 호출 실패 (${llmRes.status})`,
+      });
+    }
+
+    const llmData = await llmRes.json();
+    const reply = llmData.choices?.[0]?.message?.content?.trim() || '응답을 생성할 수 없습니다.';
+
+    res.json({
+      data: { reply, model },
+      message: 'OK'
+    });
+  } catch (err) {
+    console.error('AI 채팅 에러:', err.message);
+    next(err);
+  }
+});
+
 module.exports = router;

@@ -1,3 +1,22 @@
+// === 글로벌 이벤트 버스 ===
+// 같은 브라우저 내에서 데이터 변경 즉시 반영 (예: tasks CRUD → 팀 활동 자동 갱신)
+const AppEvents = {
+  _listeners: {},
+  on(event, fn) {
+    (this._listeners[event] = this._listeners[event] || []).push(fn);
+    return () => this.off(event, fn);
+  },
+  off(event, fn) {
+    if (!this._listeners[event]) return;
+    this._listeners[event] = this._listeners[event].filter(f => f !== fn);
+  },
+  emit(event, payload) {
+    (this._listeners[event] || []).forEach(fn => {
+      try { fn(payload); } catch (e) { console.error('Event handler error:', e); }
+    });
+  },
+};
+
 // 앱 상태
 const App = {
   currentView: 'dashboard',
@@ -5,6 +24,7 @@ const App = {
   categories: [],
   products: [],
   users: [],
+  events: AppEvents,
 
   async init() {
     // 세션 확인
@@ -235,6 +255,9 @@ const App = {
     };
 
     if (views[view]) views[view].render();
+
+    // 뷰 변경 이벤트 발행 (다른 뷰가 _isActive 토글에 사용)
+    this.events.emit('view-changed', view);
 
     // 해당 뷰 방문 처리 → 뱃지 초기화
     this._markViewSeen(view);
