@@ -190,6 +190,219 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /weekly-reports/activity?user_id=&date_from=&date_to=
+// 자동 활동 리포트: 기간 내 완료/진행/콘텐츠/댓글/이슈를 집계하여 반환
+router.get('/activity', async (req, res, next) => {
+  try {
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    let { user_id, date_from, date_to } = req.query;
+
+    // 기본 기간: 이번 주(월~일)
+    if (!date_from || !dateRe.test(date_from)) {
+      date_from = toDateStr(getWeekStart());
+    }
+    if (!date_to || !dateRe.test(date_to)) {
+      const we = getWeekStart();
+      we.setDate(we.getDate() + 6);
+      date_to = toDateStr(we);
+    }
+
+    // 권한: admin은 모든 user 가능, 일반 유저는 본인만
+    let targetUserId = req.user.id;
+    if (user_id) {
+      const reqUid = parseInt(user_id);
+      if (Number.isFinite(reqUid)) {
+        if (req.user.role === 'admin' || reqUid === req.user.id) {
+          targetUserId = reqUid;
+        } else {
+          return res.status(403).json({ data: null, message: '다른 사용자의 활동을 조회할 권한이 없습니다.' });
+        }
+      }
+    }
+
+    // 대상 사용자 정보
+    const { rows: userRows } = await db.query(
+      `SELECT id, name, email, avatar_bg, avatar_text
+       FROM users WHERE id = $1`,
+      [targetUserId]
+    );
+    if (!userRows.length) {
+      return res.status(404).json({ data: null, message: '사용자를 찾을 수 없습니다.' });
+    }
+    const user = userRows[0];
+
+    // 1. 기간 내 완료된 업무 (updated_at::date 기준)
+    const { rows: completed } = await db.query(`
+      SELECT t.id, t.title, t.due_date, t.updated_at, t.points, t.work_type, t.status,
+             tc.name AS category_name, tc.color AS category_color
+      FROM tasks t
+      LEFT JOIN task_categories tc ON tc.id = t.category_id
+      WHERE t.assignee_id = $1
+        AND t.status = 'done'
+        AND t.updated_at::date >= $2::date
+        AND t.updated_at::date <= $3::date
+        AND t.archived = false
+      ORDER BY t.updated_at DESC
+    `, [targetUserId, date_from, date_to]);
+
+    // 2. 기간 내 진행 중 / 미진행 업무 (마감일이 기간과 겹치거나 기간 내 업데이트된 것)
+    const { rows: inProgress } = await db.query(`
+      SELECT t.id, t.title, t.due_date, t.updated_at, t.points, t.work_type, t.status,
+             tc.name AS category_name, tc.color AS category_color
+      FROM tasks t
+      LEFT JOIN task_categories tc ON tc.id = t.category_id
+      WHERE t.assignee_id = $1
+        AND t.status IN ('todo', 'in_progress', 'blocked')
+        AND t.archived = false
+        AND (
+          (t.due_date >= $2::date AND t.due_date <= $3::date)
+          OR (t.updated_at::date >= $2::date AND t.updated_at::date <= $3::date)
+        )
+      ORDER BY
+        CASE t.status WHEN 'in_progress' THEN 1 WHEN 'todo' THEN 2 ELSE 3 END,
+        t.due_date NULLS LAST
+    `, [targetUserId, date_from, date_to]);
+
+    // 3. 기간 내 발행/예정 콘텐츠
+    const { rows: contentItems } = await db.query(`
+      SELECT ci.id, ci.title, ci.channel, ci.content_type,
+             ci.publish_date, ci.status, ci.publish_url, ci.inflow_url,
+             p.name AS product_name
+      FROM content_items ci
+      LEFT JOIN products p ON p.id = ci.product_id
+      WHERE ci.assignee_id = $1
+        AND ci.publish_date >= $2::date
+        AND ci.publish_date <= $3::date
+      ORDER BY ci.publish_date DESC
+    `, [targetUserId, date_from, date_to]);
+
+    // 4. 기간 내 작성한 댓글 (커뮤니케이션 활동량)
+    const { rows: comments } = await db.query(`
+      SELECT c.id, c.content, c.created_at, c.task_id,
+             t.title AS task_title
+      FROM comments c
+      JOIN tasks t ON t.id = c.task_id
+      WHERE c.user_id = $1
+        AND c.created_at::date >= $2::date
+        AND c.created_at::date <= $3::date
+      ORDER BY c.created_at DESC
+      LIMIT 30
+    `, [targetUserId, date_from, date_to]);
+
+    // 5. 기간 내 보고한 이슈
+    const { rows: issuesReported } = await db.query(`
+      SELECT ti.id, ti.issue_type, ti.description, ti.status, ti.created_at,
+             ti.task_id, t.title AS task_title
+      FROM task_issues ti
+      JOIN tasks t ON t.id = ti.task_id
+      WHERE ti.reporter_id = $1
+        AND ti.created_at::date >= $2::date
+        AND ti.created_at::date <= $3::date
+      ORDER BY ti.created_at DESC
+    `, [targetUserId, date_from, date_to]);
+
+    // 6. 카테고리별 완료 집계
+    const { rows: byCategory } = await db.query(`
+      SELECT COALESCE(tc.name, '미분류') AS name,
+             COALESCE(tc.color, '#9A9BA3') AS color,
+             COUNT(*)::int AS count,
+             COALESCE(SUM(t.points), 0)::int AS points
+      FROM tasks t
+      LEFT JOIN task_categories tc ON tc.id = t.category_id
+      WHERE t.assignee_id = $1
+        AND t.status = 'done'
+        AND t.updated_at::date >= $2::date
+        AND t.updated_at::date <= $3::date
+        AND t.archived = false
+      GROUP BY tc.name, tc.color
+      ORDER BY count DESC
+    `, [targetUserId, date_from, date_to]);
+
+    // 7. work_type별 완료 집계
+    const { rows: byWorkType } = await db.query(`
+      SELECT COALESCE(t.work_type, 'regular') AS work_type,
+             COUNT(*)::int AS count,
+             COALESCE(SUM(t.points), 0)::int AS points
+      FROM tasks t
+      WHERE t.assignee_id = $1
+        AND t.status = 'done'
+        AND t.updated_at::date >= $2::date
+        AND t.updated_at::date <= $3::date
+        AND t.archived = false
+      GROUP BY t.work_type
+    `, [targetUserId, date_from, date_to]);
+
+    // 8. 일별 완료 추이
+    const { rows: daily } = await db.query(`
+      SELECT t.updated_at::date AS date, COUNT(*)::int AS count
+      FROM tasks t
+      WHERE t.assignee_id = $1
+        AND t.status = 'done'
+        AND t.updated_at::date >= $2::date
+        AND t.updated_at::date <= $3::date
+        AND t.archived = false
+      GROUP BY t.updated_at::date
+      ORDER BY date
+    `, [targetUserId, date_from, date_to]);
+
+    // 9. 다음 7일 예정 업무 (다음 주 계획용)
+    const { rows: upcoming } = await db.query(`
+      SELECT t.id, t.title, t.due_date, t.points, t.status,
+             tc.name AS category_name, tc.color AS category_color
+      FROM tasks t
+      LEFT JOIN task_categories tc ON tc.id = t.category_id
+      WHERE t.assignee_id = $1
+        AND t.status != 'done'
+        AND t.archived = false
+        AND t.due_date > $2::date
+        AND t.due_date <= $2::date + INTERVAL '7 days'
+      ORDER BY t.due_date
+      LIMIT 20
+    `, [date_to]);
+
+    // 10. 본인이 작성한 동기간 메모 (특이사항 — 선택적으로 사용)
+    const { rows: memoRows } = await db.query(`
+      SELECT id, week_start, this_week, next_week, issues, updated_at
+      FROM weekly_reports
+      WHERE user_id = $1
+        AND week_start >= $2::date
+        AND week_start <= $3::date
+      ORDER BY week_start DESC
+      LIMIT 1
+    `, [targetUserId, date_from, date_to]);
+
+    const totalPoints = completed.reduce((s, t) => s + (t.points || 0), 0);
+
+    res.json({
+      data: {
+        user,
+        period: { from: date_from, to: date_to },
+        summary: {
+          tasks_completed: completed.length,
+          tasks_in_progress: inProgress.filter(t => t.status === 'in_progress').length,
+          tasks_pending:    inProgress.filter(t => t.status === 'todo').length,
+          tasks_blocked:    inProgress.filter(t => t.status === 'blocked').length,
+          content_published: contentItems.filter(c => c.status === 'done').length,
+          content_planned:   contentItems.filter(c => c.status !== 'done').length,
+          comments_added:    comments.length,
+          issues_raised:     issuesReported.length,
+          total_points:      totalPoints,
+        },
+        completed_tasks:   completed,
+        in_progress_tasks: inProgress,
+        content_items:     contentItems,
+        comments,
+        issues:            issuesReported,
+        by_category:       byCategory,
+        by_work_type:      byWorkType,
+        daily_activity:    daily,
+        upcoming_tasks:    upcoming,
+        memo:              memoRows[0] || null,
+      }
+    });
+  } catch (err) { next(err); }
+});
+
 // GET /weekly-reports/history — 본인 과거 보고서 목록
 router.get('/history', async (req, res, next) => {
   try {
