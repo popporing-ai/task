@@ -358,7 +358,7 @@ router.get('/activity', async (req, res, next) => {
         AND t.due_date <= $2::date + INTERVAL '7 days'
       ORDER BY t.due_date
       LIMIT 20
-    `, [date_to]);
+    `, [targetUserId, date_to]);
 
     // 10. 본인이 작성한 동기간 메모 (특이사항 — 선택적으로 사용)
     const { rows: memoRows } = await db.query(`
