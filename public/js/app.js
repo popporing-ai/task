@@ -203,7 +203,7 @@ const App = {
       rrr: 'R&R 현황',
       calendar: '팀 캘린더',
       performance: '성과 관리',
-      'weekly-report': '주간보고',
+      'weekly-report': '팀 활동',
       settings: '설정',
       audit: '변경 이력',
     };

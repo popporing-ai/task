@@ -20,10 +20,17 @@ services:
       DB_USER: task
       DB_PASSWORD: task1234
       PORT: 3004
+      # 로컬/사내 LLM 연동 (.env 파일에서 주입, 미설정 시 AI 요약만 비활성)
+      LLM_API_URL: ${LLM_API_URL:-}
+      LLM_MODEL:   ${LLM_MODEL:-llama3.1:8b}
+      LLM_API_KEY: ${LLM_API_KEY:-}
     depends_on:
       - db
     volumes:
       - ./uploads:/app/uploads
+    extra_hosts:
+      # host.docker.internal로 호스트(서버) 위 LLM 접근
+      - "host.docker.internal:host-gateway"
     networks:
       - default
       - virnect-net
