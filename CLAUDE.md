@@ -117,3 +117,49 @@ Taskworld 스타일 — docs/디자인가이드.md 참조
   - Express: app.use('/task', router)
 - 비밀번호: bcrypt rounds 10
 - 세션 토큰: crypto.randomBytes(32).toString('hex')
+
+## 버전 관리 정책 (Semantic Versioning)
+
+이 프로젝트는 **MAJOR.MINOR.PATCH** SemVer 규칙을 따른다.
+- **MAJOR** — 호환성이 깨지는 큰 변경 (DB 스키마 breaking change, API 응답 형식 변경 등)
+- **MINOR** — 하위 호환되는 기능 추가
+- **PATCH** — 버그 수정, 소규모 개선, 리팩토링
+
+### 단일 진실의 출처
+- 현재 버전: `public/js/release_notes.js` 의 `CURRENT_VERSION` 상수
+- 변경 이력: 같은 파일의 `RELEASE_NOTES` 배열 (최신이 맨 위)
+- localStorage `task_version` 키로 사용자별 "마지막 본 버전" 추적
+- 새 버전이면 로그인 후 1회 자동 팝업 + 사이드바 하단 라벨 클릭 시 전체 노트
+
+### 릴리즈 워크플로 (Claude는 새 기능/수정 PR마다 이 절차 자동 수행)
+1. 코드 변경
+2. `release_notes.js` 의 `CURRENT_VERSION` 을 SemVer 규칙에 맞춰 올림
+3. `RELEASE_NOTES` 배열 맨 위에 새 항목 추가 (`{ version, date(YYYY-MM-DD), title, changes[] }`)
+4. `git commit` (메시지에 변경 내용 명시)
+5. `git push origin master`
+6. `git tag -a v1.x.x <commit-sha> -m "한 줄 요약"`
+7. `git push origin --tags`
+8. (사용자 안내) 서버 배포: `git pull && docker compose up -d --build task`
+
+### 롤백 절차
+- **안전 롤백 (권장)**: `git revert HEAD --no-edit` 또는 `git revert v1.x.x..HEAD --no-edit` 후 push
+- **강제 롤백**: `git reset --hard v1.x.x && git push --force` (혼자 작업 시만, 위험)
+- **서버만 이전 버전으로**: `git checkout v1.x.x && docker compose up -d --build task`
+
+### 금지 사항
+- `release_notes.js` 의 `RELEASE_NOTES` 기존 항목을 수정·삭제하지 말 것 (이력은 영구 보존)
+- 태그를 강제로 옮기지 말 것 (`git tag -f` 금지). 잘못 박았으면 새 patch 버전으로 정정
+- MAJOR 올림은 사용자 명시적 승인 필요 (호환성 깨짐 = 사용자 영향 큼)
+
+## 배포 표준 명령
+```powershell
+cd D:\apps\task
+git pull origin master
+docker compose up -d --build task    # ← --build 필수, 빠지면 코드 미반영
+docker compose logs --tail=30 task
+```
+
+## LLM 연동 (옵션)
+- 서버 `.env` 에 `LLM_API_URL`, `LLM_MODEL`, `LLM_API_KEY(옵션)` 설정
+- OpenAI 호환 API 엔드포인트 (Ollama / LM Studio / vLLM)
+- 미설정 시 AI 채팅·요약 버튼만 비활성, 다른 기능에는 영향 없음
