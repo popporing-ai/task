@@ -733,11 +733,11 @@ const App = {
       this._dismissNotifPopup(popup);
     });
 
-    // 클릭 → 이동
+    // 클릭 → 이동 + 상세 열기
     if (notif.link_view) {
       popup.style.cursor = 'pointer';
       popup.addEventListener('click', () => {
-        this.navigate(notif.link_view);
+        this._openNotifTarget(notif);
         this._markRead(notif.id);
         this._dismissNotifPopup(popup);
       });
@@ -803,26 +803,72 @@ const App = {
         return;
       }
       list.innerHTML = notifs.map(n => `
-        <div class="notif-item ${n.is_read ? '' : 'unread'}" data-notif-id="${n.id}" data-link-view="${escHtml(n.link_view || '')}" data-link-id="${n.link_id || ''}">
+        <div class="notif-item ${n.is_read ? '' : 'unread'}" data-notif-id="${n.id}" data-link-view="${escHtml(n.link_view || '')}" data-link-id="${n.link_id || ''}" data-notif-type="${escHtml(n.type || '')}">
           <div class="notif-message">${escHtml(n.message)}</div>
           <div class="notif-time">${this._timeAgoNotif(n.created_at)}</div>
         </div>
       `).join('');
 
-      // 클릭 → 이동 + 읽음 처리
+      // 클릭 → 이동 + 상세 열기 + 읽음 처리
       list.querySelectorAll('.notif-item').forEach(item => {
         item.addEventListener('click', async () => {
           const id = item.dataset.notifId;
           const view = item.dataset.linkView;
+          const linkId = item.dataset.linkId;
+          const notifType = item.dataset.notifType;
           await this._markRead(id);
           item.classList.remove('unread');
-          if (view) this.navigate(view);
           document.getElementById('notif-dropdown').style.display = 'none';
+          if (view) {
+            this._openNotifTarget({ link_view: view, link_id: linkId, type: notifType });
+          }
         });
       });
     } catch {
       list.innerHTML = '<div class="notif-empty">불러오기 실패</div>';
     }
+  },
+
+  // 알림 클릭 → 뷰 이동 + 해당 항목 상세 열기
+  // notif: { link_view, link_id, type }
+  async _openNotifTarget(notif) {
+    const view = notif.link_view;
+    const id = notif.link_id;
+    const type = notif.type;
+    if (!view) return;
+
+    this.navigate(view);
+    if (!id) return;
+
+    // 뷰 렌더링 대기 후 상세 오픈
+    setTimeout(async () => {
+      try {
+        if (view === 'tasks') {
+          const res = await API.get('/tasks');
+          const task = (res.data || []).find(t => t.id == id);
+          if (!task) return;
+          TasksView.openDetail(task);
+          // 댓글/멘션 알림이면 댓글 탭 자동 활성화
+          if (type === 'comment_added' || type === 'mention') {
+            setTimeout(() => {
+              document.querySelector('.detail-tab[data-tab="comments"]')?.click();
+            }, 120);
+          }
+        } else if (view === 'content') {
+          const res = await API.get('/content');
+          const found = (res.data || []).find(c => c.id == id);
+          if (found) ContentView.openForm(found);
+        } else if (view === 'timeline') {
+          const res = await API.get(`/timeline?year=${new Date().getFullYear()}`);
+          const found = (res.data || []).find(t => t.id == id);
+          if (found) TimelineView.openForm(found);
+        } else if (view === 'calendar') {
+          const res = await API.get('/calendar');
+          const found = (res.data || []).find(e => e.id == id);
+          if (found) CalendarView.openForm?.(found);
+        }
+      } catch (e) { /* 무시 — 뷰만 보여주면 됨 */ }
+    }, 250);
   },
 
   // 개별 읽음 처리
