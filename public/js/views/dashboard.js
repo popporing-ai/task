@@ -15,11 +15,8 @@ const DashboardView = {
     { id: 'workload',          title: '담당자별 업무 부하', size: 'half' },
     { id: 'completion-rate',   title: '완료율 추이',        size: 'half' },
     { id: 'overdue-tasks',     title: '마감 초과 업무',     size: 'half' },
-    { id: 'issue-monitor',     title: '활성 이슈 현황',     size: 'half' },
-    { id: 'team-kpi',          title: '팀 KPI',             size: 'half' },
     { id: 'upcoming-events',   title: '다가오는 일정',      size: 'half' },
     { id: 'delay-monitor',     title: '팀 지연 모니터',     size: 'half' },
-    { id: 'work-distribution', title: '업무 분포',          size: 'half' },
   ],
 
   // 차트 타입을 지원하는 위젯 목록
@@ -98,19 +95,6 @@ const DashboardView = {
       this._data._allTasks = [];
     }
 
-    // 이슈 및 팀 KPI 데이터 (위젯용)
-    try {
-      const [issuesRes, kpiRes] = await Promise.all([
-        API.get('/issues').catch(() => ({ data: [] })),
-        API.get('/performance/team').catch(() => ({ data: { summary: {} } })),
-      ]);
-      this._data._issues = issuesRes.data || [];
-      this._data._teamKpi = (kpiRes.data?.summary) || {};
-    } catch {
-      this._data._issues = [];
-      this._data._teamKpi = {};
-    }
-
     // 다가오는 일정 (캘린더 위젯용)
     try {
       const upcomingRes = await API.get('/calendar/upcoming');
@@ -118,37 +102,6 @@ const DashboardView = {
     } catch {
       this._data._upcomingEvents = [];
     }
-
-    // 업무 분포 (관리자 전용 엔드포인트 — 실패 시 _allTasks에서 클라이언트 집계)
-    try {
-      if (App.user?.role === 'admin') {
-        const distRes = await API.get(`/evaluations/work-distribution?year=${new Date().getFullYear()}`);
-        this._data._workDistribution = distRes.data || [];
-      } else {
-        // 비관리자: _allTasks에서 클라이언트 집계
-        this._data._workDistribution = this._aggregateWorkDistribution(this._data._allTasks || []);
-      }
-    } catch {
-      this._data._workDistribution = this._aggregateWorkDistribution(this._data._allTasks || []);
-    }
-  },
-
-  // _allTasks로부터 담당자별 업무 유형 분포 집계 (폴백)
-  _aggregateWorkDistribution(tasks) {
-    const byUser = {};
-    for (const t of tasks) {
-      if (!t.assignee_id) continue;
-      if (!byUser[t.assignee_id]) {
-        byUser[t.assignee_id] = {
-          user_id: t.assignee_id,
-          name: t.assignee_name || '-',
-          regular: 0, extra: 0, project: 0,
-        };
-      }
-      const wt = t.work_type || 'regular';
-      byUser[t.assignee_id][wt] = (byUser[t.assignee_id][wt] || 0) + 1;
-    }
-    return Object.values(byUser);
   },
 
   toggleEditMode() {
@@ -322,20 +275,11 @@ const DashboardView = {
       case 'overdue-tasks':
         return this._renderOverdueTasks(d);
 
-      case 'issue-monitor':
-        return this._renderIssueMonitor(d);
-
-      case 'team-kpi':
-        return this._renderTeamKpi(d);
-
       case 'upcoming-events':
         return this._renderUpcomingEvents(d);
 
       case 'delay-monitor':
         return this._renderDelayMonitor(d);
-
-      case 'work-distribution':
-        return this._renderWorkDistribution(d);
 
       default: return '';
     }
@@ -364,110 +308,6 @@ const DashboardView = {
         </div>
       `;
     }).join('');
-  },
-
-  // 업무 분포 위젯 — 담당자별 업무 유형 요약
-  _renderWorkDistribution(d) {
-    const users = d._workDistribution || [];
-    if (users.length === 0) {
-      return '<div style="text-align:center;padding:16px;color:var(--color-text-muted);font-size:12px;">데이터 없음</div>';
-    }
-    const topUsers = users
-      .map(u => ({ ...u, total: (u.regular || 0) + (u.extra || 0) + (u.project || 0) }))
-      .filter(u => u.total > 0)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
-
-    if (topUsers.length === 0) {
-      return '<div style="text-align:center;padding:16px;color:var(--color-text-muted);font-size:12px;">업무 할당 없음</div>';
-    }
-
-    return topUsers.map(u => {
-      const total = u.total;
-      const pctReg = Math.round((u.regular || 0) / total * 100);
-      const pctExt = Math.round((u.extra || 0) / total * 100);
-      const pctProj = 100 - pctReg - pctExt;
-      return `
-        <div style="padding:6px 0;border-bottom:0.5px solid var(--color-border);">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span style="flex:1;font-size:12px;color:var(--color-text-primary);">${escHtml(u.name)}</span>
-            <span style="font-size:11px;color:var(--color-text-muted);">${total}건</span>
-          </div>
-          <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--color-bg-secondary);">
-            <div style="width:${pctReg}%;background:#4F6EF7;" title="정규 ${u.regular || 0}"></div>
-            <div style="width:${pctExt}%;background:#F5A623;" title="추가 ${u.extra || 0}"></div>
-            <div style="width:${pctProj}%;background:#9B59B6;" title="프로젝트 ${u.project || 0}"></div>
-          </div>
-        </div>
-      `;
-    }).join('') + `
-      <div style="display:flex;gap:10px;margin-top:8px;font-size:10px;color:var(--color-text-muted);">
-        <span><span style="display:inline-block;width:8px;height:8px;background:#4F6EF7;border-radius:2px;vertical-align:middle;"></span> 정규</span>
-        <span><span style="display:inline-block;width:8px;height:8px;background:#F5A623;border-radius:2px;vertical-align:middle;"></span> 추가</span>
-        <span><span style="display:inline-block;width:8px;height:8px;background:#9B59B6;border-radius:2px;vertical-align:middle;"></span> 프로젝트</span>
-      </div>
-    `;
-  },
-
-  // 활성 이슈 현황 위젯
-  _renderIssueMonitor(d) {
-    const issues = d._issues || [];
-    const typeLabels = { delay: '지연', blocking: '블로킹', resource: '리소스 부족', external: '외부 대기', technical: '기술 이슈', other: '기타' };
-    const typeCounts = {};
-    issues.forEach(i => {
-      if (i.status !== 'resolved') {
-        typeCounts[i.issue_type] = (typeCounts[i.issue_type] || 0) + 1;
-      }
-    });
-    const activeCount = Object.values(typeCounts).reduce((a, b) => a + b, 0);
-
-    if (activeCount === 0) {
-      return '<div style="text-align:center;padding:16px;color:var(--color-text-muted);font-size:12px;">활성 이슈가 없습니다</div>';
-    }
-
-    const countBadges = Object.entries(typeCounts).map(([type, count]) =>
-      `<span class="issue-type-badge issue-type-${type}" style="font-size:11px;">${typeLabels[type] || type}: ${count}</span>`
-    ).join(' ');
-
-    const recentIssues = issues.filter(i => i.status !== 'resolved').slice(0, 5);
-    const listHtml = recentIssues.map(i => `
-      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--color-border);">
-        <span class="issue-type-badge issue-type-${i.issue_type}" style="font-size:10px;flex-shrink:0;">${typeLabels[i.issue_type] || i.issue_type}</span>
-        <span style="flex:1;font-size:12px;color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(i.task_title || i.description || '-')}</span>
-      </div>
-    `).join('');
-
-    return `
-      <div style="margin-bottom:10px;font-size:18px;font-weight:600;color:var(--color-warn-text);">${activeCount}건</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${countBadges}</div>
-      ${listHtml}
-    `;
-  },
-
-  // 팀 KPI 위젯
-  _renderTeamKpi(d) {
-    const kpi = d._teamKpi || {};
-    return `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">완료율</div>
-          <div style="font-size:18px;font-weight:600;color:var(--color-primary);">${kpi.completion_rate != null ? Number(kpi.completion_rate).toFixed(0) : 0}%</div>
-          <div class="progress-bar" style="margin-top:4px;"><div class="progress-fill" style="width:${kpi.completion_rate || 0}%"></div></div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">총 완료</div>
-          <div style="font-size:18px;font-weight:600;color:var(--color-done-text);">${kpi.total_done || 0}</div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">진행 중</div>
-          <div style="font-size:18px;font-weight:600;">${kpi.in_progress || 0}</div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">지연</div>
-          <div style="font-size:18px;font-weight:600;color:var(--color-warn-text);">${kpi.overdue || 0}</div>
-        </div>
-      </div>
-    `;
   },
 
   // 다가오는 일정 위젯

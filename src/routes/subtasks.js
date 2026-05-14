@@ -26,16 +26,16 @@ router.get('/:taskId/subtasks', async (req, res, next) => {
 router.post('/:taskId/subtasks', auditMiddleware('subtasks'), async (req, res, next) => {
   try {
     const { taskId } = req.params;
-    const { title, assignee_id, due_date, sort_order, status, points } = req.body;
+    const { title, assignee_id, due_date, sort_order, status } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ data: null, error: '하위 업무 제목은 필수입니다.' });
     }
     const { rows } = await db.query(`
-      INSERT INTO subtasks (task_id, title, assignee_id, due_date, sort_order, status, points)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO subtasks (task_id, title, assignee_id, due_date, sort_order, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `, [taskId, title.trim(), assignee_id || null, due_date || null, sort_order ?? 0,
-        status || 'todo', points ?? null]);
+        status || 'todo']);
     res.status(201).json({ data: rows[0], message: '하위 업무가 추가되었습니다.' });
   } catch (err) { next(err); }
 });
@@ -44,15 +44,15 @@ router.post('/:taskId/subtasks', auditMiddleware('subtasks'), async (req, res, n
 router.put('/:taskId/subtasks/:id', auditMiddleware('subtasks'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { title, assignee_id, due_date, sort_order, status, points } = req.body;
+    const { title, assignee_id, due_date, sort_order, status } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ data: null, error: '하위 업무 제목은 필수입니다.' });
     }
     const { rows } = await db.query(`
-      UPDATE subtasks SET title=$1, assignee_id=$2, due_date=$3, sort_order=$4, status=$5, points=$6
-      WHERE id=$7 RETURNING *
+      UPDATE subtasks SET title=$1, assignee_id=$2, due_date=$3, sort_order=$4, status=$5
+      WHERE id=$6 RETURNING *
     `, [title.trim(), assignee_id || null, due_date || null, sort_order ?? 0,
-        status || 'todo', points ?? null, id]);
+        status || 'todo', id]);
     if (!rows.length) return res.status(404).json({ data: null, error: '하위 업무를 찾을 수 없습니다.' });
     res.json({ data: rows[0], message: '하위 업무가 수정되었습니다.' });
   } catch (err) { next(err); }

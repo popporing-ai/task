@@ -34,13 +34,7 @@ app.use('/task/api/notifications', require('./routes/notifications'));
 app.use('/task/api/attachments', require('./routes/attachments'));
 app.use('/task/api/checklists', require('./routes/checklists'));
 app.use('/task/api/users', require('./routes/users'));
-app.use('/task/api/issues', require('./routes/issues'));
-app.use('/task/api/goals', require('./routes/goals'));
-app.use('/task/api/feedbacks', require('./routes/feedbacks'));
-app.use('/task/api/performance', require('./routes/performance'));
-app.use('/task/api/meetings', require('./routes/meetings'));
 app.use('/task/api/calendar', require('./routes/calendar'));
-app.use('/task/api/evaluations', require('./routes/evaluations'));
 app.use('/task/api/weekly-reports', require('./routes/weekly_reports'));
 app.use('/task/api/team-activity', require('./routes/team_activity'));
 

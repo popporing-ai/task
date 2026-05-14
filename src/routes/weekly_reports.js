@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 
@@ -233,7 +233,7 @@ router.get('/activity', async (req, res, next) => {
 
     // 1. 기간 내 완료된 업무 (updated_at::date 기준)
     const { rows: completed } = await db.query(`
-      SELECT t.id, t.title, t.due_date, t.updated_at, t.points, t.work_type, t.status,
+      SELECT t.id, t.title, t.due_date, t.updated_at, 0 AS points, t.work_type, t.status,
              tc.name AS category_name, tc.color AS category_color
       FROM tasks t
       LEFT JOIN task_categories tc ON tc.id = t.category_id
@@ -247,7 +247,7 @@ router.get('/activity', async (req, res, next) => {
 
     // 2. 기간 내 진행 중 / 미진행 업무 (마감일이 기간과 겹치거나 기간 내 업데이트된 것)
     const { rows: inProgress } = await db.query(`
-      SELECT t.id, t.title, t.due_date, t.updated_at, t.points, t.work_type, t.status,
+      SELECT t.id, t.title, t.due_date, t.updated_at, 0 AS points, t.work_type, t.status,
              tc.name AS category_name, tc.color AS category_color
       FROM tasks t
       LEFT JOIN task_categories tc ON tc.id = t.category_id
@@ -293,7 +293,7 @@ router.get('/activity', async (req, res, next) => {
     const { rows: issuesReported } = await db.query(`
       SELECT ti.id, ti.issue_type, ti.description, ti.status, ti.created_at,
              ti.task_id, t.title AS task_title
-      FROM task_issues ti
+      FROM (SELECT NULL::int AS task_id, NULL::int AS reporter_id, NULL::text AS issue_type, NULL::text AS description, NULL::text AS status, NULL::timestamptz AS created_at WHERE FALSE) ti
       JOIN tasks t ON t.id = ti.task_id
       WHERE ti.reporter_id = $1
         AND ti.created_at::date >= $2::date
@@ -306,7 +306,7 @@ router.get('/activity', async (req, res, next) => {
       SELECT COALESCE(tc.name, '미분류') AS name,
              COALESCE(tc.color, '#9A9BA3') AS color,
              COUNT(*)::int AS count,
-             COALESCE(SUM(t.points), 0)::int AS points
+             0::int AS points
       FROM tasks t
       LEFT JOIN task_categories tc ON tc.id = t.category_id
       WHERE t.assignee_id = $1
@@ -322,7 +322,7 @@ router.get('/activity', async (req, res, next) => {
     const { rows: byWorkType } = await db.query(`
       SELECT COALESCE(t.work_type, 'regular') AS work_type,
              COUNT(*)::int AS count,
-             COALESCE(SUM(t.points), 0)::int AS points
+             0::int AS points
       FROM tasks t
       WHERE t.assignee_id = $1
         AND t.status = 'done'
@@ -347,7 +347,7 @@ router.get('/activity', async (req, res, next) => {
 
     // 9. 다음 7일 예정 업무 (다음 주 계획용)
     const { rows: upcoming } = await db.query(`
-      SELECT t.id, t.title, t.due_date, t.points, t.status,
+      SELECT t.id, t.title, t.due_date, 0 AS points, t.status,
              tc.name AS category_name, tc.color AS category_color
       FROM tasks t
       LEFT JOIN task_categories tc ON tc.id = t.category_id

@@ -141,7 +141,6 @@ router.get('/:id/stats', async (req, res, next) => {
       SELECT
         COUNT(*) FILTER (WHERE status = 'done')::int AS completed,
         COUNT(*) FILTER (WHERE status = 'blocked')::int AS delayed,
-        COALESCE(SUM(points) FILTER (WHERE status = 'done'), 0)::int AS total_points,
         ROUND(AVG(
           CASE WHEN status = 'done' AND due_date IS NOT NULL
             THEN EXTRACT(EPOCH FROM (updated_at - created_at)) / 86400

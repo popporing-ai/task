@@ -7,9 +7,21 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '1.3.0';
+const CURRENT_VERSION = '2.0.0';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.0.0',
+    date: '2026-05-14',
+    title: '팀 배포 정비 — 핵심만 남기고 디자인 전면 개편',
+    changes: [
+      '성과/평가/포인트/이슈/의존성/팀 목표/피드백/면담 기능 일괄 제거 (DB 테이블 10종 + tasks/subtasks.points 컬럼 drop, migration-011 자동 실행)',
+      'UI/UX 전면 개편 — Toss 톤(라이트 뉴트럴, 둥근 모서리, 부드러운 그림자, 마이크로 인터랙션)',
+      '사이드바·버튼·카드·입력·다이얼로그·칸반 카드 모두 재정의',
+      '대시보드: 활성 이슈·팀 KPI·업무 분포 위젯 제거 (성과 기능 의존)',
+      '주간보고/팀 활동/글로벌 AI 채팅 위젯/SemVer 기능은 그대로 유지',
+    ],
+  },
   {
     version: '1.3.0',
     date: '2026-05-10',

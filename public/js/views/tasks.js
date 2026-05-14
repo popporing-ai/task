@@ -1,4 +1,4 @@
-// 업무 현황 (칸반 보드) 뷰
+﻿// 업무 현황 (칸반 보드) 뷰
 const TasksView = {
   tasks: [],
   filterCategories: [],  // 다중 선택 배열
@@ -201,7 +201,6 @@ const TasksView = {
       { key: 'due_date', label: '마감일', default: true },
       { key: 'subtasks', label: '서브태스크 진행률', default: true },
       { key: 'comments', label: '댓글 수', default: true },
-      { key: 'points', label: '난이도 포인트', default: false },
       { key: 'checklist', label: '체크리스트 진행률', default: false },
     ];
     const cardFieldDropdownHtml = `
@@ -832,7 +831,7 @@ const TasksView = {
 
   // 카드 표시 항목 기본값 및 localStorage 읽기/쓰기
   _getCardFieldPrefs() {
-    const defaults = { category: true, assignee: true, due_date: true, subtasks: true, comments: true, points: false, checklist: false };
+    const defaults = { category: true, assignee: true, due_date: true, subtasks: true, comments: true, checklist: false };
     try {
       const saved = localStorage.getItem('kanban_card_fields');
       if (saved) return { ...defaults, ...JSON.parse(saved) };
@@ -901,16 +900,6 @@ const TasksView = {
       ? `<span class="checklist-progress-badge">☑ ${t.checklist_done}/${t.checklist_count}</span>`
       : '';
 
-    // 이슈 플래그 (항상 표시 — 중요 정보)
-    const issueBadge = t.open_issue_count > 0
-      ? `<span class="issue-flag-badge" title="${t.open_issue_count}개 이슈">⚠ ${t.open_issue_count}</span>`
-      : '';
-
-    // 난이도 포인트
-    const pointsBadge = (prefs.points && t.points)
-      ? `<span class="points-badge">${t.points}pt</span>`
-      : '';
-
     // 카테고리 태그 (설정에 따라)
     const categoryHtml = (prefs.category && t.category_name) ? categoryTag(t.category_name) : '';
 
@@ -933,7 +922,7 @@ const TasksView = {
         </div>
         ${(categoryHtml || workTypeBadge) ? `<div style="margin-bottom:4px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;">${categoryHtml}${workTypeBadge}</div>` : ''}
         <div class="card-title">${escHtml(t.title)}</div>
-        ${subtaskBadge || commentBadge || checklistBadge || issueBadge || pointsBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}${issueBadge}${pointsBadge}</div>` : ''}
+        ${subtaskBadge || commentBadge || checklistBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}</div>` : ''}
         <div class="card-footer">
           ${assignee}
           ${dueDateHtml}
@@ -1021,9 +1010,6 @@ const TasksView = {
       : '<span style="color:var(--color-text-hint)">없음</span>';
 
     const createdAt = task.created_at ? task.created_at.slice(0, 10) : '-';
-    const pointsLabel = { 1:'1pt — 1시간 이내', 2:'2pt — 1~3시간', 3:'3pt — 반나절', 4:'4pt — 1일', 5:'5pt — 2~3일', 6:'6pt — 3~5일', 7:'7pt — 1~2주', 8:'8pt — 2주', 9:'9pt — 2~4주', 10:'10pt — 1개월+' };
-    const pointsHtml = task.points ? `<span style="font-weight:600;color:var(--color-primary);">${pointsLabel[task.points] || task.points + 'pt'}</span>` : '<span style="color:var(--color-text-hint)">미설정</span>';
-
     const overlay = document.createElement('div');
     overlay.className = 'popover-overlay';
     overlay.innerHTML = `
@@ -1082,43 +1068,8 @@ const TasksView = {
                 <div style="font-size:13px;">${createdAt}</div>
               </div>
               <div>
-                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">난이도 포인트</div>
-                <div style="font-size:13px;">${pointsHtml}</div>
-              </div>
-              <div>
                 <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">업무 ID</div>
                 <div style="font-size:13px;"><span class="task-id-badge">T-${String(task.id).padStart(5,'0')}</span></div>
-              </div>
-            </div>
-
-            <!-- 이슈 리포트 섹션 -->
-            <div class="detail-section-block">
-              <div class="detail-section-title">이슈 리포트</div>
-              <div id="issue-list" style="margin-bottom:8px;">
-                <div style="font-size:12px;color:var(--color-text-muted);">불러오는 중...</div>
-              </div>
-              <button class="btn btn-default" id="btn-report-issue" style="font-size:12px;padding:5px 12px;">문제 보고</button>
-              <div id="issue-form-wrap" style="display:none;margin-top:10px;">
-                <div class="form-row" style="gap:8px;">
-                  <div class="form-group" style="margin-bottom:8px;">
-                    <select id="f-issue-type" style="font-size:12px;height:32px;">
-                      <option value="">유형 선택</option>
-                      <option value="delay">지연</option>
-                      <option value="blocking">블로킹</option>
-                      <option value="resource">리소스 부족</option>
-                      <option value="external">외부 대기</option>
-                      <option value="technical">기술 이슈</option>
-                      <option value="other">기타</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="form-group" style="margin-bottom:8px;">
-                  <textarea id="f-issue-desc" rows="2" placeholder="이슈 설명..." style="font-size:12px;height:56px;"></textarea>
-                </div>
-                <div style="display:flex;gap:6px;">
-                  <button class="btn btn-primary" id="btn-submit-issue" style="font-size:12px;padding:5px 12px;">등록</button>
-                  <button class="btn" id="btn-cancel-issue" style="font-size:12px;padding:5px 12px;">취소</button>
-                </div>
               </div>
             </div>
 
@@ -1142,7 +1093,6 @@ const TasksView = {
                   <option value="in_progress">진행 중</option>
                   <option value="done">완료</option>
                 </select>
-                <input type="number" id="new-subtask-points" placeholder="포인트" min="0" style="width:80px;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
                 <input type="date" id="new-subtask-due" style="flex:1;min-width:120px;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
                 <button class="btn btn-primary" id="btn-add-subtask" style="padding:6px 14px;font-size:12px;">추가</button>
               </div>
@@ -1234,32 +1184,6 @@ const TasksView = {
       });
     });
 
-    // 이슈 즉시 로드 (상세 탭이 기본)
-    this._loadIssues(task.id, overlay);
-
-    // 이슈 보고 폼 토글
-    overlay.querySelector('#btn-report-issue')?.addEventListener('click', () => {
-      const wrap = overlay.querySelector('#issue-form-wrap');
-      if (wrap) wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
-    });
-    overlay.querySelector('#btn-cancel-issue')?.addEventListener('click', () => {
-      const wrap = overlay.querySelector('#issue-form-wrap');
-      if (wrap) wrap.style.display = 'none';
-    });
-    overlay.querySelector('#btn-submit-issue')?.addEventListener('click', async () => {
-      const issueType = overlay.querySelector('#f-issue-type').value;
-      const description = overlay.querySelector('#f-issue-desc').value.trim();
-      if (!issueType) { App.toast('이슈 유형을 선택해주세요.', 'error'); return; }
-      try {
-        await API.post('/issues', { task_id: task.id, issue_type: issueType, description });
-        overlay.querySelector('#f-issue-type').value = '';
-        overlay.querySelector('#f-issue-desc').value = '';
-        overlay.querySelector('#issue-form-wrap').style.display = 'none';
-        App.toast('이슈가 등록되었습니다.', 'success');
-        await this._loadIssues(task.id, overlay);
-      } catch { App.toast('이슈 등록 실패', 'error'); }
-    });
-
     // 서브태스크 추가
     overlay.querySelector('#btn-add-subtask')?.addEventListener('click', async () => {
       const input = overlay.querySelector('#new-subtask');
@@ -1267,11 +1191,9 @@ const TasksView = {
       if (!title) return;
       const assignee_id = overlay.querySelector('#new-subtask-assignee')?.value || null;
       const status = overlay.querySelector('#new-subtask-status')?.value || 'todo';
-      const pointsVal = overlay.querySelector('#new-subtask-points')?.value;
-      const points = pointsVal ? parseInt(pointsVal) : null;
       const due_date = overlay.querySelector('#new-subtask-due')?.value || null;
       try {
-        await API.post(`/tasks/${task.id}/subtasks`, { title, assignee_id, status, points, due_date });
+        await API.post(`/tasks/${task.id}/subtasks`, { title, assignee_id, status, due_date });
         input.value = '';
         subtasksLoaded = false;
         await this._loadSubtasks(task.id, overlay);
@@ -1446,7 +1368,6 @@ const TasksView = {
         const assigneeHtml = s.assignee_name
           ? `<span style="font-size:11px;color:var(--color-text-muted);margin-left:4px;">@${escHtml(s.assignee_name)}</span>`
           : '';
-        const pointsHtml = s.points ? `<span class="subtask-points-badge">${s.points}pt</span>` : '';
         const dueHtml = s.due_date
           ? `<span style="font-size:10px;color:var(--color-text-hint);">${s.due_date.slice(0,10)}</span>`
           : '';
@@ -1457,7 +1378,7 @@ const TasksView = {
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                 <span class="subtask-title">${escHtml(s.title)}</span>
                 <span class="subtask-status-badge ${statusClass[st] || 'subtask-status-todo'}">${statusLabel[st] || st}</span>
-                ${pointsHtml}${assigneeHtml}${dueHtml}
+                ${assigneeHtml}${dueHtml}
               </div>
             </div>
             <button class="subtask-delete" title="삭제">✕</button>
@@ -1993,87 +1914,6 @@ const TasksView = {
     });
   },
 
-  // 이슈 로드
-  async _loadIssues(taskId, overlay) {
-    const container = overlay.querySelector('#issue-list');
-    if (!container) return;
-    try {
-      const res = await API.get(`/issues/task/${taskId}`);
-      const issues = res.data || [];
-      if (issues.length === 0) {
-        container.innerHTML = '<div style="font-size:12px;color:var(--color-text-muted);">등록된 이슈가 없습니다</div>';
-        return;
-      }
-      const typeLabels = { delay: '지연', blocking: '블로킹', resource: '리소스 부족', external: '외부 대기', technical: '기술 이슈', other: '기타' };
-      container.innerHTML = issues.map(issue => {
-        const resolved = issue.status === 'resolved';
-        return `
-          <div class="issue-item ${resolved ? 'issue-resolved' : ''}" data-issue-id="${issue.id}">
-            <span class="issue-type-badge issue-type-${issue.issue_type}">${typeLabels[issue.issue_type] || issue.issue_type}</span>
-            ${issue.description ? `<span class="issue-desc">${escHtml(issue.description)}</span>` : ''}
-            ${!resolved ? `<button class="btn btn-default issue-resolve-btn" data-issue-id="${issue.id}" style="font-size:11px;padding:2px 8px;margin-left:auto;flex-shrink:0;">해결</button>` : '<span style="font-size:11px;color:var(--color-done-text);margin-left:auto;flex-shrink:0;">해결됨</span>'}
-          </div>
-        `;
-      }).join('');
-
-      container.querySelectorAll('.issue-resolve-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          try {
-            await API.patch(`/issues/${btn.dataset.issueId}/status`, { status: 'resolved' });
-            App.toast('이슈가 해결되었습니다.', 'success');
-            await this._loadIssues(taskId, overlay);
-          } catch { App.toast('해결 처리 실패', 'error'); }
-        });
-      });
-    } catch {
-      container.innerHTML = '<div style="font-size:12px;color:var(--color-warn-text);">이슈 불러오기 실패</div>';
-    }
-  },
-
-  // 의존성 로드
-  async _loadDependencies(taskId, overlay) {
-    const container = overlay.querySelector('#dep-list');
-    const select = overlay.querySelector('#f-dep-task');
-    if (!container) return;
-
-    try {
-      const res = await API.get(`/tasks/${taskId}/dependencies`);
-      const deps = res.data || [];
-      if (deps.length === 0) {
-        container.innerHTML = '<div style="font-size:12px;color:var(--color-text-muted);">선행 업무가 없습니다</div>';
-      } else {
-        container.innerHTML = deps.map(d => `
-          <div class="dep-item" data-dep-id="${d.id}">
-            <span class="dep-status-dot ${d.depends_on_status === 'done' ? 'dep-done' : 'dep-pending'}"></span>
-            <span class="dep-title">${escHtml(d.depends_on_title || '-')}</span>
-            <span class="dep-status-label">${d.depends_on_status === 'done' ? '완료' : '미완료'}</span>
-            <button class="btn dep-remove-btn" data-dep-id="${d.id}" style="font-size:11px;padding:2px 6px;margin-left:auto;">삭제</button>
-          </div>
-        `).join('');
-
-        container.querySelectorAll('.dep-remove-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            try {
-              await API.del(`/tasks/${taskId}/dependencies/${btn.dataset.depId}`);
-              App.toast('의존성이 삭제되었습니다.', 'success');
-              await this._loadDependencies(taskId, overlay);
-            } catch { App.toast('삭제 실패', 'error'); }
-          });
-        });
-      }
-
-      // 드롭다운에 현재 의존성 제외한 업무 표시
-      if (select) {
-        const depIds = deps.map(d => String(d.depends_on_id));
-        const available = this.tasks.filter(t => String(t.id) !== String(taskId) && !depIds.includes(String(t.id)));
-        select.innerHTML = '<option value="">선행 업무 선택...</option>' +
-          available.map(t => `<option value="${t.id}">${escHtml(t.title)}</option>`).join('');
-      }
-    } catch {
-      container.innerHTML = '<div style="font-size:12px;color:var(--color-warn-text);">의존성 불러오기 실패</div>';
-    }
-  },
-
   openForm(task) {
     const isEdit = !!task;
     const title = isEdit ? '업무 수정' : '업무 추가';
@@ -2114,23 +1954,6 @@ const TasksView = {
         </div>
       </div>
       <div class="form-group">
-        <label>난이도 포인트</label>
-        <select id="f-points" style="width:100%">
-          <option value="">선택</option>
-          <option value="1" ${task?.points==1?'selected':''}>1점 — 1시간 이내</option>
-          <option value="2" ${task?.points==2?'selected':''}>2점 — 1~3시간</option>
-          <option value="3" ${task?.points==3?'selected':''}>3점 — 반나절 (4시간)</option>
-          <option value="4" ${task?.points==4?'selected':''}>4점 — 1일 (8시간)</option>
-          <option value="5" ${task?.points==5?'selected':''}>5점 — 2~3일</option>
-          <option value="6" ${task?.points==6?'selected':''}>6점 — 3~5일</option>
-          <option value="7" ${task?.points==7?'selected':''}>7점 — 1~2주</option>
-          <option value="8" ${task?.points==8?'selected':''}>8점 — 2주</option>
-          <option value="9" ${task?.points==9?'selected':''}>9점 — 2~4주</option>
-          <option value="10" ${task?.points==10?'selected':''}>10점 — 1개월 이상</option>
-        </select>
-        <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">예상 소요 시간 기준으로 선택</div>
-      </div>
-      <div class="form-group">
         <label>업무 유형</label>
         <select id="f-work-type" style="width:100%">
           <option value="regular" ${(!task?.work_type || task?.work_type==='regular')?'selected':''}>정규 업무 (R&R)</option>
@@ -2149,7 +1972,6 @@ const TasksView = {
         category_id: document.getElementById('f-category').value || null,
         assignee_id: document.getElementById('f-assignee').value || null,
         due_date: document.getElementById('f-due').value || null,
-        points: parseInt(document.getElementById('f-points').value) || 0,
         work_type: document.getElementById('f-work-type')?.value || 'regular',
         status: isEdit ? document.querySelector('input[name="f-status"]:checked').value : 'todo',
       };

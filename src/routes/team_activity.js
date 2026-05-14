@@ -1,4 +1,4 @@
-// 팀 활동 (Team Activity)
+﻿// 팀 활동 (Team Activity)
 // — 사용자 작성 없이 audit_logs / tasks / content_items / comments / task_issues 에서
 //   자동 집계하여 팀 매트릭스, 활동 피드, 개인 상세 + (옵션) LLM 요약을 제공
 const express = require('express');
@@ -59,7 +59,7 @@ router.get('/team-matrix', async (req, res, next) => {
         COALESCE(ip.in_progress_count, 0)::int   AS in_progress_count,
         COALESCE(b.blocked_count, 0)::int        AS blocked_count,
         COALESCE(o.overdue_count, 0)::int        AS overdue_count,
-        COALESCE(d.total_points, 0)::int         AS total_points,
+        0::int AS total_points,
         COALESCE(c.content_done, 0)::int         AS content_done,
         COALESCE(c.content_total, 0)::int        AS content_total,
         COALESCE(cm.comment_count, 0)::int       AS comment_count,
@@ -68,7 +68,7 @@ router.get('/team-matrix', async (req, res, next) => {
       LEFT JOIN (
         SELECT assignee_id,
                COUNT(*) AS done_count,
-               COALESCE(SUM(points), 0) AS total_points
+               0 AS total_points
         FROM tasks
         WHERE status = 'done' AND archived = false
           AND updated_at::date BETWEEN $1::date AND $2::date
@@ -288,36 +288,8 @@ router.get('/activity-feed', async (req, res, next) => {
       LIMIT ${limit}
     `, commentParams);
 
-    // 이슈 보고
-    const issueParams = [from, to];
-    let issueUserClause = '';
-    if (userFilter) {
-      issueParams.push(userFilter);
-      issueUserClause = `AND ti.reporter_id = $3`;
-    }
-    const issueQ = await db.query(`
-      SELECT
-        'issue_reported' AS event_type,
-        ti.reporter_id   AS user_id,
-        u.name           AS user_name,
-        ti.created_at,
-        ti.task_id       AS link_id,
-        'tasks'          AS link_view,
-        t.title          AS title,
-        ti.description   AS extra_text,
-        ti.issue_type    AS extra_meta
-      FROM task_issues ti
-      JOIN users u ON u.id = ti.reporter_id
-      JOIN tasks t ON t.id = ti.task_id
-      WHERE ti.created_at::date BETWEEN $1::date AND $2::date
-        AND u.role != 'admin'
-      ${issueUserClause}
-      ORDER BY ti.created_at DESC
-      LIMIT ${limit}
-    `, issueParams);
-
     // 통합 + 시간 역순 정렬 + limit
-    const all = [...auditQ.rows, ...commentQ.rows, ...issueQ.rows]
+    const all = [...auditQ.rows, ...commentQ.rows]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, limit);
 
@@ -372,7 +344,7 @@ router.post('/ai-summary', async (req, res, next) => {
 
     // 활동 데이터 수집 (요약 입력용)
     const { rows: completed } = await db.query(`
-      SELECT t.title, t.points, t.work_type,
+      SELECT t.title, 0 AS points, t.work_type,
              tc.name AS category_name
       FROM tasks t
       LEFT JOIN task_categories tc ON tc.id = t.category_id
@@ -402,15 +374,7 @@ router.post('/ai-summary', async (req, res, next) => {
       ORDER BY publish_date DESC
     `, [targetUserId, from, to]);
 
-    const { rows: issues } = await db.query(`
-      SELECT ti.issue_type, ti.description, ti.status,
-             t.title AS task_title
-      FROM task_issues ti
-      JOIN tasks t ON t.id = ti.task_id
-      WHERE ti.reporter_id = $1
-        AND ti.created_at::date BETWEEN $2::date AND $3::date
-      ORDER BY ti.created_at DESC
-    `, [targetUserId, from, to]);
+    const issues = [];
 
     const { rows: userRows } = await db.query(
       'SELECT name FROM users WHERE id = $1', [targetUserId]
@@ -531,7 +495,7 @@ router.post('/chat', async (req, res, next) => {
       const { from, to } = resolvePeriod({ date_from, date_to });
 
       const { rows: completed } = await db.query(`
-        SELECT t.title, t.points, t.work_type, t.updated_at::date AS done_date,
+        SELECT t.title, 0 AS points, t.work_type, t.updated_at::date AS done_date,
                tc.name AS category_name
         FROM tasks t
         LEFT JOIN task_categories tc ON tc.id = t.category_id
@@ -563,7 +527,7 @@ router.post('/chat', async (req, res, next) => {
 
       const { rows: issueRows } = await db.query(`
         SELECT ti.issue_type, ti.description, ti.status, t.title AS task_title
-        FROM task_issues ti
+        FROM (SELECT NULL::int AS task_id, NULL::int AS reporter_id, NULL::text AS issue_type, NULL::text AS description, NULL::text AS status, NULL::timestamptz AS created_at WHERE FALSE) ti
         JOIN tasks t ON t.id = ti.task_id
         WHERE ti.reporter_id = $1
           AND ti.created_at::date BETWEEN $2::date AND $3::date
@@ -593,7 +557,7 @@ ${issueRows.map(i => `- ${i.task_title}: ${i.description} (${i.issue_type}, ${i.
       // 전체 업무 현황 컨텍스트 (admin은 전체, user는 본인 + 팀)
       const today = new Date().toISOString().slice(0, 10);
       const { rows: tasks } = await db.query(`
-        SELECT t.id, t.title, t.status, t.due_date, t.points, t.work_type,
+        SELECT t.id, t.title, t.status, t.due_date, 0 AS points, t.work_type,
                u.name AS assignee_name, tc.name AS category_name
         FROM tasks t
         LEFT JOIN users u ON u.id = t.assignee_id
