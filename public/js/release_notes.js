@@ -7,9 +7,20 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.0.0';
+const CURRENT_VERSION = '2.0.1';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.0.1',
+    date: '2026-05-14',
+    title: 'v2.0.0 회복 — 깨진 위젯 CSS 복구 + 카드 대비 강화',
+    changes: [
+      '주간보고/팀 활동/채팅 위젯/릴리즈 노트 모달 CSS 1,850줄 복구',
+      '카드·위젯·칸반·테이블·R&R에 1px 보더 추가 — 흰 배경 대비 가독성 ↑',
+      '메인 배경 #F9FAFB → #F2F4F6 으로 살짝 진하게',
+      '그림자 강도 ↑ — 카드/패널 경계 명확',
+    ],
+  },
   {
     version: '2.0.0',
     date: '2026-05-14',
