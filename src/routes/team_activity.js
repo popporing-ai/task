@@ -525,13 +525,8 @@ router.post('/chat', async (req, res, next) => {
         ORDER BY publish_date DESC
       `, [targetUserId, from, to]);
 
-      const { rows: issueRows } = await db.query(`
-        SELECT ti.issue_type, ti.description, ti.status, t.title AS task_title
-        FROM (SELECT NULL::int AS task_id, NULL::int AS reporter_id, NULL::text AS issue_type, NULL::text AS description, NULL::text AS status, NULL::timestamptz AS created_at WHERE FALSE) ti
-        JOIN tasks t ON t.id = ti.task_id
-        WHERE ti.reporter_id = $1
-          AND ti.created_at::date BETWEEN $2::date AND $3::date
-      `, [targetUserId, from, to]);
+      // 이슈 기능 제거 → 빈 결과
+      const issueRows = [];
 
       const { rows: userRows } = await db.query(
         'SELECT name FROM users WHERE id = $1', [targetUserId]

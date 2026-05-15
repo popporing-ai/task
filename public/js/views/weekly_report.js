@@ -40,12 +40,17 @@ const WeeklyReportView = {
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="9" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M11 4V3a1 1 0 00-1-1H4a1 1 0 00-1 1v8a1 1 0 001 1h1" stroke="currentColor" stroke-width="1.4"/></svg>
         복사
       </button>
+      <button class="btn btn-default ta-mini-btn" id="ta-download" title="보고서 .md 다운로드">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 14h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        보고서
+      </button>
       <button class="btn btn-default ta-mini-btn" id="ta-print" title="인쇄/PDF">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 6V2h10v4M3 11H2v-3a2 2 0 012-2h8a2 2 0 012 2v3h-1M5 9h6v5H5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
         인쇄
       </button>
     `;
     document.getElementById('ta-copy').addEventListener('click', () => this._copyAsText());
+    document.getElementById('ta-download').addEventListener('click', () => this._downloadReport());
     document.getElementById('ta-print').addEventListener('click', () => window.print());
 
     const content = document.getElementById('content');
@@ -153,21 +158,36 @@ const WeeklyReportView = {
   // ─── 기간 프리셋 ───
   _applyPreset(preset) {
     const today = new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth();
     let from, to;
     if (preset === 'last_week') {
       const ws = this._getWeekStart(today); ws.setDate(ws.getDate() - 7);
       const we = new Date(ws); we.setDate(we.getDate() + 6);
       from = ws; to = we;
     } else if (preset === 'month') {
-      from = new Date(today.getFullYear(), today.getMonth(), 1);
-      to   = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      from = new Date(y, m, 1);
+      to   = new Date(y, m + 1, 0);
     } else if (preset === 'last_month') {
-      from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      to   = new Date(today.getFullYear(), today.getMonth(), 0);
+      from = new Date(y, m - 1, 1);
+      to   = new Date(y, m, 0);
     } else if (preset === 'quarter') {
-      const q = Math.floor(today.getMonth() / 3) * 3;
-      from = new Date(today.getFullYear(), q, 1);
-      to   = new Date(today.getFullYear(), q + 3, 0);
+      const q = Math.floor(m / 3) * 3;
+      from = new Date(y, q, 1);
+      to   = new Date(y, q + 3, 0);
+    } else if (preset === 'h1') {
+      // 상반기 (현재 H2이면 올해 H1, 현재 H1이면 작년 H2가 아닌 올해 H1 유지)
+      from = new Date(y, 0, 1);  to = new Date(y, 5, 30);
+    } else if (preset === 'h2') {
+      from = new Date(y, 6, 1);  to = new Date(y, 11, 31);
+    } else if (preset === 'current_half') {
+      // 현재 반기 자동 판단
+      if (m < 6) { from = new Date(y, 0, 1);  to = new Date(y, 5, 30); }
+      else       { from = new Date(y, 6, 1);  to = new Date(y, 11, 31); }
+    } else if (preset === 'year') {
+      from = new Date(y, 0, 1); to = new Date(y, 11, 31);
+    } else if (preset === 'last_year') {
+      from = new Date(y - 1, 0, 1); to = new Date(y - 1, 11, 31);
     } else {
       from = this._getWeekStart(today);
       to   = new Date(from); to.setDate(to.getDate() + 6);
@@ -181,11 +201,14 @@ const WeeklyReportView = {
     const wrap = document.getElementById('ta-presets');
     if (!wrap) return;
     const presets = [
-      { key: 'week',       label: '이번 주' },
-      { key: 'last_week',  label: '지난 주' },
-      { key: 'month',      label: '이번 달' },
-      { key: 'last_month', label: '지난 달' },
-      { key: 'quarter',    label: '이번 분기' },
+      { key: 'week',         label: '이번 주' },
+      { key: 'last_week',    label: '지난 주' },
+      { key: 'month',        label: '이번 달' },
+      { key: 'last_month',   label: '지난 달' },
+      { key: 'quarter',      label: '이번 분기' },
+      { key: 'current_half', label: '이번 반기' },
+      { key: 'year',         label: '올해' },
+      { key: 'last_year',    label: '작년' },
     ];
     wrap.innerHTML = presets.map(p => `
       <button class="ta-preset-btn ${this._periodPreset===p.key?'active':''}" data-preset="${p.key}">${p.label}</button>
@@ -831,39 +854,147 @@ const WeeklyReportView = {
       await this._copyText(lines.join('\n'));
       return;
     }
+    // 개인 상세 — 카테고리/유형별로 그룹된 마크다운 보고서 그대로 복사
+    const md = this._buildMarkdownReport();
+    if (md) await this._copyText(md);
+  },
+
+  // ───────── 보고서 마크다운 빌드 + 다운로드 ─────────
+  // 카테고리/업무 유형으로 그룹화된 보고용 마크다운 (반기/연간 성과 보고에 바로 활용)
+  _buildMarkdownReport() {
+    const period = this._formatPeriodLabel(this._periodFrom, this._periodTo);
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (this._activeTab === 'matrix' && this._matrixData) {
+      const lines = [`# 팀 활동 매트릭스`, `**기간**: ${period}  ·  **생성일**: ${today}`, ''];
+      lines.push(`| 담당자 | 완료 | 진행중 | 미진행 | 지연 | 콘텐츠 발행 | 댓글 |`);
+      lines.push(`|---|---:|---:|---:|---:|---:|---:|`);
+      this._matrixData.forEach(u => {
+        lines.push(`| ${u.name} | ${u.done_count} | ${u.in_progress_count} | ${u.blocked_count} | ${u.overdue_count} | ${u.content_done}/${u.content_total} | ${u.comment_count} |`);
+      });
+      return lines.join('\n');
+    }
+
+    if (this._activeTab === 'feed' && this._feedData) {
+      const lines = [`# 팀 활동 피드`, `**기간**: ${period}  ·  **생성일**: ${today}`, ''];
+      const eventLabels = { task_created:'업무 생성', task_updated:'업무 수정', task_completed:'업무 완료', comment_added:'댓글', content_created:'콘텐츠 등록', content_updated:'콘텐츠 수정', timeline_created:'타임라인 추가' };
+      this._feedData.slice(0, 200).forEach(e => {
+        const t = new Date(e.created_at);
+        const d = `${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+        lines.push(`- **${d}** · ${e.user_name} · ${eventLabels[e.event_type] || e.event_type} — ${e.title || ''}`);
+      });
+      return lines.join('\n');
+    }
+
     const d = this._personalData;
-    if (!d) return;
-    const lines = [`📊 ${d.user.name} 활동 리포트 — ${this._formatPeriodLabel(d.period.from, d.period.to)}`, ''];
-    // AI 채팅에서 마지막 assistant 응답이 있으면 포함
-    const lastAi = [...this._chatMessages].reverse().find(m => m.role === 'assistant' && m.content && !m.content.startsWith('⚠'));
-    if (lastAi && this._chatMessages.length > 1) {
-      lines.push('【AI 정리】');
+    if (!d) return '';
+
+    const lines = [];
+    lines.push(`# ${d.user.name} 활동 리포트`);
+    lines.push(`**기간**: ${period}  ·  **생성일**: ${today}`);
+    lines.push('');
+
+    // AI 정리 (있으면 맨 앞에 — 보고서 요약에 바로 활용)
+    const lastAi = [...(this._chatMessages || [])].reverse().find(m => m.role === 'assistant' && m.content && !m.content.startsWith('⚠'));
+    if (lastAi && (this._chatMessages || []).length > 1) {
+      lines.push('## ✨ AI 요약');
       lines.push(lastAi.content);
       lines.push('');
     }
-    lines.push('【요약】');
-    lines.push(`완료 ${d.summary.tasks_completed}건 / 진행 중 ${d.summary.tasks_in_progress}건 / 미진행 ${d.summary.tasks_blocked}건 / 콘텐츠 ${d.summary.content_published}건`);
+
+    // 요약 수치
+    lines.push('## 📊 한눈에 보기');
+    lines.push(`- 완료 **${d.summary.tasks_completed}건** / 진행 중 **${d.summary.tasks_in_progress}건** / 미진행 **${d.summary.tasks_blocked}건**`);
+    lines.push(`- 콘텐츠 발행 **${d.summary.content_published}건** (예정 ${d.summary.content_planned || 0}건)`);
+    lines.push(`- 작성한 코멘트 **${d.summary.comments_added}개**`);
     lines.push('');
-    if (d.completed_tasks.length) {
-      lines.push('✅ 완료');
-      d.completed_tasks.forEach(t => lines.push(`  - ${t.category_name?`[${t.category_name}] `:''}${t.title}`));
+
+    // 카테고리별 집계
+    if (d.by_category?.length) {
+      lines.push('## 🗂️ 카테고리별 완료');
+      lines.push(`| 분류 | 완료 건수 |`);
+      lines.push(`|---|---:|`);
+      d.by_category.forEach(c => lines.push(`| ${c.name} | ${c.count} |`));
       lines.push('');
     }
-    if (d.in_progress_tasks.length) {
-      lines.push('🔄 진행 중 / 예정');
-      d.in_progress_tasks.forEach(t => lines.push(`  - ${t.category_name?`[${t.category_name}] `:''}${t.title}${t.due_date?` (마감 ${this._fmtShortDate(t.due_date)})`:''}`));
+
+    // 업무 유형별 집계
+    if (d.by_work_type?.length) {
+      const wtLabels = { regular:'정규 (R&R)', extra:'추가 업무', project:'프로젝트' };
+      lines.push('## 🧭 업무 유형별 완료');
+      lines.push(`| 유형 | 완료 건수 |`);
+      lines.push(`|---|---:|`);
+      d.by_work_type.forEach(w => lines.push(`| ${wtLabels[w.work_type] || w.work_type} | ${w.count} |`));
       lines.push('');
     }
-    if (d.content_items.length) {
-      lines.push('📢 콘텐츠');
-      d.content_items.forEach(c => lines.push(`  - [${c.channel}] ${c.title}`));
+
+    // 완료 업무 — 카테고리별 그룹화
+    if (d.completed_tasks?.length) {
+      lines.push('## ✅ 완료한 업무');
+      const grouped = {};
+      d.completed_tasks.forEach(t => {
+        const k = t.category_name || '미분류';
+        (grouped[k] = grouped[k] || []).push(t);
+      });
+      Object.keys(grouped).sort().forEach(cat => {
+        lines.push(`### ${cat}`);
+        grouped[cat].forEach(t => {
+          const wt = t.work_type && t.work_type !== 'regular' ? ` _(${t.work_type === 'extra' ? '추가' : '프로젝트'})_` : '';
+          lines.push(`- ${t.title}${wt}`);
+        });
+        lines.push('');
+      });
+    }
+
+    // 진행 중 / 예정
+    if (d.in_progress_tasks?.length) {
+      lines.push('## 🔄 진행 중 / 예정 / 미진행');
+      d.in_progress_tasks.forEach(t => {
+        const statusLabel = t.status === 'in_progress' ? '진행' : t.status === 'blocked' ? '미진행' : '예정';
+        const due = t.due_date ? ` · 마감 ${this._fmtShortDate(t.due_date)}` : '';
+        lines.push(`- [${statusLabel}] ${t.category_name ? `[${t.category_name}] ` : ''}${t.title}${due}`);
+      });
       lines.push('');
     }
-    if (d.issues.length) {
-      lines.push('⚠ 이슈');
-      d.issues.forEach(i => lines.push(`  - ${i.task_title}: ${i.description}`));
+
+    // 콘텐츠
+    if (d.content_items?.length) {
+      lines.push('## 📢 콘텐츠');
+      const channelMap = { IG:'인스타', FB:'페북', LI:'링크드인', YT:'유튜브', BL:'블로그', EM:'이메일', HM:'홈페이지' };
+      d.content_items.forEach(c => {
+        const status = c.status === 'done' ? '발행' : c.status === 'skipped' ? '미진행' : '예정';
+        const url = c.publish_url ? ` (${c.publish_url})` : '';
+        lines.push(`- [${channelMap[c.channel] || c.channel}] ${c.title} — ${status} · ${this._fmtShortDate(c.publish_date)}${url}`);
+      });
+      lines.push('');
     }
-    await this._copyText(lines.join('\n'));
+
+    // 다음 기간 예정
+    if (d.upcoming_tasks?.length) {
+      lines.push('## 📅 다음 7일 예정');
+      d.upcoming_tasks.forEach(t => {
+        lines.push(`- ${this._fmtShortDate(t.due_date)} · ${t.category_name ? `[${t.category_name}] ` : ''}${t.title}`);
+      });
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  },
+
+  async _downloadReport() {
+    const md = this._buildMarkdownReport();
+    if (!md) { App.toast('내보낼 데이터가 없습니다', 'error'); return; }
+    const who = this._activeTab === 'personal' && this._personalData
+      ? this._personalData.user.name.replace(/\s+/g, '_')
+      : this._activeTab;
+    const filename = `report_${who}_${this._periodFrom}_${this._periodTo}.md`;
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    App.toast(`${filename} 다운로드`, 'success');
   },
 
   async _copyText(text) {

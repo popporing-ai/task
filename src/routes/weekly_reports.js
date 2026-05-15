@@ -289,17 +289,8 @@ router.get('/activity', async (req, res, next) => {
       LIMIT 30
     `, [targetUserId, date_from, date_to]);
 
-    // 5. 기간 내 보고한 이슈
-    const { rows: issuesReported } = await db.query(`
-      SELECT ti.id, ti.issue_type, ti.description, ti.status, ti.created_at,
-             ti.task_id, t.title AS task_title
-      FROM (SELECT NULL::int AS task_id, NULL::int AS reporter_id, NULL::text AS issue_type, NULL::text AS description, NULL::text AS status, NULL::timestamptz AS created_at WHERE FALSE) ti
-      JOIN tasks t ON t.id = ti.task_id
-      WHERE ti.reporter_id = $1
-        AND ti.created_at::date >= $2::date
-        AND ti.created_at::date <= $3::date
-      ORDER BY ti.created_at DESC
-    `, [targetUserId, date_from, date_to]);
+    // 5. 기간 내 보고한 이슈 — 이슈 기능 제거됨, 빈 배열
+    const issuesReported = [];
 
     // 6. 카테고리별 완료 집계
     const { rows: byCategory } = await db.query(`
