@@ -454,6 +454,29 @@ ${issues.map(i => `- ${i.task_title}: ${i.description} (${i.issue_type}, ${i.sta
 //   - messages: [{role, content}, ...]  대화 history
 //   - context_type: 'personal_activity' | 'tasks_overview'
 //   - user_id, date_from, date_to   (personal_activity일 때)
+const { TOOL_DEFINITIONS, executeTool } = require('../services/assistant_tools');
+
+// LLM 호출 헬퍼 (tool calling 포함)
+async function callLLM(apiUrl, model, messages, tools, headers, maxTokens = 1200) {
+  const body = {
+    model,
+    messages,
+    temperature: 0.2,
+    max_tokens: maxTokens,
+  };
+  if (tools && tools.length) body.tools = tools;
+  const res = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`LLM ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
 router.post('/chat', async (req, res, next) => {
   try {
     const apiUrl = process.env.LLM_API_URL;
@@ -607,45 +630,122 @@ ${tasks.map(t => {
 ${contextBlock}
 `;
 
-    // ─── LLM 호출 ───
-    const llmMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages.slice(-10).map(m => ({  // 최근 10개만 (컨텍스트 길이 절약)
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: String(m.content || '').slice(0, 2000),
-      })),
-    ];
+    // ─── 도구 호출 활성화 시 시스템 프롬프트 보강 ───
+    const useTools = req.body.use_tools !== false; // 기본 활성화
+    if (useTools) {
+      // 카테고리·사용자 목록을 컨텍스트로 제공 (이름 → ID 자동 매핑)
+      const [catRes, userRes, prodRes, etypeRes] = await Promise.all([
+        db.query('SELECT name FROM task_categories ORDER BY id'),
+        db.query('SELECT name FROM users WHERE is_active = true ORDER BY name'),
+        db.query('SELECT name FROM products ORDER BY id'),
+        db.query('SELECT type_key, label FROM calendar_event_types ORDER BY sort_order'),
+      ]);
+      const cats = catRes.rows.map(r => r.name).join(', ');
+      const users = userRes.rows.map(r => r.name).join(', ');
+      const prods = prodRes.rows.map(r => r.name).join(', ');
+      const etypes = etypeRes.rows.map(r => `${r.type_key}(${r.label})`).join(', ');
+      const today = new Date().toISOString().slice(0, 10);
+      systemPrompt = `${systemPrompt}
 
+# 도구 사용 가이드
+오늘 날짜: ${today}
+당신은 사용자의 자연어 요청을 분석해 적절한 도구를 호출하여 데이터를 조회·생성·수정·삭제할 수 있습니다.
+
+## 사용 가능한 분류 (category_name)
+${cats}
+
+## 사용 가능한 팀원 (assignee_name / user_name)
+${users}
+
+## 사용 가능한 제품 (product_name)
+${prods}
+
+## 사용 가능한 일정 유형 (event_type — type_key 값을 사용)
+${etypes}
+
+## 동작 규칙
+- 필수값(예: 업무명, 시작일)이 없으면 짧게 되묻기 (예: "마감일은 언제로 할까요?")
+- 권한 부족이면 도구 결과의 error 를 그대로 자연어로 안내
+- 파괴적 작업(삭제) 전에 한 번 확인 ("정말 삭제할까요?")
+- "내일" → 내일 날짜로 변환, "다음 주 화요일" 등도 실제 날짜로 변환
+- "지난 분기", "이번 반기" 같은 표현은 적절한 YYYY-MM-DD 범위로 해석
+- 보고서 요청(예: "5월 1일부터 5월 15일까지 홍길동 업무 보고서") → generate_report 도구 호출
+- 도구 결과(ok=true)를 받으면 사용자에게 결과를 자연스럽게 요약 안내 (생성/수정/삭제된 항목 제목·핵심 필드 포함)
+- 도구 결과(ok=false)면 error 메시지를 친절하게 전달
+- 보고서·정리 요청은 마크다운 표/불릿으로 응답`;
+    }
+
+    // ─── LLM Multi-turn Tool Loop ───
     const headers = { 'Content-Type': 'application/json' };
     if (process.env.LLM_API_KEY) {
       headers['Authorization'] = `Bearer ${process.env.LLM_API_KEY}`;
     }
 
-    const llmRes = await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: llmMessages,
-        temperature: 0.2,
-        max_tokens: 800,
-      }),
-    });
+    const isAdmin = req.user.role === 'admin';
+    const llmMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.slice(-10).map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content || '').slice(0, 2000),
+      })),
+    ];
 
-    if (!llmRes.ok) {
-      const errText = await llmRes.text().catch(() => '');
-      console.error('LLM 채팅 실패:', llmRes.status, errText);
+    const toolResults = []; // 클라이언트에 전달 (액션 카드 렌더용)
+    const MAX_ITER = 5;
+    let reply = null;
+
+    try {
+      for (let iter = 0; iter < MAX_ITER; iter++) {
+        const data = await callLLM(
+          apiUrl, model, llmMessages,
+          useTools ? TOOL_DEFINITIONS : null, headers
+        );
+        const msg = data.choices?.[0]?.message;
+        if (!msg) {
+          reply = '응답을 생성할 수 없습니다.';
+          break;
+        }
+
+        // tool_calls가 있으면 실행 + 결과를 messages에 추가하고 다시 호출
+        const toolCalls = msg.tool_calls;
+        if (toolCalls && toolCalls.length) {
+          llmMessages.push({
+            role: 'assistant',
+            content: msg.content || '',
+            tool_calls: toolCalls,
+          });
+          for (const tc of toolCalls) {
+            let args = {};
+            try { args = JSON.parse(tc.function.arguments || '{}'); } catch {}
+            const result = await executeTool(tc.function.name, args, {
+              user: req.user, db, isAdmin,
+            });
+            toolResults.push({ name: tc.function.name, args, result });
+            llmMessages.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              content: JSON.stringify(result),
+            });
+          }
+          continue; // 다음 iteration — LLM이 결과를 보고 자연어 응답 또는 추가 도구 호출
+        }
+
+        // tool_calls 없으면 최종 응답
+        reply = (msg.content || '').trim();
+        break;
+      }
+    } catch (e) {
+      console.error('LLM/Tool 호출 실패:', e.message);
       return res.status(502).json({
         data: null,
-        message: `LLM 호출 실패 (${llmRes.status})`,
+        message: `AI 호출 실패: ${e.message}`,
       });
     }
 
-    const llmData = await llmRes.json();
-    const reply = llmData.choices?.[0]?.message?.content?.trim() || '응답을 생성할 수 없습니다.';
+    if (!reply) reply = '응답이 비어있습니다.';
 
     res.json({
-      data: { reply, model },
+      data: { reply, model, tool_results: toolResults },
       message: 'OK'
     });
   } catch (err) {

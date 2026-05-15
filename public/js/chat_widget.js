@@ -149,17 +149,49 @@ const ChatWidget = {
       });
     });
 
+    // 액션 카드 — "열기" 버튼 → 해당 뷰로 이동
+    panel.querySelectorAll('.cw-tool-link[data-link-view]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const view = btn.dataset.linkView;
+        const id   = btn.dataset.linkId;
+        this._open = false;
+        document.getElementById('cw-panel').style.display = 'none';
+        if (App && App.navigate) App.navigate(view);
+        if (id && App?._openNotifTarget) {
+          App._openNotifTarget({ link_view: view, link_id: id });
+        }
+      });
+    });
+    // 보고서 다운로드 (마지막 tool_result의 markdown 사용)
+    panel.querySelectorAll('.cw-tool-link[data-dl-report]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // 가장 최근 보고서 찾기
+        const lastMsg = [...this._messages].reverse().find(m => m.tool_results?.some(tr => tr.result?.data?.report?.markdown));
+        const trWithReport = lastMsg?.tool_results.find(tr => tr.result?.data?.report?.markdown);
+        const report = trWithReport?.result?.data?.report;
+        if (!report) return;
+        const blob = new Blob([report.markdown], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `report_${(report.user_name || 'user').replace(/\s+/g,'_')}_${report.date_from}_${report.date_to}.md`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      });
+    });
+
     const body = document.getElementById('cw-body');
     if (body) body.scrollTop = body.scrollHeight;
   },
 
   _renderMessage(m) {
     const isUser = m.role === 'user';
+    const toolHtml = !isUser && m.tool_results ? this._renderToolResults(m.tool_results) : '';
     return `<div class="cw-msg ${isUser ? 'cw-msg-user' : 'cw-msg-ai'}">
       ${!isUser ? `<span class="cw-msg-avatar">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 4h18a1 1 0 011 1v12a1 1 0 01-1 1H8l-5 4V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
       </span>` : ''}
-      <div class="cw-bubble">${this._renderMarkdown(m.content)}</div>
+      <div class="cw-bubble">${this._renderMarkdown(m.content)}${toolHtml}</div>
     </div>`;
   },
 
@@ -204,9 +236,17 @@ const ChatWidget = {
       const res = await API.post('/team-activity/chat', {
         messages: this._messages,
         context_type: 'tasks_overview',
+        use_tools: true,
       });
       const reply = res.data?.reply || '응답을 생성하지 못했습니다.';
-      this._messages.push({ role: 'assistant', content: reply });
+      const toolResults = res.data?.tool_results || [];
+      this._messages.push({ role: 'assistant', content: reply, tool_results: toolResults });
+
+      // 도구가 데이터 변경 작업을 했다면 글로벌 갱신 이벤트
+      const mutated = toolResults.some(r => /^(create|update|delete)_/.test(r.name) && r.result?.ok);
+      if (mutated && App.events?.emit) {
+        App.events.emit('data-changed', { source: 'assistant' });
+      }
     } catch (e) {
       this._messages.push({
         role: 'assistant',
@@ -216,6 +256,30 @@ const ChatWidget = {
       this._loading = false;
       this._render();
     }
+  },
+
+  // 액션 결과 카드 렌더 (tool_results 배열)
+  _renderToolResults(toolResults) {
+    if (!toolResults || !toolResults.length) return '';
+    const cards = toolResults.map(tr => {
+      const r = tr.result || {};
+      const ok = r.ok;
+      const cls = ok ? 'cw-tool-card ok' : 'cw-tool-card err';
+      const icon = ok ? '✓' : '⚠';
+      const label = r.summary || (ok ? `${tr.name} 실행` : (r.error || '실패'));
+      const data = r.data || {};
+      const linkView = data.link_view;
+      const linkId = data.link_id;
+      const linkBtn = linkView
+        ? `<button class="cw-tool-link" data-link-view="${escHtml(linkView)}" data-link-id="${escHtml(linkId || '')}">열기 →</button>`
+        : '';
+      // 보고서면 다운로드 버튼
+      const reportBtn = data.report
+        ? `<button class="cw-tool-link" data-dl-report="${escHtml(data.report.user_name || '')}_${escHtml(data.report.date_from)}_${escHtml(data.report.date_to)}">📥 다운로드</button>`
+        : '';
+      return `<div class="${cls}"><span class="cw-tool-icon">${icon}</span><span class="cw-tool-label">${escHtml(label)}</span>${linkBtn}${reportBtn}</div>`;
+    }).join('');
+    return `<div class="cw-tool-results">${cards}</div>`;
   },
 };
 
