@@ -98,7 +98,19 @@ a { text-decoration: none; color: var(--color-primary); cursor: pointer; }
   z-index: 50;
 }
 .sb-header { padding: 24px 20px 16px; }
-.sb-logo { display: flex; align-items: center; gap: 12px; }
+.sb-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 4px;
+  margin: -4px;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+.sb-logo:hover { background: var(--color-bg-hover); }
+.sb-logo:active { transform: scale(0.985); }
 .sb-logo-badge {
   width: 36px; height: 36px;
   background: linear-gradient(135deg, var(--color-primary) 0%, #6B86FB 100%);

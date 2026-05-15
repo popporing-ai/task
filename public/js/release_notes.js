@@ -7,9 +7,18 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.1.0';
+const CURRENT_VERSION = '2.1.1';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.1.1',
+    date: '2026-05-15',
+    title: '좌상단 로고 클릭 → 홈(대시보드) 이동',
+    changes: [
+      '사이드바 로고 영역(아이콘 + "마케팅 업무 현황" 텍스트) 클릭 시 대시보드로 즉시 이동',
+      '호버/액티브 인터랙션 추가 (Toss 톤)',
+    ],
+  },
   {
     version: '2.1.0',
     date: '2026-05-15',

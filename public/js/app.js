@@ -180,6 +180,10 @@ const App = {
         this.navigate(item.dataset.view);
       });
     });
+    // 로고 영역 클릭 → 홈(대시보드)
+    document.querySelector('.sb-logo')?.addEventListener('click', () => {
+      this.navigate('dashboard');
+    });
   },
 
   navigate(view) {
