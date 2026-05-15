@@ -1,6 +1,6 @@
 // 팀 캘린더 뷰
 const CalendarView = {
-  // 이벤트 유형별 색상
+  // 빌트인 폴백 (API 로드 실패 시 사용)
   EVENT_COLORS: {
     general:  '#4F6EF7',
     meeting:  '#7B9BFA',
@@ -18,6 +18,8 @@ const CalendarView = {
     holiday:  '휴일',
   },
 
+  _eventTypes: [], // [{ id, type_key, label, color, is_builtin, sort_order }]
+
   _year: new Date().getFullYear(),
   _month: new Date().getMonth(), // 0-based
   _events: [],
@@ -33,8 +35,26 @@ const CalendarView = {
 
     document.getElementById('btn-add-event').addEventListener('click', () => this.openForm());
 
-    await this.loadEvents();
+    await Promise.all([this.loadEventTypes(), this.loadEvents()]);
     this.renderCalendar();
+  },
+
+  // 이벤트 유형 동적 로드 + 빌트인 매핑 갱신
+  async loadEventTypes() {
+    try {
+      const res = await API.get('/calendar/event-types');
+      this._eventTypes = res.data || [];
+      // 매핑 캐시 갱신 (커스텀 유형 색/라벨 반영)
+      this.EVENT_COLORS = {};
+      this.EVENT_TYPE_LABELS = {};
+      this._eventTypes.forEach(t => {
+        this.EVENT_COLORS[t.type_key] = t.color;
+        this.EVENT_TYPE_LABELS[t.type_key] = t.label;
+      });
+    } catch {
+      this._eventTypes = [];
+      // 폴백 매핑 유지
+    }
   },
 
   async loadEvents() {

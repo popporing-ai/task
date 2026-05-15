@@ -77,6 +77,12 @@ const SettingsView = {
           </span>
           <span class="settings-tab-count">${typeCount}</span>
         </button>
+        <button class="filter-btn ${this.activeTab === 'event_types' ? 'active' : ''}" data-tab="event_types">
+          <span class="settings-tab-icon">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="13" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M1 6h14M5 1v3M11 1v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            일정 유형
+          </span>
+        </button>
         ${isAdmin ? `
         <button class="filter-btn ${this.activeTab === 'members' ? 'active' : ''}" data-tab="members">
           <span class="settings-tab-icon">
@@ -108,8 +114,166 @@ const SettingsView = {
       case 'products':   await this._renderProducts();   break;
       case 'channels':   this._renderChannels();         break;
       case 'types':      this._renderContentTypes();     break;
+      case 'event_types': await this._renderEventTypes(); break;
       case 'members':    await this._renderMembers();    break;
     }
+  },
+
+  // ─────────────────────────────────────────
+  // 일정 유형 탭 (캘린더 event_type CRUD)
+  // ─────────────────────────────────────────
+  async _renderEventTypes() {
+    const wrap = document.getElementById('settings-tab-content');
+    wrap.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><span>불러오는 중...</span></div>`;
+    document.getElementById('topbar-actions').innerHTML = '';
+
+    let types = [];
+    try {
+      const res = await API.get('/calendar/event-types');
+      types = res.data || [];
+    } catch {
+      wrap.innerHTML = `<div class="empty-state"><div class="empty-state-title">일정 유형을 불러오지 못했습니다</div></div>`;
+      return;
+    }
+
+    const isAdmin = App.user?.role === 'admin';
+    const headerCols = isAdmin
+      ? '<th style="width:80px">색상</th><th>이름</th><th style="width:90px;color:var(--color-text-muted);font-size:11px;">분류</th><th style="width:160px;text-align:right">작업</th>'
+      : '<th style="width:80px">색상</th><th>이름</th><th style="width:90px;color:var(--color-text-muted);font-size:11px;">분류</th>';
+    const colCount = isAdmin ? 4 : 3;
+
+    const addBtnHtml = isAdmin
+      ? '<button class="btn btn-primary" id="btn-add-event-type">+ 유형 추가</button>'
+      : '<span class="settings-readonly-note">일정 유형은 관리자만 추가·수정할 수 있습니다.</span>';
+
+    wrap.innerHTML = `
+      <div class="settings-section-header">
+        <div>
+          <div class="settings-section-title">일정 유형</div>
+          <div class="settings-section-desc">팀 캘린더에서 사용할 일정 유형. 기본 유형은 색상·이름만 수정 가능합니다.</div>
+        </div>
+        ${addBtnHtml}
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="settings-table">
+          <thead><tr>${headerCols}</tr></thead>
+          <tbody id="event-type-tbody">
+            ${types.length === 0
+              ? `<tr><td colspan="${colCount}" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 유형이 없습니다.</td></tr>`
+              : types.map(t => this._eventTypeRowHtml(t, isAdmin)).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    if (!isAdmin) return;
+
+    document.getElementById('btn-add-event-type').addEventListener('click', () => {
+      this._openEventTypePanel(null);
+    });
+
+    document.getElementById('event-type-tbody').addEventListener('click', async (e) => {
+      const editBtn = e.target.closest('.btn-edit-et');
+      const delBtn  = e.target.closest('.btn-del-et');
+
+      if (editBtn) {
+        const t = types.find(x => String(x.id) === editBtn.dataset.id);
+        if (t) this._openEventTypePanel(t);
+      }
+      if (delBtn) {
+        const t = types.find(x => String(x.id) === delBtn.dataset.id);
+        if (!t) return;
+        if (t.is_builtin) {
+          App.toast('기본 유형은 삭제할 수 없습니다.', 'error');
+          return;
+        }
+        const ok = await App.confirm(`"${t.label}" 유형을 삭제하시겠습니까? (해당 유형 사용 중인 일정은 '일반'으로 변경됩니다.)`);
+        if (!ok) return;
+        try {
+          await API.del(`/calendar/event-types/${t.id}`);
+          App.toast(`"${t.label}" 유형이 삭제되었습니다.`, 'info');
+          await this._renderEventTypes();
+        } catch (err) {
+          App.toast(err.message || '삭제 실패', 'error');
+        }
+      }
+    });
+  },
+
+  _eventTypeRowHtml(t, isAdmin) {
+    const badge = t.is_builtin
+      ? `<span class="badge badge-plan" style="font-size:10px;">기본</span>`
+      : `<span class="badge badge-skip" style="font-size:10px;">사용자</span>`;
+    const actionsCol = isAdmin ? `
+        <td style="text-align:right">
+          <button class="btn btn-default btn-edit-et" data-id="${t.id}" style="margin-right:6px">수정</button>
+          ${t.is_builtin
+            ? `<button class="btn btn-default" disabled title="기본 유형은 삭제할 수 없습니다" style="opacity:0.45;cursor:not-allowed;">삭제</button>`
+            : `<button class="btn btn-danger btn-del-et" data-id="${t.id}">삭제</button>`}
+        </td>` : '';
+    return `
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${escHtml(t.color)};flex-shrink:0;box-shadow:0 0 6px ${escHtml(t.color)}55"></span>
+            <span style="font-size:12px;color:var(--color-text-muted)">${escHtml(t.color)}</span>
+          </div>
+        </td>
+        <td>${escHtml(t.label)}</td>
+        <td>${badge}</td>
+        ${actionsCol}
+      </tr>
+    `;
+  },
+
+  _openEventTypePanel(et) {
+    const isEdit = !!et;
+    const title = isEdit ? '일정 유형 수정' : '일정 유형 추가';
+    const html = `
+      <div class="form-group">
+        <label>유형 이름 *</label>
+        <input type="text" id="f-et-label" value="${escHtml(et?.label || '')}" placeholder="예: 외부 미팅">
+      </div>
+      <div class="form-group">
+        <label>색상</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="color" id="f-et-color" value="${escHtml(et?.color || '#4F6EF7')}" style="width:44px;height:36px;padding:2px;border-radius:8px;cursor:pointer;background:transparent;border:1px solid var(--color-border);">
+          <span id="f-et-color-preview" style="font-size:13px;color:var(--color-text-muted)">${escHtml(et?.color || '#4F6EF7')}</span>
+        </div>
+        <div style="font-size:11px;color:var(--color-text-hint);margin-top:6px;">이 색상이 캘린더의 해당 일정에 자동 적용됩니다.</div>
+      </div>
+      ${isEdit && et.is_builtin ? `
+      <div class="rrr-permission-banner" style="margin:8px 0 0;font-size:12px;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3M8 11h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        기본 제공 유형이라 삭제는 불가하지만, 이름·색상은 자유롭게 변경할 수 있습니다.
+      </div>` : ''}
+    `;
+
+    App.openPanel(title, html, async () => {
+      const label = document.getElementById('f-et-label').value.trim();
+      const color = document.getElementById('f-et-color').value;
+      if (!label) { App.toast('유형 이름을 입력해주세요.', 'error'); return false; }
+      try {
+        if (isEdit) {
+          await API.put(`/calendar/event-types/${et.id}`, { label, color });
+          App.toast('유형이 수정되었습니다.', 'success');
+        } else {
+          await API.post('/calendar/event-types', { label, color });
+          App.toast('유형이 추가되었습니다.', 'success');
+        }
+        await this._renderEventTypes();
+      } catch (e) {
+        App.toast(e.message || '저장 실패', 'error');
+      }
+    });
+
+    setTimeout(() => {
+      const colorInput = document.getElementById('f-et-color');
+      const preview = document.getElementById('f-et-color-preview');
+      if (colorInput && preview) {
+        colorInput.addEventListener('input', () => { preview.textContent = colorInput.value; });
+      }
+    }, 0);
   },
 
   // ─────────────────────────────────────────
