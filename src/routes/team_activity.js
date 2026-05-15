@@ -608,7 +608,7 @@ ${tasks.map(t => {
     }
 
     // ─── 시스템 프롬프트 (가드레일 포함) ───
-    const systemPrompt = `당신은 VIRNECT 마케팅팀의 업무 현황 조회 보조 AI입니다.
+    let systemPrompt = `당신은 VIRNECT 마케팅팀의 업무 현황 조회 보조 AI입니다.
 
 # 절대 규칙
 - 한국어로만 답변합니다.

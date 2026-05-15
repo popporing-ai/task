@@ -7,9 +7,17 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.5.0';
+const CURRENT_VERSION = '2.5.1';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.5.1',
+    date: '2026-05-15',
+    title: 'AI 어시스턴트 호출 실패 긴급 수정',
+    changes: [
+      'systemPrompt 가 const 로 선언되어 도구 가이드 추가 시 "Assignment to constant variable" 에러 → let 으로 수정',
+    ],
+  },
   {
     version: '2.5.0',
     date: '2026-05-15',
