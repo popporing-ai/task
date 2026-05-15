@@ -47,9 +47,6 @@ const ContentView = {
   },
 
   renderTable(content) {
-    const channels = ['YT','BL','LI','IG','FB','EM','HM'];
-    const visibleChannels = this._getVisibleChannels();
-
     const assigneeOptions = `
       <option value="">전체 담당자</option>
       ${App.users.map(u =>
@@ -57,33 +54,9 @@ const ContentView = {
       ).join('')}
     `;
 
-    // 채널 기어 드롭다운
-    const chGearDropdown = `
-      <div style="position:relative;display:inline-block;">
-        <button class="filter-btn" id="ch-gear-btn" title="채널 표시 설정" style="padding:4px 8px;display:inline-flex;align-items:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 2h4l.5 2.5 2.12-1.22 1.41 1.42L12.82 6.8 15 7v4l-2.5.5 1.22 2.12-1.42 1.41-2.1-1.21L10 15H6l-.5-2.5-2.12 1.22-1.41-1.42 1.21-2.1L1 10V6l2.5-.5L2.28 3.38l1.42-1.41 2.1 1.21L6 2z" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/></svg></button>
-        <div id="ch-gear-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:90;background:var(--color-bg-primary);border-radius:10px;padding:12px;min-width:160px;box-shadow:var(--shadow-lg);border:0.5px solid var(--color-border);">
-          <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">채널 버튼 표시</div>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            ${channels.map(ch => `
-              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 6px;border-radius:6px;color:var(--color-text-primary);">
-                <input type="checkbox" data-gear-ch="${ch}" ${visibleChannels.includes(ch) ? 'checked' : ''} style="width:auto;height:auto;margin:0;accent-color:var(--color-primary);">
-                ${ch}
-              </label>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-
-    // 필터 바 — CSS 클래스 사용, 인라인 light 색상 제거
+    // 필터 바 — 채널 버튼 제거(요청), 담당자/월 필터만 유지
     const filterHtml = `
       <div class="filter-bar">
-        <button class="filter-btn ${!this.filterChannel ? 'active' : ''}" data-ch="">전체</button>
-        ${visibleChannels.map(ch =>
-          `<button class="filter-btn ${this.filterChannel === ch ? 'active' : ''}" data-ch="${ch}">${ch}</button>`
-        ).join('')}
-        ${chGearDropdown}
-        <div class="filter-sep"></div>
         <select id="f-assignee">${assigneeOptions}</select>
         <div class="filter-sep"></div>
         <label style="font-size:12px;color:var(--color-text-muted)">월 선택:</label>
@@ -149,41 +122,7 @@ const ContentView = {
     // 빈 상태 추가 버튼
     content.querySelector('.empty-add-content')?.addEventListener('click', () => this.openForm());
 
-    // 채널 기어 드롭다운 토글
-    const chGearBtn = content.querySelector('#ch-gear-btn');
-    const chGearDropdownEl = content.querySelector('#ch-gear-dropdown');
-    chGearBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isOpen = chGearDropdownEl.style.display !== 'none';
-      chGearDropdownEl.style.display = isOpen ? 'none' : 'block';
-    });
-    if (this._closeChGearHandler) {
-      document.removeEventListener('click', this._closeChGearHandler);
-    }
-    this._closeChGearHandler = function closeChGear(e) {
-      if (chGearDropdownEl && !chGearDropdownEl.contains(e.target) && e.target !== chGearBtn) {
-        chGearDropdownEl.style.display = 'none';
-        document.removeEventListener('click', closeChGear);
-      }
-    };
-    document.addEventListener('click', this._closeChGearHandler);
-    content.querySelectorAll('[data-gear-ch]').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const current = this._getVisibleChannels();
-        const ch = cb.dataset.gearCh;
-        const updated = cb.checked ? [...new Set([...current, ch])] : current.filter(x => x !== ch);
-        this._setVisibleChannels(updated);
-        this.renderTable(content);
-      });
-    });
-
     // 필터 이벤트
-    content.querySelectorAll('.filter-btn[data-ch]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.filterChannel = btn.dataset.ch || null;
-        this.render();
-      });
-    });
     document.getElementById('f-assignee')?.addEventListener('change', (e) => {
       this.filterAssignee = e.target.value || null;
       this.render();
@@ -193,7 +132,6 @@ const ContentView = {
       this.render();
     });
     document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
-      this.filterChannel = null;
       this.filterAssignee = null;
       this.month = new Date().toISOString().slice(0, 7);
       this.render();
@@ -250,11 +188,34 @@ const ContentView = {
   openForm(item) {
     const isEdit = !!item;
     const title = isEdit ? '콘텐츠 수정' : '콘텐츠 추가';
-    const channels = ['IG','FB','LI','YT','BL','EM','HM'];
-    const types = ['I','C','V','S','Q','A','L','T'];
+    // 채널 코드 → 한글 라벨 (selectbox option 텍스트 + tooltip)
+    const channelLabels = {
+      IG: '인스타그램',
+      FB: '페이스북',
+      LI: '링크드인',
+      YT: '유튜브',
+      BL: '블로그',
+      EM: '이메일',
+      HM: '홈페이지',
+    };
+    // 콘텐츠 타입 코드 → 한글 라벨
+    const typeLabels = {
+      I: '이미지',
+      C: '카드뉴스',
+      V: '비디오',
+      S: '쇼츠/릴스',
+      Q: 'Q&A / FAQ',
+      A: '아티클',
+      L: '라이브',
+      T: '텍스트',
+    };
 
-    const chOpts = channels.map(c => `<option value="${c}" ${item?.channel===c?'selected':''}>${c}</option>`).join('');
-    const typeOpts = types.map(t => `<option value="${t}" ${item?.content_type===t?'selected':''}>${t}</option>`).join('');
+    const chOpts = Object.entries(channelLabels).map(([c, label]) =>
+      `<option value="${c}" title="${escHtml(label)}" ${item?.channel===c?'selected':''}>${c} — ${escHtml(label)}</option>`
+    ).join('');
+    const typeOpts = Object.entries(typeLabels).map(([t, label]) =>
+      `<option value="${t}" title="${escHtml(label)}" ${item?.content_type===t?'selected':''}>${t} — ${escHtml(label)}</option>`
+    ).join('');
 
     const html = `
       <div class="form-group">

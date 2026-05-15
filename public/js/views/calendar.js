@@ -291,40 +291,42 @@ const CalendarView = {
   },
 
   _showEventPopover(ev, anchor) {
-    // 기존 팝오버 제거
     document.querySelector('.popover-overlay')?.remove();
 
     const typeLabel = this.EVENT_TYPE_LABELS[ev.event_type] || ev.event_type;
     const color = ev.color || this.EVENT_COLORS[ev.event_type] || this.EVENT_COLORS.general;
     const assigneeName = ev.assignee_name || '미지정';
-    const dateRange = ev.end_date && ev.end_date !== ev.start_date
-      ? `${ev.start_date} ~ ${ev.end_date}`
-      : ev.start_date;
+    // 날짜·시간 안전 슬라이스 (DB ISO timestamp 대응)
+    const ymd = (v) => v ? String(v).slice(0, 10) : '';
+    const hhmm = (v) => v ? String(v).slice(0, 5) : '';
+    const sDate = ymd(ev.start_date);
+    const eDate = ymd(ev.end_date);
+    const dateRange = eDate && eDate !== sDate ? `${sDate} ~ ${eDate}` : sDate;
     const timeRange = !ev.all_day && ev.start_time
-      ? `${ev.start_time.slice(0, 5)}${ev.end_time ? ' ~ ' + ev.end_time.slice(0, 5) : ''}`
+      ? `${hhmm(ev.start_time)}${ev.end_time ? ' ~ ' + hhmm(ev.end_time) : ''}`
       : '종일';
 
     const overlay = document.createElement('div');
     overlay.className = 'popover-overlay';
     overlay.innerHTML = `
-      <div class="popover-card" style="max-width:340px;">
-        <button class="popover-close">&times;</button>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div class="popover" style="max-width:380px;width:90%;">
+        <button class="popover-close" title="닫기">×</button>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-right:24px;">
           <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
-          <span style="font-size:15px;font-weight:600;">${escHtml(ev.title)}</span>
+          <span style="font-size:17px;font-weight:700;letter-spacing:-0.02em;line-height:1.3;">${escHtml(ev.title)}</span>
         </div>
-        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:8px;">
-          <span class="badge" style="background:${color}22;color:${color};font-size:11px;">${escHtml(typeLabel)}</span>
+        <div style="margin-bottom:14px;">
+          <span class="badge" style="background:${color}22;color:${color};">${escHtml(typeLabel)}</span>
         </div>
-        ${ev.description ? `<div style="font-size:13px;color:var(--color-text-primary);margin-bottom:10px;line-height:1.5;">${escHtml(ev.description)}</div>` : ''}
-        <div style="font-size:12px;color:var(--color-text-muted);display:flex;flex-direction:column;gap:4px;">
-          <div>📅 ${escHtml(dateRange)}</div>
-          <div>🕐 ${escHtml(timeRange)}</div>
-          <div>👤 ${escHtml(assigneeName)}</div>
+        ${ev.description ? `<div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:14px;line-height:1.55;white-space:pre-wrap;">${escHtml(ev.description)}</div>` : ''}
+        <div style="font-size:13px;color:var(--color-text-secondary);display:flex;flex-direction:column;gap:8px;background:var(--color-bg-secondary);padding:12px 14px;border-radius:10px;">
+          <div><span style="color:var(--color-text-hint);margin-right:6px;">📅</span> ${escHtml(dateRange || '-')}</div>
+          <div><span style="color:var(--color-text-hint);margin-right:6px;">🕐</span> ${escHtml(timeRange)}</div>
+          <div><span style="color:var(--color-text-hint);margin-right:6px;">👤</span> ${escHtml(assigneeName)}</div>
         </div>
-        <div style="display:flex;gap:8px;margin-top:14px;">
-          <button class="btn btn-default btn-sm" id="popover-edit-event">수정</button>
-          <button class="btn btn-danger btn-sm" id="popover-delete-event">삭제</button>
+        <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end;">
+          <button class="btn btn-default" id="popover-edit-event">수정</button>
+          <button class="btn btn-danger" id="popover-delete-event">삭제</button>
         </div>
       </div>
     `;
@@ -336,18 +338,18 @@ const CalendarView = {
       if (e.target === overlay) overlay.remove();
     });
 
-    document.getElementById('popover-edit-event')?.addEventListener('click', () => {
+    overlay.querySelector('#popover-edit-event').addEventListener('click', () => {
       overlay.remove();
       this.openForm(ev);
     });
 
-    document.getElementById('popover-delete-event')?.addEventListener('click', async () => {
-      overlay.remove();
+    overlay.querySelector('#popover-delete-event').addEventListener('click', async () => {
       const ok = await App.confirm('이 일정을 삭제하시겠습니까?');
       if (!ok) return;
       try {
         await API.del(`/calendar/${ev.id}`);
         App.toast('일정이 삭제되었습니다.', 'success');
+        overlay.remove();
         await this.loadEvents();
         this.renderCalendar();
       } catch (e) {
@@ -364,75 +366,72 @@ const CalendarView = {
       `<option value="${k}" ${event?.event_type === k ? 'selected' : ''}>${v}</option>`
     ).join('');
 
-    const defaultDate = prefilledDate || (event?.start_date) || new Date().toISOString().slice(0, 10);
-    const defaultEndDate = event?.end_date || '';
+    // 날짜는 항상 YYYY-MM-DD 형식으로 강제 (DB가 ISO timestamp 반환할 수 있음)
+    const ymd = (v) => v ? String(v).slice(0, 10) : '';
+    const defaultDate = prefilledDate || ymd(event?.start_date) || new Date().toISOString().slice(0, 10);
+    const defaultEndDate = ymd(event?.end_date) || '';
     const allDay = event ? event.all_day : true;
-    const defaultColor = event?.color || '#4F6EF7';
 
     const html = `
       <div class="form-group">
-        <label class="form-label">일정명 <span style="color:var(--color-warn-text)">*</span></label>
-        <input type="text" id="cal-title" class="form-input" value="${escHtml(event?.title || '')}" placeholder="일정명을 입력하세요">
+        <label>일정명 *</label>
+        <input type="text" id="cal-title" value="${escHtml(event?.title || '')}" placeholder="일정명을 입력하세요">
       </div>
       <div class="form-group">
-        <label class="form-label">설명</label>
-        <textarea id="cal-desc" class="form-input" rows="3" placeholder="일정 설명">${escHtml(event?.description || '')}</textarea>
+        <label>설명</label>
+        <textarea id="cal-desc" rows="3" placeholder="일정 설명">${escHtml(event?.description || '')}</textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">유형</label>
-        <select id="cal-type" class="form-input">${typeOptions}</select>
+        <label>유형</label>
+        <select id="cal-type">${typeOptions}</select>
+        <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">유형에 따라 색상이 자동 적용됩니다.</div>
       </div>
       <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <label class="form-label">시작일 <span style="color:var(--color-warn-text)">*</span></label>
-          <input type="date" id="cal-start-date" class="form-input" value="${defaultDate}">
+        <div class="form-group">
+          <label>시작일 *</label>
+          <input type="date" id="cal-start-date" value="${defaultDate}">
         </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">종료일</label>
-          <input type="date" id="cal-end-date" class="form-input" value="${defaultEndDate}">
+        <div class="form-group">
+          <label>종료일</label>
+          <input type="date" id="cal-end-date" value="${defaultEndDate}">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" style="display:flex;align-items:center;gap:8px;">
+        <label class="cal-allday-toggle">
           <input type="checkbox" id="cal-allday" ${allDay ? 'checked' : ''}>
-          종일
+          <span class="cal-allday-switch"></span>
+          <span class="cal-allday-text">종일</span>
         </label>
       </div>
       <div class="form-row" id="cal-time-row" style="${allDay ? 'display:none' : ''}">
-        <div class="form-group" style="flex:1">
-          <label class="form-label">시작 시간</label>
-          <input type="time" id="cal-start-time" class="form-input" value="${event?.start_time?.slice(0, 5) || '09:00'}">
+        <div class="form-group">
+          <label>시작 시간</label>
+          <input type="time" id="cal-start-time" value="${event?.start_time ? String(event.start_time).slice(0, 5) : '09:00'}">
         </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">종료 시간</label>
-          <input type="time" id="cal-end-time" class="form-input" value="${event?.end_time?.slice(0, 5) || '10:00'}">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">색상</label>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <input type="color" id="cal-color" value="${defaultColor}" style="width:36px;height:30px;border:none;background:none;cursor:pointer;">
-          <span id="cal-color-label" style="font-size:12px;color:var(--color-text-muted);">${defaultColor}</span>
-          <button class="btn btn-default" id="cal-color-auto" style="font-size:11px;padding:3px 8px;">유형 기본색</button>
+        <div class="form-group">
+          <label>종료 시간</label>
+          <input type="time" id="cal-end-time" value="${event?.end_time ? String(event.end_time).slice(0, 5) : '10:00'}">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">담당자</label>
-        <select id="cal-assignee" class="form-input">${App.userOptions(event?.assignee_id)}</select>
+        <label>담당자</label>
+        <select id="cal-assignee">${App.userOptions(event?.assignee_id)}</select>
       </div>
     `;
 
     App.openPanel(title, html, async () => {
+      const eventType = document.getElementById('cal-type').value;
       const data = {
         title: document.getElementById('cal-title').value.trim(),
         description: document.getElementById('cal-desc').value.trim(),
-        event_type: document.getElementById('cal-type').value,
+        event_type: eventType,
         start_date: document.getElementById('cal-start-date').value,
         end_date: document.getElementById('cal-end-date').value || null,
         all_day: document.getElementById('cal-allday').checked,
         start_time: document.getElementById('cal-start-time')?.value || null,
         end_time: document.getElementById('cal-end-time')?.value || null,
-        color: document.getElementById('cal-color').value,
+        // 색상은 유형에서 자동 매핑
+        color: this.EVENT_COLORS[eventType] || this.EVENT_COLORS.general,
         assignee_id: document.getElementById('cal-assignee').value || null,
       };
 
@@ -464,26 +463,6 @@ const CalendarView = {
     // 종일 토글 → 시간 행 표시/숨김
     document.getElementById('cal-allday')?.addEventListener('change', (e) => {
       document.getElementById('cal-time-row').style.display = e.target.checked ? 'none' : '';
-    });
-
-    // 유형 변경 → 자동 색상 업데이트
-    document.getElementById('cal-type')?.addEventListener('change', (e) => {
-      const color = this.EVENT_COLORS[e.target.value] || '#4F6EF7';
-      document.getElementById('cal-color').value = color;
-      document.getElementById('cal-color-label').textContent = color;
-    });
-
-    // 색상 변경 라벨 동기화
-    document.getElementById('cal-color')?.addEventListener('input', (e) => {
-      document.getElementById('cal-color-label').textContent = e.target.value;
-    });
-
-    // 유형 기본색 버튼
-    document.getElementById('cal-color-auto')?.addEventListener('click', () => {
-      const type = document.getElementById('cal-type').value;
-      const color = this.EVENT_COLORS[type] || '#4F6EF7';
-      document.getElementById('cal-color').value = color;
-      document.getElementById('cal-color-label').textContent = color;
     });
   },
 

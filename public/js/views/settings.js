@@ -242,61 +242,77 @@ const SettingsView = {
       return;
     }
 
-    // 상단 버튼
+    const isAdmin = App.user?.role === 'admin';
+
+    // 상단 토픽 버튼은 사용 안 함 (바디로 이동)
     const actions = document.getElementById('topbar-actions');
-    actions.innerHTML = `<button class="btn btn-primary" id="btn-add-category">+ 분류 추가</button>`;
-    document.getElementById('btn-add-category').addEventListener('click', () => {
-      this.openCategoryPanel(null, categories);
-    });
+    actions.innerHTML = '';
+
+    const colCount = isAdmin ? 3 : 2;
+    const headerCols = isAdmin
+      ? '<th>색상</th><th>분류명</th><th style="width:120px;text-align:right">작업</th>'
+      : '<th>색상</th><th>분류명</th>';
 
     wrap.innerHTML = `
+      <div class="settings-section-header">
+        <div>
+          <div class="settings-section-title">업무 분류</div>
+          <div class="settings-section-desc">업무 카드의 분류 태그로 사용됩니다.${isAdmin ? '' : ' 수정·삭제는 관리자만 가능합니다.'}</div>
+        </div>
+        <button class="btn btn-primary" id="btn-add-category">+ 분류 추가</button>
+      </div>
       <div class="card" style="padding:0;overflow:hidden">
         <table class="settings-table">
-          <thead>
-            <tr>
-              <th>색상</th>
-              <th>분류명</th>
-              <th style="width:120px;text-align:right">작업</th>
-            </tr>
-          </thead>
+          <thead><tr>${headerCols}</tr></thead>
           <tbody id="category-tbody">
             ${categories.length === 0
-              ? `<tr><td colspan="3" style="text-align:center;color:var(--color-text-hint);padding:40px">
+              ? `<tr><td colspan="${colCount}" style="text-align:center;color:var(--color-text-hint);padding:40px">
                    등록된 분류가 없습니다.<br>
-                   <span style="font-size:12px;margin-top:4px;display:block">+ 분류 추가 버튼으로 업무 분류를 만들어보세요</span>
+                   <span style="font-size:12px;margin-top:4px;display:block">상단의 + 분류 추가 버튼으로 만들어보세요</span>
                  </td></tr>`
-              : categories.map(c => this._categoryRowHtml(c)).join('')}
+              : categories.map(c => this._categoryRowHtml(c, isAdmin)).join('')}
           </tbody>
         </table>
       </div>
     `;
 
-    document.getElementById('category-tbody').addEventListener('click', async (e) => {
-      const editBtn = e.target.closest('.btn-edit-cat');
-      const delBtn  = e.target.closest('.btn-del-cat');
-
-      if (editBtn) {
-        const cat = categories.find(c => String(c.id) === editBtn.dataset.id);
-        if (cat) this.openCategoryPanel(cat, categories);
-      }
-
-      if (delBtn) {
-        const cat = categories.find(c => String(c.id) === delBtn.dataset.id);
-        const ok = await App.confirm(`"${cat?.name}" 분류를 삭제하시겠습니까?`);
-        if (!ok) return;
-        try {
-          await API.del(`/categories/${cat.id}`);
-          App.toast(`"${cat?.name}" 분류가 삭제되었습니다.`, 'info');
-          await App.loadMeta();
-          await this._renderCategories();
-        } catch {
-          App.toast('삭제에 실패했습니다.', 'error');
-        }
-      }
+    document.getElementById('btn-add-category').addEventListener('click', () => {
+      this.openCategoryPanel(null, categories);
     });
+
+    if (isAdmin) {
+      document.getElementById('category-tbody').addEventListener('click', async (e) => {
+        const editBtn = e.target.closest('.btn-edit-cat');
+        const delBtn  = e.target.closest('.btn-del-cat');
+
+        if (editBtn) {
+          const cat = categories.find(c => String(c.id) === editBtn.dataset.id);
+          if (cat) this.openCategoryPanel(cat, categories);
+        }
+
+        if (delBtn) {
+          const cat = categories.find(c => String(c.id) === delBtn.dataset.id);
+          const ok = await App.confirm(`"${cat?.name}" 분류를 삭제하시겠습니까?`);
+          if (!ok) return;
+          try {
+            await API.del(`/categories/${cat.id}`);
+            App.toast(`"${cat?.name}" 분류가 삭제되었습니다.`, 'info');
+            await App.loadMeta();
+            await this._renderCategories();
+          } catch {
+            App.toast('삭제에 실패했습니다.', 'error');
+          }
+        }
+      });
+    }
   },
 
-  _categoryRowHtml(c) {
+  _categoryRowHtml(c, isAdmin = true) {
+    const actionsCol = isAdmin ? `
+        <td style="text-align:right">
+          <button class="btn btn-default btn-edit-cat" data-id="${c.id}" style="margin-right:6px">수정</button>
+          <button class="btn btn-danger btn-del-cat" data-id="${c.id}">삭제</button>
+        </td>` : '';
     return `
       <tr>
         <td>
@@ -306,10 +322,7 @@ const SettingsView = {
           </div>
         </td>
         <td>${escHtml(c.name)}</td>
-        <td style="text-align:right">
-          <button class="btn btn-default btn-edit-cat" data-id="${c.id}" style="margin-right:6px">수정</button>
-          <button class="btn btn-danger btn-del-cat" data-id="${c.id}">삭제</button>
-        </td>
+        ${actionsCol}
       </tr>
     `;
   },
@@ -374,67 +387,79 @@ const SettingsView = {
       return;
     }
 
-    // 상단 버튼
+    const isAdmin = App.user?.role === 'admin';
     const actions = document.getElementById('topbar-actions');
-    actions.innerHTML = `<button class="btn btn-primary" id="btn-add-product">+ 제품 추가</button>`;
-    document.getElementById('btn-add-product').addEventListener('click', () => {
-      this.openProductPanel(null, products);
-    });
+    actions.innerHTML = '';
+
+    const colCount = isAdmin ? 2 : 1;
+    const headerCols = isAdmin
+      ? '<th>제품명</th><th style="width:120px;text-align:right">작업</th>'
+      : '<th>제품명</th>';
+    const addBtnHtml = isAdmin
+      ? '<button class="btn btn-primary" id="btn-add-product">+ 제품 추가</button>'
+      : '<span class="settings-readonly-note">제품 추가·수정·삭제는 관리자만 가능합니다.</span>';
 
     wrap.innerHTML = `
+      <div class="settings-section-header">
+        <div>
+          <div class="settings-section-title">제품 목록</div>
+          <div class="settings-section-desc">콘텐츠/업무에서 제품 태그로 사용됩니다.</div>
+        </div>
+        ${addBtnHtml}
+      </div>
       <div class="card" style="padding:0;overflow:hidden">
         <table class="settings-table">
-          <thead>
-            <tr>
-              <th>제품명</th>
-              <th style="width:120px;text-align:right">작업</th>
-            </tr>
-          </thead>
+          <thead><tr>${headerCols}</tr></thead>
           <tbody id="product-tbody">
             ${products.length === 0
-              ? `<tr><td colspan="2" style="text-align:center;color:var(--color-text-hint);padding:40px">
-                   등록된 제품이 없습니다.<br>
-                   <span style="font-size:12px;margin-top:4px;display:block">+ 제품 추가 버튼으로 제품을 등록하세요</span>
-                 </td></tr>`
-              : products.map(p => this._productRowHtml(p)).join('')}
+              ? `<tr><td colspan="${colCount}" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 제품이 없습니다.</td></tr>`
+              : products.map(p => this._productRowHtml(p, isAdmin)).join('')}
           </tbody>
         </table>
       </div>
     `;
 
-    document.getElementById('product-tbody').addEventListener('click', async (e) => {
-      const editBtn = e.target.closest('.btn-edit-prod');
-      const delBtn  = e.target.closest('.btn-del-prod');
+    if (isAdmin) {
+      document.getElementById('btn-add-product').addEventListener('click', () => {
+        this.openProductPanel(null, products);
+      });
 
-      if (editBtn) {
-        const prod = products.find(p => String(p.id) === editBtn.dataset.id);
-        if (prod) this.openProductPanel(prod, products);
-      }
+      document.getElementById('product-tbody').addEventListener('click', async (e) => {
+        const editBtn = e.target.closest('.btn-edit-prod');
+        const delBtn  = e.target.closest('.btn-del-prod');
 
-      if (delBtn) {
-        const prod = products.find(p => String(p.id) === delBtn.dataset.id);
-        const ok = await App.confirm(`"${prod?.name}" 제품을 삭제하시겠습니까?`);
-        if (!ok) return;
-        try {
-          await API.del(`/products/${prod.id}`);
-          App.toast(`"${prod?.name}" 제품이 삭제되었습니다.`, 'info');
-          await App.loadMeta();
-          await this._renderProducts();
-        } catch {
-          App.toast('삭제에 실패했습니다.', 'error');
+        if (editBtn) {
+          const prod = products.find(p => String(p.id) === editBtn.dataset.id);
+          if (prod) this.openProductPanel(prod, products);
         }
-      }
-    });
+
+        if (delBtn) {
+          const prod = products.find(p => String(p.id) === delBtn.dataset.id);
+          const ok = await App.confirm(`"${prod?.name}" 제품을 삭제하시겠습니까?`);
+          if (!ok) return;
+          try {
+            await API.del(`/products/${prod.id}`);
+            App.toast(`"${prod?.name}" 제품이 삭제되었습니다.`, 'info');
+            await App.loadMeta();
+            await this._renderProducts();
+          } catch {
+            App.toast('삭제에 실패했습니다.', 'error');
+          }
+        }
+      });
+    }
   },
 
-  _productRowHtml(p) {
-    return `
-      <tr>
-        <td>${escHtml(p.name)}</td>
+  _productRowHtml(p, isAdmin = true) {
+    const actionsCol = isAdmin ? `
         <td style="text-align:right">
           <button class="btn btn-default btn-edit-prod" data-id="${p.id}" style="margin-right:6px">수정</button>
           <button class="btn btn-danger btn-del-prod" data-id="${p.id}">삭제</button>
-        </td>
+        </td>` : '';
+    return `
+      <tr>
+        <td>${escHtml(p.name)}</td>
+        ${actionsCol}
       </tr>
     `;
   },

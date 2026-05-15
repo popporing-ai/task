@@ -849,38 +849,61 @@ const DashboardView = {
     if (!grid) return;
 
     if (this.editMode) {
-      // 드래그 앤 드롭
+      // ── 정교한 드래그 앤 드롭 (마우스 위치 기반 좌/우/위/아래 삽입) ──
       const widgets = grid.querySelectorAll('.dashboard-widget');
+      const clearIndicators = () => {
+        grid.querySelectorAll('.dashboard-widget').forEach(w => {
+          w.classList.remove('drag-over', 'drop-before', 'drop-after');
+        });
+      };
+
       widgets.forEach(widget => {
         widget.addEventListener('dragstart', (e) => {
           this.dragSrcIdx = parseInt(widget.dataset.idx);
           e.dataTransfer.setData('text/plain', widget.dataset.idx);
           e.dataTransfer.effectAllowed = 'move';
+          // 드래그 이미지는 자기 자신을 살짝 투명하게
           setTimeout(() => widget.classList.add('dragging'), 0);
         });
+
         widget.addEventListener('dragend', () => {
           widget.classList.remove('dragging');
-          grid.querySelectorAll('.dashboard-widget').forEach(w => w.classList.remove('drag-over'));
+          clearIndicators();
+          this.dragSrcIdx = null;
         });
+
         widget.addEventListener('dragover', (e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
-          grid.querySelectorAll('.dashboard-widget').forEach(w => w.classList.remove('drag-over'));
-          if (parseInt(widget.dataset.idx) !== this.dragSrcIdx) {
-            widget.classList.add('drag-over');
-          }
+          if (parseInt(widget.dataset.idx) === this.dragSrcIdx) return;
+          clearIndicators();
+          // 마우스 위치로 before/after 결정 (가로 우선 — 그리드 칸 단위)
+          const rect = widget.getBoundingClientRect();
+          const beforeX = (e.clientX - rect.left) < rect.width / 2;
+          widget.classList.add('drag-over', beforeX ? 'drop-before' : 'drop-after');
         });
+
         widget.addEventListener('drop', (e) => {
           e.preventDefault();
           const srcIdx = this.dragSrcIdx;
-          const tgtIdx = parseInt(widget.dataset.idx);
-          if (srcIdx !== null && srcIdx !== tgtIdx) {
-            const ids = [...layout];
-            const [moved] = ids.splice(srcIdx, 1);
-            ids.splice(tgtIdx, 0, moved);
-            this.saveLayout(ids);
-            this.renderGrid();
-          }
+          let tgtIdx = parseInt(widget.dataset.idx);
+          if (srcIdx === null || srcIdx === tgtIdx) { clearIndicators(); return; }
+
+          // 삽입 방향 결정 — drop-before면 타겟 앞, drop-after면 뒤
+          const rect = widget.getBoundingClientRect();
+          const beforeX = (e.clientX - rect.left) < rect.width / 2;
+          // 원본 제거 후 삽입 위치 보정
+          const ids = [...layout];
+          const [moved] = ids.splice(srcIdx, 1);
+          // 제거 후 tgtIdx 보정
+          let insertAt = srcIdx < tgtIdx ? tgtIdx - 1 : tgtIdx;
+          if (!beforeX) insertAt += 1;
+          if (insertAt < 0) insertAt = 0;
+          if (insertAt > ids.length) insertAt = ids.length;
+          ids.splice(insertAt, 0, moved);
+          clearIndicators();
+          this.saveLayout(ids);
+          this.renderGrid();
         });
       });
 

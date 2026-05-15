@@ -22,6 +22,17 @@ const RRRView = {
 
     await this.loadData();
     this.renderCards(content);
+
+    // 일반 사용자 안내 (R&R 추가는 관리자만)
+    if (!isAdmin) {
+      const banner = document.createElement('div');
+      banner.className = 'rrr-permission-banner';
+      banner.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3M8 11h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        R&R 추가·수정은 <b>관리자</b>만 가능합니다. 권한이 필요하면 관리자에게 역할 배정을 요청해주세요.
+      `;
+      content.prepend(banner);
+    }
   },
 
   async loadData() {
@@ -141,9 +152,24 @@ const RRRView = {
   },
 
   _bindCardEvents(content) {
+    // 카드 본문 클릭 → 담당자 상세 (업무·콘텐츠 진행 상황)
+    content.querySelectorAll('.rrr-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        // 드래그 핸들, 액션 버튼 등은 제외
+        if (e.target.closest('.rrr-drag-handle')) return;
+        if (e.target.closest('.rrr-item-drag')) return;
+        if (e.target.closest('.card-action-btn')) return;
+        if (e.target.closest('.rrr-add-btn')) return;
+        if (e.target.closest('button')) return;
+        const userId = card.dataset.userId;
+        if (userId) this._showUserDetail(parseInt(userId));
+      });
+    });
+
     // 항목 수정
     content.querySelectorAll('[data-rrr-edit]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const allItems = this.data.flatMap(u => u.items);
         const item = allItems.find(i => i.id == btn.dataset.rrrEdit);
         if (item) this.openEditForm(item);
@@ -152,7 +178,8 @@ const RRRView = {
 
     // 항목 삭제
     content.querySelectorAll('[data-rrr-del]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const confirmed = await App.confirm('이 항목을 삭제하시겠습니까?');
         if (confirmed) {
           try {
@@ -271,6 +298,150 @@ const RRRView = {
   },
 
   // ── 폼 ───────────────────────────────────────────
+  // 카드 클릭 → 담당자별 상세 진행 내역 (업무·콘텐츠·일정)
+  async _showUserDetail(userId) {
+    const user = this.data.find(u => String(u.user_id) === String(userId));
+    if (!user) return;
+
+    // 기존 팝오버 제거
+    document.querySelector('.popover-overlay')?.remove();
+
+    // 로딩 상태
+    const overlay = document.createElement('div');
+    overlay.className = 'popover-overlay';
+    overlay.innerHTML = `
+      <div class="popover" style="max-width:600px;width:92%;max-height:85vh;display:flex;flex-direction:column;">
+        <button class="popover-close" title="닫기">×</button>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-right:24px;">
+          ${App.avatar({ name: user.user_name, avatar_bg: user.avatar_bg, avatar_text: user.avatar_text, avatar_url: user.avatar_url })}
+          <div style="flex:1;">
+            <div style="font-size:18px;font-weight:700;letter-spacing:-0.02em;">${escHtml(user.user_name)}</div>
+            <div style="font-size:13px;color:var(--color-text-muted);margin-top:2px;">담당 R&R · 업무 진행 상황</div>
+          </div>
+        </div>
+        <div id="rrr-detail-body" style="flex:1;overflow-y:auto;padding-right:4px;">
+          <div class="loading-state" style="padding:32px 0;"><div class="loading-spinner"></div><span>불러오는 중...</span></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.popover-close').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    try {
+      const today = new Date();
+      const from = new Date(today.getFullYear(), 0, 1).toISOString().slice(0, 10);
+      const to = new Date(today.getFullYear(), 11, 31).toISOString().slice(0, 10);
+      const res = await API.get(`/weekly-reports/activity?user_id=${userId}&date_from=${from}&date_to=${to}`);
+      const d = res.data;
+      if (!d) throw new Error('데이터 없음');
+
+      const leads = user.items.filter(i => i.role_type === 'solution_lead');
+      const funcs = user.items.filter(i => i.role_type === 'function');
+
+      // R&R 항목 표시
+      const rrrHtml = (leads.length + funcs.length) > 0 ? `
+        <div style="background:var(--color-bg-secondary);padding:14px 16px;border-radius:12px;margin-bottom:18px;">
+          ${leads.length ? `<div style="margin-bottom:${funcs.length?'12px':'0'};">
+            <div style="font-size:11px;font-weight:700;color:var(--color-text-muted);letter-spacing:0.04em;margin-bottom:6px;">⭐ 솔루션 리드</div>
+            <div style="font-size:13px;color:var(--color-text-primary);line-height:1.7;">${leads.map(i => escHtml(i.description)).join(' · ')}</div>
+          </div>` : ''}
+          ${funcs.length ? `<div>
+            <div style="font-size:11px;font-weight:700;color:var(--color-text-muted);letter-spacing:0.04em;margin-bottom:6px;">🔧 역할/기능</div>
+            <div style="font-size:13px;color:var(--color-text-primary);line-height:1.7;">${funcs.map(i => escHtml(i.description)).join(' · ')}</div>
+          </div>` : ''}
+        </div>
+      ` : '';
+
+      // 요약 수치
+      const summaryHtml = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
+          <div style="background:var(--color-done-bg);padding:12px;border-radius:10px;text-align:center;">
+            <div style="font-size:11px;color:var(--color-done-text);font-weight:600;margin-bottom:2px;">완료</div>
+            <div style="font-size:20px;font-weight:700;color:var(--color-done-text);">${d.summary.tasks_completed}</div>
+          </div>
+          <div style="background:var(--color-plan-bg);padding:12px;border-radius:10px;text-align:center;">
+            <div style="font-size:11px;color:var(--color-plan-text);font-weight:600;margin-bottom:2px;">진행 중</div>
+            <div style="font-size:20px;font-weight:700;color:var(--color-plan-text);">${d.summary.tasks_in_progress}</div>
+          </div>
+          <div style="background:var(--color-warn-bg);padding:12px;border-radius:10px;text-align:center;">
+            <div style="font-size:11px;color:var(--color-warn-text);font-weight:600;margin-bottom:2px;">미진행</div>
+            <div style="font-size:20px;font-weight:700;color:var(--color-warn-text);">${d.summary.tasks_blocked}</div>
+          </div>
+          <div style="background:var(--color-attention-bg);padding:12px;border-radius:10px;text-align:center;">
+            <div style="font-size:11px;color:var(--color-attention-text);font-weight:600;margin-bottom:2px;">콘텐츠</div>
+            <div style="font-size:20px;font-weight:700;color:var(--color-attention-text);">${d.summary.content_published}</div>
+          </div>
+        </div>
+      `;
+
+      // 카테고리별 진행
+      const catRows = (d.by_category || []).map(c => `
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid var(--color-border);">
+          <span style="color:var(--color-text-primary);">${escHtml(c.name)}</span>
+          <span style="color:var(--color-text-muted);font-weight:600;">${c.count}건</span>
+        </div>
+      `).join('');
+
+      // 진행 중 / 미진행 (최대 10)
+      const inProgList = (d.in_progress_tasks || []).slice(0, 10).map(t => {
+        const statusLabel = t.status === 'in_progress' ? '진행' : t.status === 'blocked' ? '미진행' : '예정';
+        const statusClass = t.status === 'blocked' ? 'badge-warn' : 'badge-plan';
+        const due = t.due_date ? ` · 마감 ${String(t.due_date).slice(5, 10)}` : '';
+        return `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--color-border);font-size:13px;">
+            <span class="badge ${statusClass}" style="font-size:10px;flex-shrink:0;">${statusLabel}</span>
+            <span style="flex:1;">${t.category_name ? `<span style="color:var(--color-text-hint);font-size:11px;">[${escHtml(t.category_name)}]</span> ` : ''}${escHtml(t.title)}</span>
+            <span style="color:var(--color-text-hint);font-size:11px;flex-shrink:0;">${due}</span>
+          </div>
+        `;
+      }).join('') || '<div style="padding:12px;text-align:center;color:var(--color-text-hint);font-size:13px;">진행 중인 업무가 없습니다</div>';
+
+      // 최근 완료 (최대 10)
+      const recentDone = (d.completed_tasks || []).slice(0, 10).map(t => {
+        const dt = t.updated_at ? String(t.updated_at).slice(5, 10) : '';
+        return `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--color-border);font-size:13px;">
+            <span style="color:var(--color-done-text);flex-shrink:0;">✓</span>
+            <span style="flex:1;">${t.category_name ? `<span style="color:var(--color-text-hint);font-size:11px;">[${escHtml(t.category_name)}]</span> ` : ''}${escHtml(t.title)}</span>
+            <span style="color:var(--color-text-hint);font-size:11px;flex-shrink:0;">${dt}</span>
+          </div>
+        `;
+      }).join('') || '<div style="padding:12px;text-align:center;color:var(--color-text-hint);font-size:13px;">완료된 업무가 없습니다</div>';
+
+      const body = document.getElementById('rrr-detail-body');
+      body.innerHTML = `
+        ${rrrHtml}
+        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:6px;">📊 올해 누적 (${from} ~ ${to})</div>
+        ${summaryHtml}
+
+        ${catRows ? `
+          <div style="margin-bottom:18px;">
+            <div style="font-size:13px;font-weight:700;margin-bottom:8px;">🗂️ 카테고리별 완료</div>
+            <div>${catRows}</div>
+          </div>
+        ` : ''}
+
+        <div style="margin-bottom:18px;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px;">🔄 현재 진행/미진행 (최대 10건)</div>
+          <div>${inProgList}</div>
+        </div>
+
+        <div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px;">✅ 최근 완료 (최대 10건)</div>
+          <div>${recentDone}</div>
+        </div>
+      `;
+    } catch (e) {
+      document.getElementById('rrr-detail-body').innerHTML = `
+        <div class="empty-state" style="padding:32px 0;">
+          <div class="empty-state-title">불러오기 실패</div>
+          <div class="empty-state-desc">${escHtml(e.message || '')}</div>
+        </div>
+      `;
+    }
+  },
+
   openAddForm(userId) {
     const html = `
       <div class="form-group">
