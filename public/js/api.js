@@ -34,9 +34,15 @@ const API = {
     } catch (parseErr) {
       const raw = await res.text().catch(() => '');
       const looksHtml = /^\s*<(?:!doctype|html|head|body)\b/i.test(raw);
-      const hint = looksHtml
-        ? '서버 또는 게이트웨이에서 비정상 응답(HTML)이 왔습니다. 요청이 너무 오래 걸리거나 LLM 서버가 응답하지 않는 상태일 수 있습니다.'
-        : '서버 응답 형식이 올바르지 않습니다.';
+      // 변경 메서드(POST/PUT/PATCH/DELETE)가 504 등으로 끊겼다면 서버에서 작업은 완료됐을 수 있음 → 데이터 자동 새로고침
+      if (method !== 'GET' && typeof AppEvents !== 'undefined') {
+        AppEvents.emit('data-changed', { source: 'timeout', method, path });
+      }
+      const hint = res.status === 504
+        ? 'AI 응답이 너무 오래 걸려 게이트웨이가 끊었습니다. 요청한 변경(예: 삭제)은 이미 완료됐을 수 있으니 화면을 한 번 새로고침해 확인하세요.'
+        : (looksHtml
+          ? '서버 또는 게이트웨이에서 비정상 응답(HTML)이 왔습니다. 잠시 뒤 다시 시도해주세요.'
+          : '서버 응답 형식이 올바르지 않습니다.');
       throw new Error(`${hint} (HTTP ${res.status})`);
     }
     if (!res.ok) throw new Error(data.error || data.message || '요청 실패');

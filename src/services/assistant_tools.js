@@ -1079,7 +1079,7 @@ async function executeTool(name, args, ctx) {
       return {
         ok: true,
         summary: `🗑️ 콘텐츠 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
-        data: { count: rows.length, deleted: rows, scope: isAdmin ? 'all' : 'self' },
+        data: { count: rows.length, scope: isAdmin ? 'all' : 'self' },
       };
     }
 
@@ -1115,7 +1115,7 @@ async function executeTool(name, args, ctx) {
       return {
         ok: true,
         summary: `🗑️ 업무 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
-        data: { count: rows.length, deleted: rows, scope: isAdmin ? 'all' : 'self' },
+        data: { count: rows.length, scope: isAdmin ? 'all' : 'self' },
       };
     }
 
@@ -1147,7 +1147,7 @@ async function executeTool(name, args, ctx) {
       return {
         ok: true,
         summary: `🗑️ 일정 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
-        data: { count: rows.length, deleted: rows, scope: isAdmin ? 'all' : 'self' },
+        data: { count: rows.length, scope: isAdmin ? 'all' : 'self' },
       };
     }
 

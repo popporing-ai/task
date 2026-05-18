@@ -477,7 +477,20 @@ async function callLLM(apiUrl, model, messages, tools, headers, maxTokens = 1200
   return res.json();
 }
 
+// 알려진 도구 이름 (LLM이 망가뜨린 tool name sanitize용)
+const KNOWN_TOOL_NAMES = new Set(TOOL_DEFINITIONS.map(t => t.function.name));
+function sanitizeToolName(rawName) {
+  if (!rawName) return rawName;
+  // LLM이 종종 함수명 뒤에 <|channel|>commentary... 같은 토큰을 붙임 — 알려진 이름으로 prefix match
+  const head = String(rawName).split(/[^a-zA-Z0-9_]/)[0];
+  if (KNOWN_TOOL_NAMES.has(head)) return head;
+  return rawName;
+}
+
 router.post('/chat', async (req, res, next) => {
+  // 대량 작업·LLM 응답이 길어질 수 있어 응답 타임아웃 5분
+  req.setTimeout(300000);
+  res.setTimeout(300000);
   try {
     const apiUrl = process.env.LLM_API_URL;
     const model  = process.env.LLM_MODEL || 'gpt-3.5-turbo';
@@ -687,13 +700,21 @@ ${etypes}
 - assignee_name 으로 본인이 아닌 다른 팀원을 지정하는 작업은 시도하지 말 것 (서버에서 차단됨, 관리자 제외).
 - 다른 사람의 데이터 변경이 필요한 경우 "본인이 작성하거나 담당인 항목만 변경할 수 있어요" 라고 안내.
 
+## 엔티티 용어 매핑 (절대 혼동 금지)
+- "콘텐츠", "콘텐츠 캘린더" → **content_items** (배포 콘텐츠) → bulk_delete_content / list_content / create_content
+- "업무", "할 일", "태스크" → **tasks** → bulk_delete_tasks / list_tasks
+- "일정", "캘린더", "팀 캘린더", "스케줄" → **calendar_events** → bulk_delete_calendar_events / list_calendar_events
+- "타임라인", "연간 타임라인" → **timeline_items** → list_timeline / delete_timeline
+- 헷갈리는 표현: "콘텐츠 캘린더" 는 캘린더가 아니라 콘텐츠 배포 일정표를 뜻함. 무조건 content 도구 사용.
+
 ## 대량 삭제 — 반드시 이 흐름으로
-사용자가 "전체 삭제", "모두 삭제", "5월 콘텐츠 다 지워줘", "내 업무 전부 삭제" 같이 다건 삭제를 요청하면 절대 delete_xxx 를 여러 번 호출하지 말고 **bulk_delete_content / bulk_delete_tasks / bulk_delete_calendar_events 중 적절한 하나만** 사용. 흐름:
-1. 사용자 요청에서 조건(채널/기간/상태 등) 추출
+사용자가 "전체 삭제", "모두 삭제", "5월 콘텐츠 다 지워줘", "내 업무 전부 삭제", "콘텐츠 캘린더 다 삭제" 같이 다건 삭제를 요청하면 절대 delete_xxx 를 여러 번 호출하지 말고 **bulk_delete_content / bulk_delete_tasks / bulk_delete_calendar_events 중 적절한 하나만** 사용. 흐름:
+1. 사용자 요청에서 조건(채널/기간/상태 등) 추출. "전체"·"모두"·"다"·"전부" 등 광범위 표현이면 **필터 파라미터 전부 생략** (channel/status 등 모두 비워서 호출). 절대 사용자에게 "채널을 알려주세요" 같이 되묻지 말 것 — 빈 필터는 의도된 전체 선택임.
 2. **dry_run=true (또는 생략)** 로 bulk_delete_* 1회 호출 → 서버가 "삭제 대상 N건" 만 알려줌 (실제 삭제 안 함)
 3. 사용자에게 다시 한 번 명확히 확인: "본인 데이터 N건이 삭제됩니다. 정말 진행할까요?"
-4. 사용자가 명확히 "응", "네", "그래", "ㅇㅇ" 등 긍정 답변 → **dry_run=false** 로 같은 조건 재호출하여 실제 삭제
+4. 사용자가 명확히 "응", "네", "그래", "ㅇㅇ", "삭제" 등 긍정 답변 → **dry_run=false** 로 같은 조건 재호출하여 실제 삭제. 이때 1단계에서 사용한 도구 이름과 완전히 동일한 도구를 사용 (content를 물었으면 content 삭제, calendar를 물었으면 calendar 삭제). **도구 이름을 절대 다른 엔티티로 바꾸지 말 것.**
 5. "취소", "아니" 등 부정 답변 → 삭제하지 않고 "취소했습니다" 안내
+6. 삭제 후 응답은 매우 짧게: "콘텐츠 N건 삭제 완료." 한 줄. (목록 나열·이모지 남발 금지)
 - bulk_delete_* 도구는 비관리자에 대해 서버가 자동으로 본인 데이터로 좁혀서 처리하므로, LLM 쪽에서 추가 필터를 안 걸어도 안전.
 
 ## 그 외 규칙
@@ -749,10 +770,11 @@ ${etypes}
           for (const tc of toolCalls) {
             let args = {};
             try { args = JSON.parse(tc.function.arguments || '{}'); } catch {}
-            const result = await executeTool(tc.function.name, args, {
+            const cleanName = sanitizeToolName(tc.function.name);
+            const result = await executeTool(cleanName, args, {
               user: req.user, db, isAdmin,
             });
-            toolResults.push({ name: tc.function.name, args, result });
+            toolResults.push({ name: cleanName, args, result });
             llmMessages.push({
               role: 'tool',
               tool_call_id: tc.id,

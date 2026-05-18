@@ -7,9 +7,41 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.7.1';
+const CURRENT_VERSION = '2.7.2';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.7.2',
+    date: '2026-05-18',
+    title: 'AI 대량 삭제 안정화 — 504 해소 + 엔티티 혼동 수정',
+    sections: [
+      {
+        kind: 'fix',
+        title: 'AI 채팅 — 504 게이트웨이 타임아웃 해소',
+        items: [
+          {
+            text: 'Nginx의 /task/ 라우트 기본 60초 타임아웃을 300초로 상향 (proxy_read_timeout/send_timeout). Express 자체 응답 타임아웃도 5분으로 늘림.',
+            demo: 'nginx-task.conf:\n  location /task/ { ... proxy_read_timeout 300s; ... }\n\n→ AI가 대량 작업 후 2차 응답을 정리하는 동안 게이트웨이가 끊지 않음.',
+          },
+          { text: 'bulk_delete 결과 payload 축소 — 삭제된 행 배열(deleted: [...]) 제거, count만 반환. LLM이 받는 컨텍스트가 작아져 2차 응답 속도 개선.' },
+          { text: 'LLM 응답이 그래도 끊겼을 경우, 변경 메서드라면 화면이 자동으로 데이터를 다시 불러오고 "이미 완료됐을 수 있으니 새로고침으로 확인하세요" 안내.' },
+        ],
+      },
+      {
+        kind: 'fix',
+        title: 'AI 어시스턴트 — 엔티티 혼동 수정 ("콘텐츠 캘린더" ≠ 캘린더 일정)',
+        items: [
+          {
+            text: '"콘텐츠 캘린더 다 삭제" 요청 시 LLM이 calendar_events 도구를 호출해 엉뚱한 항목이 지워지던 문제 — 시스템 프롬프트에 엔티티 용어 매핑을 명시.',
+            demo: '용어 매핑:\n  "콘텐츠" / "콘텐츠 캘린더" → content_items (bulk_delete_content)\n  "일정" / "캘린더" / "팀 캘린더" → calendar_events (bulk_delete_calendar_events)\n  "업무" / "태스크" → tasks (bulk_delete_tasks)\n  "타임라인" → timeline_items',
+          },
+          { text: '"전체"·"모두"·"다 삭제" 같은 광범위 요청 시 필터 파라미터를 모두 비워 호출하도록 강제 — "어떤 채널?" 같은 불필요한 되묻기 제거.' },
+          { text: '1단계(확인)와 2단계(실제 삭제)에서 도구 이름을 동일하게 사용하도록 명시 — content를 확인하고 calendar를 지우는 사고 방지.' },
+          { text: 'LLM 모델이 종종 함수명 뒤에 `<|channel|>commentary…` 같은 토큰을 붙여 보내던 문제 — 백엔드에서 알려진 도구 이름으로 prefix-match해 자동 sanitize.' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.7.1',
     date: '2026-05-18',
