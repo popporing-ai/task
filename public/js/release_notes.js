@@ -7,9 +7,30 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.7.3';
+const CURRENT_VERSION = '2.8.0';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.8.0',
+    date: '2026-05-18',
+    title: '모든 항목 공유 가능한 URL (Deep Link) + 링크 복사 버튼',
+    sections: [
+      {
+        kind: 'feature',
+        title: '딥링크 — 업무/콘텐츠/타임라인 상세를 URL로 바로 열기',
+        items: [
+          {
+            text: '업무·콘텐츠·타임라인 상세를 열면 브라우저 주소가 자동으로 `#/엔티티/ID` 로 바뀝니다. 그 주소를 그대로 공유하면 받은 사람이 같은 항목을 바로 띄울 수 있어요.',
+            demo: '예) 업무 123번 상세 열기  →  https://marketing.virnect.local/task/#/tasks/123\n     콘텐츠 45번 수정 폼  →  https://marketing.virnect.local/task/#/content/45\n     타임라인 77번 항목   →  https://marketing.virnect.local/task/#/timeline/77',
+          },
+          { text: '상세 패널 우상단에 "링크 복사" 아이콘 버튼 추가 — 클릭 시 현재 항목의 공유 URL이 클립보드로 복사됨.' },
+          { text: '받은 링크를 다른 사용자가 클릭해도 같은 항목 상세 패널이 자동으로 열림 (로그인 상태 필요).' },
+          { text: '브라우저 뒤로가기/앞으로가기 버튼이 패널 열림/닫힘 상태를 따라가 자연스러운 내비게이션 동작.' },
+          { text: '캘린더 일정·R&R은 popover 기반이라 이번 버전에서는 제외. 필요해지면 다음 버전에서 동일 패턴으로 추가.' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.7.3',
     date: '2026-05-18',

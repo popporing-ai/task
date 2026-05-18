@@ -378,6 +378,7 @@ const ContentView = {
   // ───────── 폼 (단일/일괄 통합) ─────────
   openForm(item) {
     const isEdit = !!item;
+    if (isEdit && item?.id) App.setDeepLink('content', item.id);
     const title = isEdit ? '콘텐츠 수정' : '콘텐츠 추가';
 
     const chOpts = Object.entries(this.CHANNEL_LABELS).map(([c, label]) =>

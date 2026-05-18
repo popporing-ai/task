@@ -25,6 +25,10 @@ const App = {
   products: [],
   users: [],
   events: AppEvents,
+  // 딥링크 상태 — 현재 슬라이드 패널이 표시 중인 엔티티 (있을 때)
+  _deepLink: null, // { type, id }
+  // 딥링크 가능한 엔티티 화이트리스트
+  DEEPLINK_TYPES: ['tasks', 'content', 'timeline'],
 
   async init() {
     // 세션 확인
@@ -51,8 +55,19 @@ const App = {
     // 사이드바 뱃지 업데이트
     this.updateSidebarBadges();
 
+    // 딥링크 라우팅 (해시 → 엔티티 직접 오픈)
+    this._bindHashRouting();
+
     // 초기 뷰 렌더링
-    this.navigate('dashboard');
+    const initialRoute = this._parseHash();
+    if (initialRoute.view && initialRoute.view !== 'dashboard') {
+      this.navigate(initialRoute.view);
+      if (initialRoute.id) {
+        setTimeout(() => this._openEntityById(initialRoute.view, initialRoute.id), 350);
+      }
+    } else {
+      this.navigate('dashboard');
+    }
 
     // 새 버전 업데이트 안내 팝업 (1회)
     setTimeout(() => { try { ReleaseNotes.showLatest(); } catch {} }, 600);
@@ -244,6 +259,109 @@ const App = {
 
     // 해당 뷰 방문 처리 → 뱃지 초기화
     this._markViewSeen(view);
+
+    // 뷰 변경 시 해시도 갱신 (딥링크 활성 상태 아닐 때만)
+    if (!this._deepLink) {
+      this._writeHash(view === 'dashboard' ? '' : `#/${view}`);
+    }
+  },
+
+  // ───────── 딥링크 (공유 가능한 URL) ─────────
+  _parseHash() {
+    // 형식: #/tasks/123  또는  #/content  또는  비어 있음
+    const h = (location.hash || '').replace(/^#\/?/, '');
+    if (!h) return { view: null, id: null };
+    const [view, id] = h.split('/');
+    return { view: view || null, id: id || null };
+  },
+
+  _writeHash(hash) {
+    // 페이지 점프 막기 위해 replaceState 사용
+    const url = `${location.pathname}${location.search}${hash || ''}`;
+    try { history.replaceState(null, '', url); } catch {}
+  },
+
+  _bindHashRouting() {
+    window.addEventListener('hashchange', () => {
+      const { view, id } = this._parseHash();
+      if (!view) return;
+      // 현재 뷰가 다르면 먼저 뷰 전환
+      if (view !== this.currentView) {
+        this.navigate(view);
+      }
+      // 엔티티 ID가 있고 현재 열려있는 것과 다르면 오픈
+      if (id) {
+        if (!this._deepLink || String(this._deepLink.id) !== String(id) || this._deepLink.type !== view) {
+          setTimeout(() => this._openEntityById(view, id), 200);
+        }
+      } else {
+        // ID 없는 해시 → 패널 열려있으면 닫기
+        if (this._deepLink) this.closePanel();
+      }
+    });
+  },
+
+  // type: 'tasks' | 'content' | 'timeline'
+  async _openEntityById(type, id) {
+    try {
+      if (type === 'tasks') {
+        const res = await API.get('/tasks');
+        const task = (res.data || []).find(t => String(t.id) === String(id));
+        if (task && typeof TasksView !== 'undefined') TasksView.openDetail(task);
+        else this.toast('해당 업무를 찾을 수 없습니다.', 'error');
+      } else if (type === 'content') {
+        const res = await API.get('/content');
+        const item = (res.data || []).find(c => String(c.id) === String(id));
+        if (item && typeof ContentView !== 'undefined') ContentView.openForm(item);
+        else this.toast('해당 콘텐츠를 찾을 수 없습니다.', 'error');
+      } else if (type === 'timeline') {
+        // 타임라인은 다년도일 수 있어 올해 → 작년 → 내년 순으로 탐색
+        const years = [new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() + 1];
+        let item = null;
+        for (const y of years) {
+          const res = await API.get(`/timeline?year=${y}`);
+          item = (res.data || []).find(t => String(t.id) === String(id));
+          if (item) break;
+        }
+        if (item && typeof TimelineView !== 'undefined') TimelineView.openForm(item);
+        else this.toast('해당 타임라인 항목을 찾을 수 없습니다.', 'error');
+      }
+    } catch (e) {
+      console.error('딥링크 오픈 실패:', e);
+    }
+  },
+
+  // 뷰의 openDetail/openForm 안에서 호출 — 현재 패널이 가리키는 엔티티 등록
+  setDeepLink(type, id) {
+    if (!type || !id) return;
+    if (!this.DEEPLINK_TYPES.includes(type)) return;
+    this._deepLink = { type, id };
+    this._writeHash(`#/${type}/${id}`);
+    // share 버튼 노출
+    const btn = document.getElementById('panel-share');
+    if (btn) btn.style.display = '';
+  },
+
+  // 현재 패널의 공유 링크를 클립보드에 복사
+  copyDeepLink() {
+    if (!this._deepLink) { this.toast('공유할 항목이 없습니다.', 'error'); return; }
+    const { type, id } = this._deepLink;
+    const url = `${location.origin}${location.pathname}#/${type}/${id}`;
+    const done = () => this.toast('링크가 복사되었습니다', 'success');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(done).catch(() => this._fallbackCopy(url, done));
+    } else {
+      this._fallbackCopy(url, done);
+    }
+  },
+
+  _fallbackCopy(text, onDone) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); onDone?.(); } catch {}
+    document.body.removeChild(ta);
   },
 
   // 슬라이드 패널
@@ -252,14 +370,14 @@ const App = {
     const panel = document.getElementById('slide-panel');
     const closeBtn = document.getElementById('panel-close');
     const cancelBtn = document.getElementById('panel-cancel');
+    const shareBtn = document.getElementById('panel-share');
 
-    const close = () => {
-      panel.classList.remove('open');
-      overlay.style.display = 'none';
-    };
-
-    closeBtn.addEventListener('click', close);
-    cancelBtn.addEventListener('click', close);
+    closeBtn.addEventListener('click', () => this.closePanel());
+    cancelBtn.addEventListener('click', () => this.closePanel());
+    shareBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.copyDeepLink();
+    });
     // 오버레이 클릭 시 패널 닫지 않음 (사용자 요청)
   },
 
@@ -295,6 +413,13 @@ const App = {
   closePanel() {
     document.getElementById('slide-panel').classList.remove('open');
     document.getElementById('overlay').style.display = 'none';
+    // 딥링크 정리 — share 버튼 숨기고 해시를 현재 뷰 단위로 되돌림
+    if (this._deepLink) {
+      this._deepLink = null;
+      const btn = document.getElementById('panel-share');
+      if (btn) btn.style.display = 'none';
+      this._writeHash(this.currentView === 'dashboard' ? '' : `#/${this.currentView}`);
+    }
   },
 
   // 확인 다이얼로그

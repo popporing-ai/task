@@ -620,7 +620,8 @@ a { text-decoration: none; color: var(--color-primary); cursor: pointer; }
   color: var(--color-text-primary);
   letter-spacing: -0.02em;
 }
-.panel-close {
+.panel-title { flex: 1; min-width: 0; }
+.panel-close, .panel-share {
   background: none;
   border: none;
   font-size: 20px;
@@ -630,8 +631,11 @@ a { text-decoration: none; color: var(--color-primary); cursor: pointer; }
   display: flex; align-items: center; justify-content: center;
   border-radius: 8px;
   transition: background 0.15s, color 0.15s;
+  margin-left: 4px;
+  flex: 0 0 auto;
 }
-.panel-close:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
+.panel-close:hover, .panel-share:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
+.panel-share:hover { color: var(--color-primary); }
 .panel-body {
   flex: 1;
   overflow-y: auto;

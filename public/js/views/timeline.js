@@ -330,6 +330,7 @@ const TimelineView = {
 
   openForm(item) {
     const isEdit = !!item;
+    if (isEdit && item?.id) App.setDeepLink('timeline', item.id);
     const title = isEdit ? '타임라인 수정' : '타임라인 추가';
 
     const monthOptions = (selected) => {

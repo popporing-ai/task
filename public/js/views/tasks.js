@@ -998,6 +998,7 @@ const TasksView = {
   },
 
   openDetail(task) {
+    App.setDeepLink('tasks', task.id);
     const statusLabel = { todo: '할 일', in_progress: '진행 중', done: '완료', blocked: '미진행' }[task.status] || task.status;
     const statusClass = { todo: 'badge-plan', in_progress: 'badge-plan', done: 'badge-done', blocked: 'badge-warn' }[task.status] || 'badge-plan';
 
@@ -1916,6 +1917,7 @@ const TasksView = {
 
   openForm(task) {
     const isEdit = !!task;
+    if (isEdit && task?.id) App.setDeepLink('tasks', task.id);
     const title = isEdit ? '업무 수정' : '업무 추가';
 
     const statusHtml = isEdit ? `
