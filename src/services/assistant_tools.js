@@ -336,17 +336,18 @@ const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'bulk_delete_content',
-      description: '여러 콘텐츠를 한 번에 삭제합니다. 비관리자는 본인이 담당 또는 작성한 콘텐츠만 자동 좁혀서 삭제. 대량 삭제 요청("전체 삭제", "5월 콘텐츠 다 삭제" 등)에 반드시 이 도구를 사용. 1단계: dry_run=true(기본)로 호출 → 대상 개수만 반환됨. 사용자에게 그 개수로 재확인 받은 뒤 2단계: dry_run=false로 다시 호출해야 실제 삭제됨.',
+      description: '여러 콘텐츠를 한 번에 삭제합니다. 비관리자는 항상 본인이 시스템상 직접 만든 콘텐츠만 자동 좁혀서 삭제 (담당자로 지정만 된 항목은 화면에서 직접 처리해야 함, 다른 사람 데이터는 권한상 검색 불가). 대량 삭제 요청("전체 삭제", "5월 콘텐츠 다 삭제" 등)에 반드시 이 도구를 사용. 1단계: dry_run=true(기본)로 호출 → 대상 개수만 반환됨. 사용자에게 그 개수로 재확인 받은 뒤 2단계: dry_run=false로 다시 호출해야 실제 삭제됨.',
       parameters: {
         type: 'object',
         properties: {
-          channel:      { type: 'string', enum: ['IG','FB','LI','YT','BL','EM','HM'] },
-          content_type: { type: 'string', enum: ['I','C','V','S','Q','A','L','T'] },
-          status:       { type: 'string', enum: ['planned','done','skipped'] },
-          publish_from: { type: 'string', description: 'YYYY-MM-DD 이상' },
-          publish_to:   { type: 'string', description: 'YYYY-MM-DD 이하' },
-          keyword:      { type: 'string', description: '제목/주제에 포함된 키워드' },
-          dry_run:      { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
+          channel:       { type: 'string', enum: ['IG','FB','LI','YT','BL','EM','HM'] },
+          content_type:  { type: 'string', enum: ['I','C','V','S','Q','A','L','T'] },
+          status:        { type: 'string', enum: ['planned','done','skipped'] },
+          publish_from:  { type: 'string', description: 'YYYY-MM-DD 이상' },
+          publish_to:    { type: 'string', description: 'YYYY-MM-DD 이하' },
+          keyword:       { type: 'string', description: '제목/주제에 포함된 키워드' },
+          assignee_name: { type: 'string', description: '특정 담당자 이름으로 좁힘 (비관리자는 본인 이름만 가능)' },
+          dry_run:       { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
         },
       },
     },
@@ -355,16 +356,17 @@ const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'bulk_delete_tasks',
-      description: '여러 업무를 한 번에 삭제합니다. 비관리자는 본인이 담당 또는 작성한 업무만 자동 좁힘. dry_run=true로 먼저 개수 확인 → 사용자 재확인 → dry_run=false 로 실제 삭제.',
+      description: '여러 업무를 한 번에 삭제합니다. 비관리자는 항상 본인이 시스템상 직접 만든 업무만 자동 좁힘 (담당자로 지정만 된 항목은 화면에서 직접 처리해야 함, 다른 사람 데이터는 권한상 검색 불가). dry_run=true로 먼저 개수 확인 → 사용자 재확인 → dry_run=false 로 실제 삭제.',
       parameters: {
         type: 'object',
         properties: {
-          status:       { type: 'string', enum: ['todo','in_progress','done','blocked'] },
-          category_name:{ type: 'string' },
-          keyword:      { type: 'string', description: '제목/설명 키워드' },
-          due_from:     { type: 'string', description: 'YYYY-MM-DD 이상' },
-          due_to:       { type: 'string', description: 'YYYY-MM-DD 이하' },
-          dry_run:      { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
+          status:        { type: 'string', enum: ['todo','in_progress','done','blocked'] },
+          category_name: { type: 'string' },
+          keyword:       { type: 'string', description: '제목/설명 키워드' },
+          assignee_name: { type: 'string', description: '특정 담당자 이름으로 좁힘 (비관리자는 본인 이름만 가능)' },
+          due_from:      { type: 'string', description: 'YYYY-MM-DD 이상' },
+          due_to:        { type: 'string', description: 'YYYY-MM-DD 이하' },
+          dry_run:       { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
         },
       },
     },
@@ -373,15 +375,16 @@ const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'bulk_delete_calendar_events',
-      description: '여러 캘린더 일정을 한 번에 삭제합니다. 비관리자는 본인이 작성한 일정만 자동 좁힘. dry_run=true로 먼저 개수 확인 → 사용자 재확인 → dry_run=false 로 실제 삭제.',
+      description: '여러 캘린더 일정을 한 번에 삭제합니다. 비관리자는 항상 본인이 시스템상 직접 만든 일정만 자동 좁힘 (담당자로 지정만 된 항목은 화면에서 직접 처리해야 함, 다른 사람 데이터는 권한상 검색 불가). dry_run=true로 먼저 개수 확인 → 사용자 재확인 → dry_run=false 로 실제 삭제.',
       parameters: {
         type: 'object',
         properties: {
-          event_type: { type: 'string' },
-          start_from: { type: 'string', description: 'YYYY-MM-DD 이상' },
-          start_to:   { type: 'string', description: 'YYYY-MM-DD 이하' },
-          keyword:    { type: 'string' },
-          dry_run:    { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
+          event_type:    { type: 'string' },
+          start_from:    { type: 'string', description: 'YYYY-MM-DD 이상' },
+          start_to:      { type: 'string', description: 'YYYY-MM-DD 이하' },
+          keyword:       { type: 'string' },
+          assignee_name: { type: 'string', description: '특정 담당자 이름으로 좁힘 (비관리자는 본인 이름만 가능)' },
+          dry_run:       { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
         },
       },
     },
@@ -463,9 +466,11 @@ async function resolveProductId(db, name) {
   return rows[0]?.id || null;
 }
 
+// 키워드 검색 — 비관리자에 대해 본인이 시스템상 직접 생성한 항목(created_by = userId)으로만 좁힘.
+// 담당자로만 지정된 항목은 AI 도구로 변경/삭제할 수 없음 — UI에서 직접 처리.
 async function findTaskByKeyword(db, keyword, userId, isAdmin) {
   if (!keyword) return null;
-  const ownerFilter = isAdmin ? '' : 'AND (assignee_id = $2 OR created_by = $2)';
+  const ownerFilter = isAdmin ? '' : 'AND created_by = $2';
   const params = isAdmin ? [`%${keyword}%`] : [`%${keyword}%`, userId];
   const { rows } = await db.query(`
     SELECT * FROM tasks
@@ -477,7 +482,7 @@ async function findTaskByKeyword(db, keyword, userId, isAdmin) {
 
 async function findContentByKeyword(db, keyword, userId, isAdmin) {
   if (!keyword) return null;
-  const ownerFilter = isAdmin ? '' : 'AND (assignee_id = $2 OR created_by = $2)';
+  const ownerFilter = isAdmin ? '' : 'AND created_by = $2';
   const params = isAdmin ? [`%${keyword}%`] : [`%${keyword}%`, userId];
   const { rows } = await db.query(`
     SELECT * FROM content_items
@@ -501,7 +506,7 @@ async function findTimelineByKeyword(db, keyword, userId, isAdmin) {
 
 async function findCalendarEventByKeyword(db, keyword, userId, isAdmin) {
   if (!keyword) return null;
-  const ownerFilter = isAdmin ? '' : 'AND (assignee_id = $2 OR created_by = $2)';
+  const ownerFilter = isAdmin ? '' : 'AND created_by = $2';
   const params = isAdmin ? [`%${keyword}%`] : [`%${keyword}%`, userId];
   const { rows } = await db.query(`
     SELECT * FROM calendar_events
@@ -817,9 +822,9 @@ async function executeTool(name, args, ctx) {
       } else if (args.keyword) {
         task = await findTaskByKeyword(db, args.keyword, user.id, isAdmin);
       }
-      if (!task) return { ok: false, error: '수정할 업무를 찾을 수 없습니다.' };
-      if (!isAdmin && task.assignee_id !== user.id && task.created_by !== user.id) {
-        return { ok: false, error: '본인이 담당자 또는 작성자인 업무만 수정할 수 있습니다.' };
+      if (!task) return { ok: false, error: '수정할 업무를 찾을 수 없습니다 (본인이 직접 만든 업무만 AI로 수정 가능 — 담당자로 지정만 된 항목은 화면에서 처리해주세요).' };
+      if (!isAdmin && task.created_by !== user.id) {
+        return { ok: false, error: '본인이 만든 업무만 AI 도구로 수정할 수 있습니다. 담당자로 지정만 된 항목은 화면에서 직접 처리해주세요.' };
       }
       const fields = [];
       const params = [];
@@ -860,9 +865,9 @@ async function executeTool(name, args, ctx) {
       } else if (args.keyword) {
         task = await findTaskByKeyword(db, args.keyword, user.id, isAdmin);
       }
-      if (!task) return { ok: false, error: '삭제할 업무를 찾을 수 없습니다.' };
-      if (!isAdmin && task.assignee_id !== user.id && task.created_by !== user.id) {
-        return { ok: false, error: '본인이 담당자 또는 작성자인 업무만 삭제할 수 있습니다.' };
+      if (!task) return { ok: false, error: '삭제할 업무를 찾을 수 없습니다 (본인이 직접 만든 업무만 AI로 삭제 가능).' };
+      if (!isAdmin && task.created_by !== user.id) {
+        return { ok: false, error: '본인이 만든 업무만 AI 도구로 삭제할 수 있습니다.' };
       }
       await db.query('DELETE FROM tasks WHERE id = $1', [task.id]);
       return { ok: true, summary: `🗑️ 업무 삭제: "${task.title}"`, data: { id: task.id } };
@@ -893,9 +898,9 @@ async function executeTool(name, args, ctx) {
       let item = args.id
         ? (await db.query('SELECT * FROM content_items WHERE id = $1', [args.id])).rows[0]
         : await findContentByKeyword(db, args.keyword, user.id, isAdmin);
-      if (!item) return { ok: false, error: '수정할 콘텐츠를 찾을 수 없습니다.' };
-      if (!isAdmin && item.assignee_id !== user.id && item.created_by !== user.id) {
-        return { ok: false, error: '본인이 담당 또는 작성한 콘텐츠만 수정할 수 있습니다.' };
+      if (!item) return { ok: false, error: '수정할 콘텐츠를 찾을 수 없습니다 (본인이 직접 만든 콘텐츠만 AI로 수정 가능).' };
+      if (!isAdmin && item.created_by !== user.id) {
+        return { ok: false, error: '본인이 만든 콘텐츠만 AI 도구로 수정할 수 있습니다.' };
       }
       const fields = [];
       const params = [];
@@ -1005,9 +1010,9 @@ async function executeTool(name, args, ctx) {
       let ev = args.id
         ? (await db.query('SELECT * FROM calendar_events WHERE id = $1', [args.id])).rows[0]
         : await findCalendarEventByKeyword(db, args.keyword, user.id, isAdmin);
-      if (!ev) return { ok: false, error: '일정을 찾을 수 없습니다.' };
-      if (!isAdmin && ev.created_by !== user.id && ev.assignee_id !== user.id) {
-        return { ok: false, error: '본인이 만들거나 담당인 일정만 수정할 수 있습니다.' };
+      if (!ev) return { ok: false, error: '일정을 찾을 수 없습니다 (본인이 직접 만든 일정만 AI로 수정 가능).' };
+      if (!isAdmin && ev.created_by !== user.id) {
+        return { ok: false, error: '본인이 만든 일정만 AI 도구로 수정할 수 있습니다.' };
       }
       const fields = [];
       const params = [];
@@ -1053,10 +1058,21 @@ async function executeTool(name, args, ctx) {
       const where = [];
       const params = [];
       let i = 1;
+      // 비관리자: 항상 본인 데이터로 자동 좁힘
       if (!isAdmin) {
-        where.push(`(assignee_id = $${i} OR created_by = $${i})`);
+        // AI 도구 권한 — 본인이 시스템상 직접 만든 데이터만 (담당자로 지정만 된 것은 화면에서 처리)
+        where.push(`created_by = $${i}`);
         params.push(user.id);
         i++;
+      }
+      // assignee_name 명시: 비관리자가 타인 이름 지정 시 차단
+      if (args.assignee_name) {
+        const targetUid = await resolveUserId(db, args.assignee_name);
+        if (!targetUid) return { ok: false, error: `'${args.assignee_name}' 사용자를 찾을 수 없습니다.` };
+        if (!isAdmin && targetUid !== user.id) {
+          return { ok: false, error: '다른 사용자의 콘텐츠는 삭제할 수 없습니다. 본인 데이터만 삭제 가능합니다.' };
+        }
+        where.push(`assignee_id = $${i++}`); params.push(targetUid);
       }
       if (args.channel)      { where.push(`channel = $${i++}`); params.push(args.channel); }
       if (args.content_type) { where.push(`content_type = $${i++}`); params.push(args.content_type); }
@@ -1066,19 +1082,23 @@ async function executeTool(name, args, ctx) {
       if (args.keyword)      { where.push(`(title ILIKE $${i} OR topic ILIKE $${i})`); params.push(`%${args.keyword}%`); i++; }
       const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
       const dryRun = args.dry_run !== false; // 기본 true
+      const scopeNote = isAdmin ? '' : ' (본인이 직접 만든 콘텐츠 한정 — 담당자로 지정만 된 항목·다른 사람 데이터는 AI로 처리 불가)';
       if (dryRun) {
         const { rows } = await db.query(`SELECT COUNT(*)::int AS cnt FROM content_items ${whereSql}`, params);
         const cnt = rows[0].cnt;
+        const summary = cnt === 0
+          ? `삭제 대상 콘텐츠 0건${scopeNote}. 조건에 맞는 본인 콘텐츠가 없거나, 화면에 보이는 항목이 다른 사용자 소유라 권한상 검색되지 않았습니다.`
+          : `삭제 대상 콘텐츠 ${cnt}건 확인${scopeNote}. 아직 삭제하지 않음 — 진행하려면 같은 조건으로 dry_run=false 재호출.`;
         return {
           ok: true,
-          summary: `삭제 대상 콘텐츠 ${cnt}건 확인 (아직 삭제하지 않음). 진행하려면 같은 조건으로 dry_run=false 재호출.`,
+          summary,
           data: { count: cnt, dry_run: true, scope: isAdmin ? 'all' : 'self' },
         };
       }
       const { rows } = await db.query(`DELETE FROM content_items ${whereSql} RETURNING id, title`, params);
       return {
         ok: true,
-        summary: `🗑️ 콘텐츠 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
+        summary: `🗑️ 콘텐츠 ${rows.length}건 삭제 완료${scopeNote}.`,
         data: { count: rows.length, scope: isAdmin ? 'all' : 'self' },
       };
     }
@@ -1088,9 +1108,18 @@ async function executeTool(name, args, ctx) {
       const params = [];
       let i = 1;
       if (!isAdmin) {
-        where.push(`(assignee_id = $${i} OR created_by = $${i})`);
+        // AI 도구 권한 — 본인이 시스템상 직접 만든 데이터만 (담당자로 지정만 된 것은 화면에서 처리)
+        where.push(`created_by = $${i}`);
         params.push(user.id);
         i++;
+      }
+      if (args.assignee_name) {
+        const targetUid = await resolveUserId(db, args.assignee_name);
+        if (!targetUid) return { ok: false, error: `'${args.assignee_name}' 사용자를 찾을 수 없습니다.` };
+        if (!isAdmin && targetUid !== user.id) {
+          return { ok: false, error: '다른 사용자의 업무는 삭제할 수 없습니다. 본인 데이터만 삭제 가능합니다.' };
+        }
+        where.push(`assignee_id = $${i++}`); params.push(targetUid);
       }
       if (args.status)       { where.push(`status = $${i++}`); params.push(args.status); }
       if (args.category_name) {
@@ -1102,19 +1131,23 @@ async function executeTool(name, args, ctx) {
       if (args.due_to)       { where.push(`due_date <= $${i++}`); params.push(args.due_to); }
       const whereSql = `WHERE ${where.join(' AND ')}`;
       const dryRun = args.dry_run !== false;
+      const scopeNote = isAdmin ? '' : ' (본인이 직접 만든 업무 한정 — 담당자로 지정만 된 항목·다른 사람 데이터는 AI로 처리 불가)';
       if (dryRun) {
         const { rows } = await db.query(`SELECT COUNT(*)::int AS cnt FROM tasks ${whereSql}`, params);
         const cnt = rows[0].cnt;
+        const summary = cnt === 0
+          ? `삭제 대상 업무 0건${scopeNote}. 조건에 맞는 본인 업무가 없거나, 화면에 보이는 항목이 다른 사용자 소유라 권한상 검색되지 않았습니다.`
+          : `삭제 대상 업무 ${cnt}건 확인${scopeNote}. 아직 삭제하지 않음 — 진행하려면 같은 조건으로 dry_run=false 재호출.`;
         return {
           ok: true,
-          summary: `삭제 대상 업무 ${cnt}건 확인 (아직 삭제하지 않음). 진행하려면 같은 조건으로 dry_run=false 재호출.`,
+          summary,
           data: { count: cnt, dry_run: true, scope: isAdmin ? 'all' : 'self' },
         };
       }
       const { rows } = await db.query(`DELETE FROM tasks ${whereSql} RETURNING id, title`, params);
       return {
         ok: true,
-        summary: `🗑️ 업무 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
+        summary: `🗑️ 업무 ${rows.length}건 삭제 완료${scopeNote}.`,
         data: { count: rows.length, scope: isAdmin ? 'all' : 'self' },
       };
     }
@@ -1124,9 +1157,18 @@ async function executeTool(name, args, ctx) {
       const params = [];
       let i = 1;
       if (!isAdmin) {
-        where.push(`(created_by = $${i} OR assignee_id = $${i})`);
+        // AI 도구 권한 — 본인이 시스템상 직접 만든 데이터만
+        where.push(`created_by = $${i}`);
         params.push(user.id);
         i++;
+      }
+      if (args.assignee_name) {
+        const targetUid = await resolveUserId(db, args.assignee_name);
+        if (!targetUid) return { ok: false, error: `'${args.assignee_name}' 사용자를 찾을 수 없습니다.` };
+        if (!isAdmin && targetUid !== user.id) {
+          return { ok: false, error: '다른 사용자의 일정은 삭제할 수 없습니다. 본인 데이터만 삭제 가능합니다.' };
+        }
+        where.push(`assignee_id = $${i++}`); params.push(targetUid);
       }
       if (args.event_type) { where.push(`event_type = $${i++}`); params.push(args.event_type); }
       if (args.start_from) { where.push(`start_date >= $${i++}`); params.push(args.start_from); }
@@ -1134,19 +1176,23 @@ async function executeTool(name, args, ctx) {
       if (args.keyword)    { where.push(`title ILIKE $${i++}`); params.push(`%${args.keyword}%`); }
       const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
       const dryRun = args.dry_run !== false;
+      const scopeNote = isAdmin ? '' : ' (본인이 직접 만든 일정 한정 — 담당자로 지정만 된 항목·다른 사람 데이터는 AI로 처리 불가)';
       if (dryRun) {
         const { rows } = await db.query(`SELECT COUNT(*)::int AS cnt FROM calendar_events ${whereSql}`, params);
         const cnt = rows[0].cnt;
+        const summary = cnt === 0
+          ? `삭제 대상 일정 0건${scopeNote}. 조건에 맞는 본인 일정이 없거나, 화면에 보이는 항목이 다른 사용자 소유라 권한상 검색되지 않았습니다.`
+          : `삭제 대상 일정 ${cnt}건 확인${scopeNote}. 아직 삭제하지 않음 — 진행하려면 같은 조건으로 dry_run=false 재호출.`;
         return {
           ok: true,
-          summary: `삭제 대상 일정 ${cnt}건 확인 (아직 삭제하지 않음). 진행하려면 같은 조건으로 dry_run=false 재호출.`,
+          summary,
           data: { count: cnt, dry_run: true, scope: isAdmin ? 'all' : 'self' },
         };
       }
       const { rows } = await db.query(`DELETE FROM calendar_events ${whereSql} RETURNING id, title`, params);
       return {
         ok: true,
-        summary: `🗑️ 일정 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
+        summary: `🗑️ 일정 ${rows.length}건 삭제 완료${scopeNote}.`,
         data: { count: rows.length, scope: isAdmin ? 'all' : 'self' },
       };
     }
