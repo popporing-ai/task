@@ -7,9 +7,20 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.5.1';
+const CURRENT_VERSION = '2.5.2';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.5.2',
+    date: '2026-05-18',
+    title: 'AI 어시스턴트 — 불필요한 되묻기 제거 + 기본값 자동 적용',
+    changes: [
+      'create_task 등 도구의 required 필드만 누락 시 되묻도록 시스템 프롬프트 강화',
+      '명시되지 않은 선택 필드는 즉시 기본값 적용 (status=todo, work_type=regular, assignee=본인, all_day=true)',
+      '"업무 추가해줘" 같은 짧은 요청 → 곧바로 생성, 카테고리/마감 등 추가 질문 없음',
+      'create_task=title만 필수, create_calendar_event=title+start_date만 필수, create_content=title+channel+content_type만 필수 등 명확히 명시',
+    ],
+  },
   {
     version: '2.5.1',
     date: '2026-05-15',
