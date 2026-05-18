@@ -14,18 +14,18 @@ const ContentView = {
     YT: '#FF0000', BL: '#5DD984', EM: '#F5A94A', HM: '#4F6EF7',
   },
   PRODUCT_URLS: {
-    'Core': 'https://virnect.com/core',
-    'Remote': 'https://virnect.com/remote',
-    'Bodycam': 'https://virnect.com/bodycam',
-    'VisionX': 'https://virnect.com/visionx',
-    'Make&View': 'https://virnect.com/makeview',
-    'Robotics': 'https://virnect.com/robotics',
-    'Inspect': 'https://virnect.com/inspect',
-    'HoloX': 'https://virnect.com/holox',
-    'Twin': 'https://virnect.com/twin',
-    'XR': 'https://virnect.com/xr',
-    'AutoGuide': 'https://virnect.com/autoguide',
-    'Workstation': 'https://virnect.com/workstation',
+    'Core':        'https://virnect.com/support/inquiry',
+    'Remote':      'https://remotehome.virnect.com/ko-kr/pages/contact',
+    'Scout':       'https://scout.virnect.com/ko-kr/pages/contact-us-1',
+    'VisionX':     'https://visionx.virnect.com/ko-kr/pages/contact',
+    'Make&View':   'https://makeview.virnect.com/ko-kr/pages/contact',
+    'Robotics':    'https://robotics.virnect.com/ko-kr/pages/contact',
+    'Inspect':     'https://xr.virnect.com/ko-kr/pages/contact',
+    'HoloX':       'https://xr.virnect.com/ko/pages/contact',
+    'Twin':        'https://xr.virnect.com/ko/pages/contact',
+    'XR':          'https://xr.virnect.com/ko/pages/contact',
+    'AutoGuide':   'https://xr.virnect.com/ko/pages/contact',
+    'Workstation': 'https://xr.virnect.com/ko/pages/contact',
   },
 
   items: [],
@@ -635,10 +635,9 @@ const ContentView = {
     const productSelect = document.getElementById('f-product');
     const productName = productSelect?.selectedOptions[0]?.text || '';
     const cid = contentId || document.getElementById('f-content-id')?.value;
-    if (cid && productName && this.PRODUCT_URLS[productName]) {
-      inflowInput.value = `${this.PRODUCT_URLS[productName]}?src=${cid}`;
-    } else if (cid) {
-      inflowInput.value = `https://virnect.com?src=${cid}`;
-    }
+    if (!cid) return;
+    const base = (productName && this.PRODUCT_URLS[productName]) ? this.PRODUCT_URLS[productName] : 'https://virnect.com';
+    const sep = base.includes('?') ? '&' : '?';
+    inflowInput.value = `${base}${sep}src=${cid}`;
   },
 };

@@ -271,7 +271,7 @@ ON CONFLICT (name) DO NOTHING;
 
 -- 초기 데이터: 제품 목록
 INSERT INTO products (name) VALUES
-  ('Core'), ('Remote'), ('Bodycam'), ('VisionX'),
+  ('Core'), ('Remote'), ('Scout'), ('VisionX'),
   ('Make&View'), ('Robotics'), ('Inspect'), ('HoloX'),
   ('Twin'), ('XR'), ('AutoGuide'), ('Workstation')
 ON CONFLICT (name) DO NOTHING;

@@ -7,9 +7,38 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.7.2';
+const CURRENT_VERSION = '2.7.3';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.7.3',
+    date: '2026-05-18',
+    title: '제품 유입 URL 규칙 정정 + Bodycam → Scout 리네이밍',
+    sections: [
+      {
+        kind: 'fix',
+        title: '콘텐츠 — 제품별 유입 URL 매핑 교체',
+        items: [
+          {
+            text: '콘텐츠 생성 시 자동으로 채워지는 유입 URL이 각 제품의 실제 contact/inquiry 페이지를 가리키도록 정정. 이전엔 `https://virnect.com/{제품}?src=...` 형태였음.',
+            demo: '제품 → 새 유입 URL (?src=콘텐츠ID 자동 부착)\n  Core        → https://virnect.com/support/inquiry\n  Remote      → https://remotehome.virnect.com/ko-kr/pages/contact\n  Scout       → https://scout.virnect.com/ko-kr/pages/contact-us-1\n  VisionX     → https://visionx.virnect.com/ko-kr/pages/contact\n  Make&View   → https://makeview.virnect.com/ko-kr/pages/contact\n  Robotics    → https://robotics.virnect.com/ko-kr/pages/contact\n  Inspect     → https://xr.virnect.com/ko-kr/pages/contact\n  HoloX/Twin/XR/AutoGuide/Workstation → https://xr.virnect.com/ko/pages/contact',
+          },
+          { text: '쿼리 파라미터 부착 시 base URL에 이미 `?`가 있으면 `&src=`로, 없으면 `?src=`로 자동 처리.' },
+          { text: '기존에 생성된 콘텐츠의 inflow_url 값은 변경하지 않음 (이력 보존). 새로 생성하는 콘텐츠부터 새 규칙 적용.' },
+        ],
+      },
+      {
+        kind: 'fix',
+        title: '제품 — Bodycam → Scout 리네이밍',
+        items: [
+          {
+            text: 'products 테이블의 "Bodycam" 항목을 "Scout"으로 변경 (migration-014-products-rename-bodycam.sql 자동 실행). 콘텐츠 생성 폼·필터·캘린더 칩 등 모든 선택지에서 Scout으로 표시됨.',
+            demo: '기존 "Bodycam"으로 등록된 콘텐츠는 product_id가 그대로 유지되며, 표시명만 자동으로 Scout으로 바뀜.',
+          },
+        ],
+      },
+    ],
+  },
   {
     version: '2.7.2',
     date: '2026-05-18',

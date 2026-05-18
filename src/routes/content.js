@@ -7,27 +7,28 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
-// 제품별 유입 URL 매핑 (프론트 PRODUCT_URLS와 동기화)
+// 제품별 유입 URL 매핑 — 각 제품의 실제 contact/inquiry 페이지 (프론트 PRODUCT_URLS와 동기화)
 const PRODUCT_URLS = {
-  'Core': 'https://virnect.com/core',
-  'Remote': 'https://virnect.com/remote',
-  'Bodycam': 'https://virnect.com/bodycam',
-  'VisionX': 'https://virnect.com/visionx',
-  'Make&View': 'https://virnect.com/makeview',
-  'Robotics': 'https://virnect.com/robotics',
-  'Inspect': 'https://virnect.com/inspect',
-  'HoloX': 'https://virnect.com/holox',
-  'Twin': 'https://virnect.com/twin',
-  'XR': 'https://virnect.com/xr',
-  'AutoGuide': 'https://virnect.com/autoguide',
-  'Workstation': 'https://virnect.com/workstation',
+  'Core':        'https://virnect.com/support/inquiry',
+  'Remote':      'https://remotehome.virnect.com/ko-kr/pages/contact',
+  'Scout':       'https://scout.virnect.com/ko-kr/pages/contact-us-1',
+  'VisionX':     'https://visionx.virnect.com/ko-kr/pages/contact',
+  'Make&View':   'https://makeview.virnect.com/ko-kr/pages/contact',
+  'Robotics':    'https://robotics.virnect.com/ko-kr/pages/contact',
+  'Inspect':     'https://xr.virnect.com/ko-kr/pages/contact',
+  'HoloX':       'https://xr.virnect.com/ko/pages/contact',
+  'Twin':        'https://xr.virnect.com/ko/pages/contact',
+  'XR':          'https://xr.virnect.com/ko/pages/contact',
+  'AutoGuide':   'https://xr.virnect.com/ko/pages/contact',
+  'Workstation': 'https://xr.virnect.com/ko/pages/contact',
 };
 
-// content_id 기반 유입 URL 생성
+// content_id 기반 유입 URL 생성 — 매핑된 페이지에 ?src= 쿼리 부착
 function buildInflowUrl(contentId, productName) {
   if (!contentId) return null;
   const base = (productName && PRODUCT_URLS[productName]) ? PRODUCT_URLS[productName] : 'https://virnect.com';
-  return `${base}?src=${contentId}`;
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}src=${contentId}`;
 }
 
 // 콘텐츠 ID 자동 생성
