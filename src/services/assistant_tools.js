@@ -419,30 +419,39 @@ async function findTaskByKeyword(db, keyword, userId, isAdmin) {
   return rows[0] || null;
 }
 
-async function findContentByKeyword(db, keyword) {
+async function findContentByKeyword(db, keyword, userId, isAdmin) {
   if (!keyword) return null;
-  const { rows } = await db.query(
-    `SELECT * FROM content_items WHERE title ILIKE $1 ORDER BY updated_at DESC LIMIT 1`,
-    [`%${keyword}%`]
-  );
+  const ownerFilter = isAdmin ? '' : 'AND (assignee_id = $2 OR created_by = $2)';
+  const params = isAdmin ? [`%${keyword}%`] : [`%${keyword}%`, userId];
+  const { rows } = await db.query(`
+    SELECT * FROM content_items
+    WHERE title ILIKE $1 ${ownerFilter}
+    ORDER BY updated_at DESC LIMIT 1
+  `, params);
   return rows[0] || null;
 }
 
-async function findTimelineByKeyword(db, keyword) {
+async function findTimelineByKeyword(db, keyword, userId, isAdmin) {
   if (!keyword) return null;
-  const { rows } = await db.query(
-    `SELECT * FROM timeline_items WHERE title ILIKE $1 ORDER BY updated_at DESC LIMIT 1`,
-    [`%${keyword}%`]
-  );
+  const ownerFilter = isAdmin ? '' : 'AND created_by = $2';
+  const params = isAdmin ? [`%${keyword}%`] : [`%${keyword}%`, userId];
+  const { rows } = await db.query(`
+    SELECT * FROM timeline_items
+    WHERE title ILIKE $1 ${ownerFilter}
+    ORDER BY updated_at DESC LIMIT 1
+  `, params);
   return rows[0] || null;
 }
 
-async function findCalendarEventByKeyword(db, keyword) {
+async function findCalendarEventByKeyword(db, keyword, userId, isAdmin) {
   if (!keyword) return null;
-  const { rows } = await db.query(
-    `SELECT * FROM calendar_events WHERE title ILIKE $1 ORDER BY created_at DESC LIMIT 1`,
-    [`%${keyword}%`]
-  );
+  const ownerFilter = isAdmin ? '' : 'AND (assignee_id = $2 OR created_by = $2)';
+  const params = isAdmin ? [`%${keyword}%`] : [`%${keyword}%`, userId];
+  const { rows } = await db.query(`
+    SELECT * FROM calendar_events
+    WHERE title ILIKE $1 ${ownerFilter}
+    ORDER BY created_at DESC LIMIT 1
+  `, params);
   return rows[0] || null;
 }
 
@@ -727,6 +736,9 @@ async function executeTool(name, args, ctx) {
       const assigneeId  = args.assignee_name ? await resolveUserId(db, args.assignee_name) : user.id;
       if (args.assignee_name && !assigneeId) return { ok: false, error: `'${args.assignee_name}' 담당자를 찾을 수 없습니다.` };
       if (args.category_name && !categoryId) return { ok: false, error: `'${args.category_name}' 분류를 찾을 수 없습니다.` };
+      if (!isAdmin && assigneeId !== user.id) {
+        return { ok: false, error: '다른 사용자에게 업무를 배정하려면 관리자 권한이 필요합니다. 본인 업무만 추가할 수 있어요.' };
+      }
       const wt = ['regular','extra','project'].includes(args.work_type) ? args.work_type : 'regular';
       const status = ['todo','in_progress','done','blocked'].includes(args.status) ? args.status : 'todo';
       const { rows } = await db.query(`
@@ -767,7 +779,11 @@ async function executeTool(name, args, ctx) {
       }
       if (args.assignee_name) {
         const uid = await resolveUserId(db, args.assignee_name);
-        if (uid) { fields.push(`assignee_id=$${i++}`); params.push(uid); }
+        if (!uid) return { ok: false, error: `'${args.assignee_name}' 담당자를 찾을 수 없습니다.` };
+        if (!isAdmin && uid !== user.id) {
+          return { ok: false, error: '담당자를 다른 사용자로 변경하려면 관리자 권한이 필요합니다.' };
+        }
+        fields.push(`assignee_id=$${i++}`); params.push(uid);
       }
       if (!fields.length) return { ok: false, error: '수정할 필드가 없습니다.' };
       fields.push(`updated_at=NOW()`);
@@ -804,6 +820,10 @@ async function executeTool(name, args, ctx) {
       }
       const productId = args.product_name ? await resolveProductId(db, args.product_name) : null;
       const assigneeId = args.assignee_name ? await resolveUserId(db, args.assignee_name) : user.id;
+      if (args.assignee_name && !assigneeId) return { ok: false, error: `'${args.assignee_name}' 담당자를 찾을 수 없습니다.` };
+      if (!isAdmin && assigneeId !== user.id) {
+        return { ok: false, error: '다른 사용자에게 콘텐츠를 배정하려면 관리자 권한이 필요합니다.' };
+      }
       const status = ['planned','done','skipped'].includes(args.status) ? args.status : 'planned';
       const { rows } = await db.query(`
         INSERT INTO content_items (title, product_id, channel, content_type, assignee_id, publish_date, status, memo, created_by)
@@ -816,7 +836,7 @@ async function executeTool(name, args, ctx) {
     if (name === 'update_content') {
       let item = args.id
         ? (await db.query('SELECT * FROM content_items WHERE id = $1', [args.id])).rows[0]
-        : await findContentByKeyword(db, args.keyword);
+        : await findContentByKeyword(db, args.keyword, user.id, isAdmin);
       if (!item) return { ok: false, error: '수정할 콘텐츠를 찾을 수 없습니다.' };
       if (!isAdmin && item.assignee_id !== user.id && item.created_by !== user.id) {
         return { ok: false, error: '본인이 담당 또는 작성한 콘텐츠만 수정할 수 있습니다.' };
@@ -837,7 +857,7 @@ async function executeTool(name, args, ctx) {
     if (name === 'delete_content') {
       let item = args.id
         ? (await db.query('SELECT * FROM content_items WHERE id = $1', [args.id])).rows[0]
-        : await findContentByKeyword(db, args.keyword);
+        : await findContentByKeyword(db, args.keyword, user.id, isAdmin);
       if (!item) return { ok: false, error: '삭제할 콘텐츠를 찾을 수 없습니다.' };
       if (!isAdmin && item.created_by !== user.id) {
         return { ok: false, error: '본인이 작성한 콘텐츠만 삭제할 수 있습니다.' };
@@ -864,7 +884,7 @@ async function executeTool(name, args, ctx) {
     if (name === 'update_timeline') {
       let item = args.id
         ? (await db.query('SELECT * FROM timeline_items WHERE id = $1', [args.id])).rows[0]
-        : await findTimelineByKeyword(db, args.keyword);
+        : await findTimelineByKeyword(db, args.keyword, user.id, isAdmin);
       if (!item) return { ok: false, error: '타임라인 항목을 찾을 수 없습니다.' };
       if (!isAdmin && item.created_by !== user.id) {
         return { ok: false, error: '본인이 작성한 타임라인만 수정할 수 있습니다.' };
@@ -889,7 +909,7 @@ async function executeTool(name, args, ctx) {
     if (name === 'delete_timeline') {
       let item = args.id
         ? (await db.query('SELECT * FROM timeline_items WHERE id = $1', [args.id])).rows[0]
-        : await findTimelineByKeyword(db, args.keyword);
+        : await findTimelineByKeyword(db, args.keyword, user.id, isAdmin);
       if (!item) return { ok: false, error: '타임라인 항목을 찾을 수 없습니다.' };
       if (!isAdmin && item.created_by !== user.id) {
         return { ok: false, error: '본인이 작성한 타임라인만 삭제할 수 있습니다.' };
@@ -911,6 +931,10 @@ async function executeTool(name, args, ctx) {
         if (typeRows[0]) color = typeRows[0].color;
       } catch {}
       const assigneeId = args.assignee_name ? await resolveUserId(db, args.assignee_name) : user.id;
+      if (args.assignee_name && !assigneeId) return { ok: false, error: `'${args.assignee_name}' 담당자를 찾을 수 없습니다.` };
+      if (!isAdmin && assigneeId !== user.id) {
+        return { ok: false, error: '다른 사용자에게 일정을 배정하려면 관리자 권한이 필요합니다.' };
+      }
       const allDay = args.all_day !== false; // 기본 종일
       const { rows } = await db.query(`
         INSERT INTO calendar_events (title, description, event_type, start_date, end_date, all_day, start_time, end_time, color, assignee_id, created_by)
@@ -924,7 +948,7 @@ async function executeTool(name, args, ctx) {
     if (name === 'update_calendar_event') {
       let ev = args.id
         ? (await db.query('SELECT * FROM calendar_events WHERE id = $1', [args.id])).rows[0]
-        : await findCalendarEventByKeyword(db, args.keyword);
+        : await findCalendarEventByKeyword(db, args.keyword, user.id, isAdmin);
       if (!ev) return { ok: false, error: '일정을 찾을 수 없습니다.' };
       if (!isAdmin && ev.created_by !== user.id && ev.assignee_id !== user.id) {
         return { ok: false, error: '본인이 만들거나 담당인 일정만 수정할 수 있습니다.' };
@@ -937,7 +961,11 @@ async function executeTool(name, args, ctx) {
       });
       if (args.assignee_name) {
         const uid = await resolveUserId(db, args.assignee_name);
-        if (uid) { fields.push(`assignee_id=$${i++}`); params.push(uid); }
+        if (!uid) return { ok: false, error: `'${args.assignee_name}' 담당자를 찾을 수 없습니다.` };
+        if (!isAdmin && uid !== user.id) {
+          return { ok: false, error: '담당자를 다른 사용자로 변경하려면 관리자 권한이 필요합니다.' };
+        }
+        fields.push(`assignee_id=$${i++}`); params.push(uid);
       }
       if (args.event_type) {
         try {
@@ -955,7 +983,7 @@ async function executeTool(name, args, ctx) {
     if (name === 'delete_calendar_event') {
       let ev = args.id
         ? (await db.query('SELECT * FROM calendar_events WHERE id = $1', [args.id])).rows[0]
-        : await findCalendarEventByKeyword(db, args.keyword);
+        : await findCalendarEventByKeyword(db, args.keyword, user.id, isAdmin);
       if (!ev) return { ok: false, error: '일정을 찾을 수 없습니다.' };
       if (!isAdmin && ev.created_by !== user.id) {
         return { ok: false, error: '본인이 만든 일정만 삭제할 수 있습니다.' };

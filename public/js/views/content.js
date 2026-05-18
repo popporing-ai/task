@@ -173,8 +173,12 @@ const ContentView = {
     const publishLink = item.publish_url
       ? `<a href="${escHtml(item.publish_url)}" target="_blank" rel="noopener" class="cc-row-link" title="배포 URL 열기">↗</a>`
       : '';
+    // 복사 대상: 유입 URL 우선 → 없으면 콘텐츠 ID
+    const copyTarget = item.inflow_url || item.content_id || '';
+    const copyTitle = item.inflow_url ? '유입 URL 복사' : '콘텐츠 ID 복사';
+    const copyIcon = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5.5" y="5.5" width="8.5" height="9" rx="1.3" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3.3A1.3 1.3 0 0 1 4.3 2H11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
     const idBadge = item.content_id
-      ? `<span class="cc-row-cid" title="${escHtml(item.content_id)}">${escHtml(item.content_id)}<button class="cc-cid-copy" data-copy-id="${escHtml(item.content_id)}" title="복사">⧉</button></span>`
+      ? `<span class="cc-row-cid" title="${escHtml(item.content_id)}">${escHtml(item.content_id)}<button class="cc-cid-copy" data-copy-text="${escHtml(copyTarget)}" data-copy-kind="${item.inflow_url ? 'url' : 'id'}" title="${copyTitle}">${copyIcon}</button></span>`
       : '<span class="cc-row-cid cc-row-cid-empty">—</span>';
 
     return `
@@ -312,13 +316,24 @@ const ContentView = {
       });
     });
 
-    // 콘텐츠 ID 복사
-    content.querySelectorAll('[data-copy-id]').forEach(btn => {
+    // 복사 (유입 URL 또는 콘텐츠 ID)
+    content.querySelectorAll('[data-copy-text]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const text = btn.dataset.copyId;
+        const text = btn.dataset.copyText;
+        if (!text) { App.toast('복사할 내용이 없습니다.', 'error'); return; }
+        const kind = btn.dataset.copyKind === 'url' ? 'URL' : '콘텐츠 ID';
+        const done = () => App.toast(`${kind}이(가) 복사되었습니다`, 'success');
         if (navigator.clipboard) {
-          navigator.clipboard.writeText(text).then(() => App.toast('복사되었습니다', 'success'));
+          navigator.clipboard.writeText(text).then(done).catch(() => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            done();
+          });
         } else {
           const ta = document.createElement('textarea');
           ta.value = text;
@@ -326,7 +341,7 @@ const ContentView = {
           ta.select();
           document.execCommand('copy');
           document.body.removeChild(ta);
-          App.toast('복사되었습니다', 'success');
+          done();
         }
       });
     });

@@ -7,9 +7,60 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.6.0';
+const CURRENT_VERSION = '2.7.0';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.7.0',
+    date: '2026-05-18',
+    title: '콘텐츠 캘린더 URL 자동 생성 + AI 어시스턴트 권한 강화 + 릴리즈노트 아코디언',
+    sections: [
+      {
+        kind: 'feature',
+        title: '콘텐츠 — 다중 생성 시 유입 URL 자동 생성',
+        items: [
+          {
+            text: '"주제별 다중" 모드로 여러 채널 콘텐츠를 한 번에 만들 때, 각 항목마다 콘텐츠 ID + 유입 URL이 자동으로 들어갑니다.',
+            demo: '예) 제품 = "Remote", 배포일 = 2026-05-20\n  IG (S) → https://virnect.com/remote?src=20260520_IG_S\n  FB (I) → https://virnect.com/remote?src=20260520_FB_I\n  BL (A) → https://virnect.com/remote?src=20260520_BL_A',
+          },
+          { text: '제품을 선택하지 않으면 https://virnect.com 기본 도메인으로 생성됩니다.' },
+        ],
+      },
+      {
+        kind: 'feature',
+        title: '콘텐츠 — 리스트 빠른 복사 버튼 개선',
+        items: [
+          { text: '리스트 행의 콘텐츠 ID 옆 버튼이 "복사" 아이콘으로 변경 (기존 ⧉ 글리프 → SVG 카피 아이콘).' },
+          {
+            text: '클릭 시 콘텐츠 ID가 아니라 유입 URL 전체를 클립보드에 복사합니다. (URL이 없으면 콘텐츠 ID 복사로 폴백)',
+            demo: '예) 클릭 → "https://virnect.com/remote?src=20260520_IG_S" 가 복사됨\n     토스트: "URL이(가) 복사되었습니다"',
+          },
+        ],
+      },
+      {
+        kind: 'feature',
+        title: 'AI 어시스턴트 — 타인 데이터 보호',
+        items: [
+          {
+            text: 'AI 채팅으로 업무·콘텐츠·일정의 생성/수정/삭제를 시도할 때, 본인이 작성하거나 담당이 아닌 항목은 모두 차단됩니다. "전부 삭제" 같은 광범위 요청도 본인 항목만 대상으로 좁혀서 처리합니다.',
+            demo: '예) "철수 업무 전부 완료처리" → "본인이 담당자 또는 작성자인 업무만 수정할 수 있어요" 안내',
+          },
+          { text: 'AI를 통해 다른 팀원에게 업무·콘텐츠·일정을 배정하는 것도 차단 (관리자 제외).' },
+          { text: '키워드 검색(예: "디자인 가이드 삭제")도 본인 소유 항목 안에서만 찾도록 필터링되어, 동명의 타인 데이터를 실수로 건드릴 일이 없습니다.' },
+        ],
+      },
+      {
+        kind: 'design',
+        title: '릴리즈 노트 — 버전별 아코디언',
+        items: [
+          { text: '전체 릴리즈 노트가 버전별로 접힌 상태로 표시됩니다. 최신 버전만 자동으로 펼쳐져 있고, 다른 버전은 헤더만 보입니다.' },
+          { text: '헤더 클릭 → 해당 버전만 펼침/접기 (한 번에 하나만 열린 상태 유지 — 비교용으로 여러 개 펼치려면 다시 클릭).' },
+          { text: '기능 추가/버그/디자인 카테고리 앞의 🆕/🐛/🎨 이모지 라벨 제거 — 더 깔끔한 텍스트 표기로 정돈.' },
+          { text: '릴리즈 노트 GIF 첨부 기능은 보류 — 텍스트 demo 박스로 동작 예시를 충분히 전달하는 방향으로 정리.' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.6.0',
     date: '2026-05-18',
@@ -269,24 +320,22 @@ const ReleaseNotes = {
   },
 
   _renderEntryBody(it) {
-    // 새 형식: sections — 부제별로 그룹 + 동작 데모/이미지 첨부 가능
+    // 새 형식: sections — 부제별로 그룹 + 동작 데모 텍스트 첨부 가능
     if (Array.isArray(it.sections) && it.sections.length) {
       const KIND_META = {
-        feature: { label: '🆕 기능 추가', cls: 'feature' },
-        fix:     { label: '🐛 버그 수정',  cls: 'fix' },
-        design:  { label: '🎨 디자인 개선', cls: 'design' },
+        feature: { label: '기능 추가',  cls: 'feature' },
+        fix:     { label: '버그 수정',  cls: 'fix' },
+        design:  { label: '디자인 개선', cls: 'design' },
       };
       return it.sections.map(sec => {
         const meta = KIND_META[sec.kind] || { label: sec.kind, cls: '' };
         const items = (sec.items || []).map(itm => {
           const text = typeof itm === 'string' ? itm : itm.text;
           const demo = typeof itm === 'object' ? itm.demo : null;
-          const image = typeof itm === 'object' ? itm.image : null;
           return `
             <div class="rn-section-item">
               <div class="rn-section-item-text">${escHtml(text)}</div>
               ${demo ? `<div class="rn-section-item-demo">${escHtml(demo)}</div>` : ''}
-              ${image ? `<img class="rn-section-item-image" src="${escHtml(image)}" alt="동작 모습" loading="lazy">` : ''}
             </div>
           `;
         }).join('');
@@ -313,6 +362,21 @@ const ReleaseNotes = {
 
     const items = all ? RELEASE_NOTES : [RELEASE_NOTES[0]];
     const latest = RELEASE_NOTES[0];
+    // 아코디언: 'all' 모드에서는 최신 버전만 펼침. 자동 팝업은 단일 항목이므로 항상 펼침.
+    const renderEntry = (it, idx) => {
+      const expanded = !all || idx === 0;
+      return `
+        <div class="rn-entry ${expanded ? 'rn-entry-open' : 'rn-entry-collapsed'}" data-version="${escHtml(it.version)}">
+          <button type="button" class="rn-entry-head" data-rn-toggle="${escHtml(it.version)}" aria-expanded="${expanded}">
+            <span class="rn-entry-caret" aria-hidden="true">▸</span>
+            <span class="rn-version-tag">v${escHtml(it.version)}</span>
+            <h3 class="rn-entry-title">${escHtml(it.title)}</h3>
+            <span class="rn-entry-date">${escHtml(it.date)}</span>
+          </button>
+          <div class="rn-entry-body">${this._renderEntryBody(it)}</div>
+        </div>
+      `;
+    };
 
     const overlay = document.createElement('div');
     overlay.id = 'release-notes-modal';
@@ -333,16 +397,7 @@ const ReleaseNotes = {
           <button class="rn-close" id="rn-close" title="닫기">✕</button>
         </div>
         <div class="rn-body">
-          ${items.map(it => `
-            <div class="rn-entry">
-              <div class="rn-entry-head">
-                ${all ? `<span class="rn-version-tag">v${it.version}</span>` : ''}
-                <h3 class="rn-entry-title">${escHtml(it.title)}</h3>
-                <span class="rn-entry-date">${escHtml(it.date)}</span>
-              </div>
-              ${this._renderEntryBody(it)}
-            </div>
-          `).join('')}
+          ${items.map((it, idx) => renderEntry(it, idx)).join('')}
         </div>
         <div class="rn-footer">
           <button class="btn btn-primary" id="rn-confirm">${all ? '닫기' : '확인'}</button>
@@ -351,6 +406,18 @@ const ReleaseNotes = {
     `;
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add('rn-overlay-open'));
+
+    // 아코디언 토글
+    overlay.querySelectorAll('[data-rn-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const entry = btn.closest('.rn-entry');
+        if (!entry) return;
+        const isOpen = entry.classList.contains('rn-entry-open');
+        entry.classList.toggle('rn-entry-open', !isOpen);
+        entry.classList.toggle('rn-entry-collapsed', isOpen);
+        btn.setAttribute('aria-expanded', String(!isOpen));
+      });
+    });
 
     const dismiss = () => {
       // 자동 팝업이면 본 버전 저장

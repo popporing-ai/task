@@ -7,6 +7,29 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
+// 제품별 유입 URL 매핑 (프론트 PRODUCT_URLS와 동기화)
+const PRODUCT_URLS = {
+  'Core': 'https://virnect.com/core',
+  'Remote': 'https://virnect.com/remote',
+  'Bodycam': 'https://virnect.com/bodycam',
+  'VisionX': 'https://virnect.com/visionx',
+  'Make&View': 'https://virnect.com/makeview',
+  'Robotics': 'https://virnect.com/robotics',
+  'Inspect': 'https://virnect.com/inspect',
+  'HoloX': 'https://virnect.com/holox',
+  'Twin': 'https://virnect.com/twin',
+  'XR': 'https://virnect.com/xr',
+  'AutoGuide': 'https://virnect.com/autoguide',
+  'Workstation': 'https://virnect.com/workstation',
+};
+
+// content_id 기반 유입 URL 생성
+function buildInflowUrl(contentId, productName) {
+  if (!contentId) return null;
+  const base = (productName && PRODUCT_URLS[productName]) ? PRODUCT_URLS[productName] : 'https://virnect.com';
+  return `${base}?src=${contentId}`;
+}
+
 // 콘텐츠 ID 자동 생성
 async function generateContentId(publishDate, channel, contentType) {
   const base = `${publishDate.replace(/-/g, '').slice(0, 8)}_${channel}_${contentType}`;
@@ -77,6 +100,17 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
       ? await generateContentId(publish_date, channel, content_type)
       : null);
 
+    // inflow_url 자동 보완 — 클라이언트 미전송 시 product + content_id 기반으로 생성
+    let finalInflowUrl = inflow_url;
+    if (!finalInflowUrl && finalContentId) {
+      let pName = null;
+      if (product_id) {
+        const { rows: pRows } = await db.query('SELECT name FROM products WHERE id = $1', [product_id]);
+        pName = pRows[0]?.name || null;
+      }
+      finalInflowUrl = buildInflowUrl(finalContentId, pName);
+    }
+
     const { rows } = await db.query(`
       INSERT INTO content_items
         (title, topic, product_id, channel, content_type, assignee_id, publish_date,
@@ -84,7 +118,7 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING *
     `, [title, topic || null, product_id || null, channel, content_type, assignee_id || null,
-        publish_date || null, finalContentId, inflow_url || null,
+        publish_date || null, finalContentId, finalInflowUrl || null,
         publish_url || null, status || 'planned', memo || null, req.user.id]);
 
     res.json({ data: rows[0], message: '콘텐츠가 추가되었습니다.' });
@@ -102,20 +136,28 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
     if (!Array.isArray(channels) || channels.length === 0) {
       return res.status(400).json({ error: '채널/타입 조합을 1개 이상 선택해주세요.' });
     }
+    // 제품명 조회 (한 번만 — 모든 batch 항목이 동일 제품)
+    let productName = null;
+    if (product_id) {
+      const { rows: pRows } = await db.query('SELECT name FROM products WHERE id = $1', [product_id]);
+      productName = pRows[0]?.name || null;
+    }
+
     const items = [];
     for (const c of channels) {
       const ch = c.channel;
       const ct = c.content_type;
       if (!ch || !ct) continue;
       const cid = publish_date ? await generateContentId(publish_date, ch, ct) : null;
+      const inflowUrl = buildInflowUrl(cid, productName);
       const { rows } = await db.query(`
         INSERT INTO content_items
           (title, topic, product_id, channel, content_type, assignee_id, publish_date,
-           content_id, status, memo, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+           content_id, inflow_url, status, memo, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         RETURNING *
       `, [topic.trim(), topic.trim(), product_id || null, ch, ct, assignee_id || null,
-          publish_date || null, cid, status || 'planned', memo || null, req.user.id]);
+          publish_date || null, cid, inflowUrl, status || 'planned', memo || null, req.user.id]);
       items.push(rows[0]);
     }
     res.json({ data: items, message: `${items.length}개 콘텐츠가 생성되었습니다.` });
