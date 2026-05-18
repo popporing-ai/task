@@ -331,6 +331,62 @@ const TOOL_DEFINITIONS = [
     },
   },
 
+  // ===== 대량 삭제 (본인 데이터 자동 좁힘) =====
+  {
+    type: 'function',
+    function: {
+      name: 'bulk_delete_content',
+      description: '여러 콘텐츠를 한 번에 삭제합니다. 비관리자는 본인이 담당 또는 작성한 콘텐츠만 자동 좁혀서 삭제. 대량 삭제 요청("전체 삭제", "5월 콘텐츠 다 삭제" 등)에 반드시 이 도구를 사용. 1단계: dry_run=true(기본)로 호출 → 대상 개수만 반환됨. 사용자에게 그 개수로 재확인 받은 뒤 2단계: dry_run=false로 다시 호출해야 실제 삭제됨.',
+      parameters: {
+        type: 'object',
+        properties: {
+          channel:      { type: 'string', enum: ['IG','FB','LI','YT','BL','EM','HM'] },
+          content_type: { type: 'string', enum: ['I','C','V','S','Q','A','L','T'] },
+          status:       { type: 'string', enum: ['planned','done','skipped'] },
+          publish_from: { type: 'string', description: 'YYYY-MM-DD 이상' },
+          publish_to:   { type: 'string', description: 'YYYY-MM-DD 이하' },
+          keyword:      { type: 'string', description: '제목/주제에 포함된 키워드' },
+          dry_run:      { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'bulk_delete_tasks',
+      description: '여러 업무를 한 번에 삭제합니다. 비관리자는 본인이 담당 또는 작성한 업무만 자동 좁힘. dry_run=true로 먼저 개수 확인 → 사용자 재확인 → dry_run=false 로 실제 삭제.',
+      parameters: {
+        type: 'object',
+        properties: {
+          status:       { type: 'string', enum: ['todo','in_progress','done','blocked'] },
+          category_name:{ type: 'string' },
+          keyword:      { type: 'string', description: '제목/설명 키워드' },
+          due_from:     { type: 'string', description: 'YYYY-MM-DD 이상' },
+          due_to:       { type: 'string', description: 'YYYY-MM-DD 이하' },
+          dry_run:      { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'bulk_delete_calendar_events',
+      description: '여러 캘린더 일정을 한 번에 삭제합니다. 비관리자는 본인이 작성한 일정만 자동 좁힘. dry_run=true로 먼저 개수 확인 → 사용자 재확인 → dry_run=false 로 실제 삭제.',
+      parameters: {
+        type: 'object',
+        properties: {
+          event_type: { type: 'string' },
+          start_from: { type: 'string', description: 'YYYY-MM-DD 이상' },
+          start_to:   { type: 'string', description: 'YYYY-MM-DD 이하' },
+          keyword:    { type: 'string' },
+          dry_run:    { type: 'boolean', description: '기본 true (개수만). 실제 삭제는 false 명시 필요' },
+        },
+      },
+    },
+  },
+
   // ===== R&R (admin only) =====
   {
     type: 'function',
@@ -990,6 +1046,109 @@ async function executeTool(name, args, ctx) {
       }
       await db.query('DELETE FROM calendar_events WHERE id = $1', [ev.id]);
       return { ok: true, summary: `🗑️ 일정 삭제: "${ev.title}"` };
+    }
+
+    // ===== 대량 삭제 =====
+    if (name === 'bulk_delete_content') {
+      const where = [];
+      const params = [];
+      let i = 1;
+      if (!isAdmin) {
+        where.push(`(assignee_id = $${i} OR created_by = $${i})`);
+        params.push(user.id);
+        i++;
+      }
+      if (args.channel)      { where.push(`channel = $${i++}`); params.push(args.channel); }
+      if (args.content_type) { where.push(`content_type = $${i++}`); params.push(args.content_type); }
+      if (args.status)       { where.push(`status = $${i++}`); params.push(args.status); }
+      if (args.publish_from) { where.push(`publish_date >= $${i++}`); params.push(args.publish_from); }
+      if (args.publish_to)   { where.push(`publish_date <= $${i++}`); params.push(args.publish_to); }
+      if (args.keyword)      { where.push(`(title ILIKE $${i} OR topic ILIKE $${i})`); params.push(`%${args.keyword}%`); i++; }
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const dryRun = args.dry_run !== false; // 기본 true
+      if (dryRun) {
+        const { rows } = await db.query(`SELECT COUNT(*)::int AS cnt FROM content_items ${whereSql}`, params);
+        const cnt = rows[0].cnt;
+        return {
+          ok: true,
+          summary: `삭제 대상 콘텐츠 ${cnt}건 확인 (아직 삭제하지 않음). 진행하려면 같은 조건으로 dry_run=false 재호출.`,
+          data: { count: cnt, dry_run: true, scope: isAdmin ? 'all' : 'self' },
+        };
+      }
+      const { rows } = await db.query(`DELETE FROM content_items ${whereSql} RETURNING id, title`, params);
+      return {
+        ok: true,
+        summary: `🗑️ 콘텐츠 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
+        data: { count: rows.length, deleted: rows, scope: isAdmin ? 'all' : 'self' },
+      };
+    }
+
+    if (name === 'bulk_delete_tasks') {
+      const where = ['archived = false'];
+      const params = [];
+      let i = 1;
+      if (!isAdmin) {
+        where.push(`(assignee_id = $${i} OR created_by = $${i})`);
+        params.push(user.id);
+        i++;
+      }
+      if (args.status)       { where.push(`status = $${i++}`); params.push(args.status); }
+      if (args.category_name) {
+        const cid = await resolveCategoryId(db, args.category_name);
+        if (cid) { where.push(`category_id = $${i++}`); params.push(cid); }
+      }
+      if (args.keyword)      { where.push(`(title ILIKE $${i} OR description ILIKE $${i})`); params.push(`%${args.keyword}%`); i++; }
+      if (args.due_from)     { where.push(`due_date >= $${i++}`); params.push(args.due_from); }
+      if (args.due_to)       { where.push(`due_date <= $${i++}`); params.push(args.due_to); }
+      const whereSql = `WHERE ${where.join(' AND ')}`;
+      const dryRun = args.dry_run !== false;
+      if (dryRun) {
+        const { rows } = await db.query(`SELECT COUNT(*)::int AS cnt FROM tasks ${whereSql}`, params);
+        const cnt = rows[0].cnt;
+        return {
+          ok: true,
+          summary: `삭제 대상 업무 ${cnt}건 확인 (아직 삭제하지 않음). 진행하려면 같은 조건으로 dry_run=false 재호출.`,
+          data: { count: cnt, dry_run: true, scope: isAdmin ? 'all' : 'self' },
+        };
+      }
+      const { rows } = await db.query(`DELETE FROM tasks ${whereSql} RETURNING id, title`, params);
+      return {
+        ok: true,
+        summary: `🗑️ 업무 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
+        data: { count: rows.length, deleted: rows, scope: isAdmin ? 'all' : 'self' },
+      };
+    }
+
+    if (name === 'bulk_delete_calendar_events') {
+      const where = [];
+      const params = [];
+      let i = 1;
+      if (!isAdmin) {
+        where.push(`(created_by = $${i} OR assignee_id = $${i})`);
+        params.push(user.id);
+        i++;
+      }
+      if (args.event_type) { where.push(`event_type = $${i++}`); params.push(args.event_type); }
+      if (args.start_from) { where.push(`start_date >= $${i++}`); params.push(args.start_from); }
+      if (args.start_to)   { where.push(`start_date <= $${i++}`); params.push(args.start_to); }
+      if (args.keyword)    { where.push(`title ILIKE $${i++}`); params.push(`%${args.keyword}%`); }
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const dryRun = args.dry_run !== false;
+      if (dryRun) {
+        const { rows } = await db.query(`SELECT COUNT(*)::int AS cnt FROM calendar_events ${whereSql}`, params);
+        const cnt = rows[0].cnt;
+        return {
+          ok: true,
+          summary: `삭제 대상 일정 ${cnt}건 확인 (아직 삭제하지 않음). 진행하려면 같은 조건으로 dry_run=false 재호출.`,
+          data: { count: cnt, dry_run: true, scope: isAdmin ? 'all' : 'self' },
+        };
+      }
+      const { rows } = await db.query(`DELETE FROM calendar_events ${whereSql} RETURNING id, title`, params);
+      return {
+        ok: true,
+        summary: `🗑️ 일정 ${rows.length}건 삭제 완료${isAdmin ? '' : ' (본인 데이터만)'}.`,
+        data: { count: rows.length, deleted: rows, scope: isAdmin ? 'all' : 'self' },
+      };
     }
 
     // ===== R&R (admin only) =====

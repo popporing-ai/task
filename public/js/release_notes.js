@@ -7,9 +7,38 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.7.0';
+const CURRENT_VERSION = '2.7.1';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.7.1',
+    date: '2026-05-18',
+    title: 'AI 대량 삭제 안전 흐름 + 응답 오류 메시지 개선',
+    sections: [
+      {
+        kind: 'feature',
+        title: 'AI 어시스턴트 — 대량 삭제 도구 + 2단계 확인',
+        items: [
+          {
+            text: '"전체 삭제", "5월 콘텐츠 다 지워줘" 같은 대량 삭제 요청을 위해 bulk_delete_content / bulk_delete_tasks / bulk_delete_calendar_events 도구 신설. AI가 50건을 한 줄씩 도구 호출하다 타임아웃 나던 문제 해결.',
+            demo: '예) "내 5월 콘텐츠 다 삭제해줘"\n  1. AI: bulk_delete_content (dry_run=true) 호출\n     → "본인 데이터 12건 삭제 대상입니다. 정말 진행할까요?"\n  2. 사용자: "응"\n  3. AI: bulk_delete_content (dry_run=false) 호출\n     → "콘텐츠 12건 삭제 완료 (본인 데이터만)"',
+          },
+          { text: '서버에서 비관리자 요청은 자동으로 본인 담당/작성 데이터로만 좁힘 (LLM 추가 조건 없이도 타인 데이터 절대 안 건드림).' },
+          { text: 'dry_run=true가 기본값. 실제 삭제는 반드시 사용자 재확인 후 dry_run=false 재호출이 있어야 발생.' },
+        ],
+      },
+      {
+        kind: 'fix',
+        title: 'AI 채팅 — 응답 실패 메시지 개선',
+        items: [
+          {
+            text: '게이트웨이(Nginx) 타임아웃이나 LLM 서버 오류로 HTML 에러 페이지가 오던 경우 "Unexpected token \'<\'…" 가 그대로 노출되던 문제 수정.',
+            demo: '이전: ⚠ 응답 실패: Unexpected token \'<\', "<html><h"... is not valid JSON\n이후: ⚠ 응답 실패: 서버 또는 게이트웨이에서 비정상 응답(HTML)이 왔습니다. … (HTTP 504)',
+          },
+        ],
+      },
+    ],
+  },
   {
     version: '2.7.0',
     date: '2026-05-18',

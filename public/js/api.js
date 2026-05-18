@@ -27,7 +27,18 @@ const API = {
       return null;
     }
 
-    const data = await res.json();
+    // JSON 파싱 — 게이트웨이(Nginx)나 LLM 서버 오류로 HTML 응답이 올 수 있음
+    let data;
+    try {
+      data = await res.clone().json();
+    } catch (parseErr) {
+      const raw = await res.text().catch(() => '');
+      const looksHtml = /^\s*<(?:!doctype|html|head|body)\b/i.test(raw);
+      const hint = looksHtml
+        ? '서버 또는 게이트웨이에서 비정상 응답(HTML)이 왔습니다. 요청이 너무 오래 걸리거나 LLM 서버가 응답하지 않는 상태일 수 있습니다.'
+        : '서버 응답 형식이 올바르지 않습니다.';
+      throw new Error(`${hint} (HTTP ${res.status})`);
+    }
     if (!res.ok) throw new Error(data.error || data.message || '요청 실패');
 
     // ─── 자동 이벤트 발행: 변경 메서드일 때 path 기반으로 entity-changed 이벤트 emit ───
