@@ -7,9 +7,28 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.8.1';
+const CURRENT_VERSION = '2.8.2';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.8.2',
+    date: '2026-05-18',
+    title: '칸반 카드 — 첨부파일 표시 아이콘',
+    sections: [
+      {
+        kind: 'feature',
+        title: '칸반 카드에 첨부파일 인디케이터 추가',
+        items: [
+          {
+            text: '업무에 첨부된 파일이 있으면 카드에 클립 아이콘 + 개수가 표시됩니다. 카드를 열지 않고도 첨부 여부를 한눈에 확인 가능.',
+            demo: '예) 댓글 3개 + 첨부 2개 있는 업무 카드\n  card-indicators: ✓ 0/2  💬 3  📎 2',
+          },
+          { text: '"표시 항목" 드롭다운에 "첨부파일 표시" 토글 추가 (기본 켜짐). 안 보이게 하고 싶으면 해제.' },
+          { text: '백엔드 tasks 목록 쿼리에 attachment_count 서브쿼리 추가.' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.8.1',
     date: '2026-05-18',

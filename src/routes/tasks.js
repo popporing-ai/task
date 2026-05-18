@@ -83,6 +83,7 @@ router.get('/', async (req, res, next) => {
              (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)::int AS subtask_count,
              (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done')::int AS subtask_done_count,
              (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id)::int AS comment_count,
+             (SELECT COUNT(*) FROM attachments a WHERE a.task_id = t.id)::int AS attachment_count,
              (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id)::int AS checklist_count,
              (SELECT COUNT(*) FROM checklist_items ci JOIN checklists cl ON cl.id = ci.checklist_id WHERE cl.task_id = t.id AND ci.done = true)::int AS checklist_done
       FROM tasks t

@@ -1874,6 +1874,14 @@ input[type="month"] {
   align-items: center;
   gap: 3px;
 }
+.attachment-count {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.attachment-count svg { opacity: 0.85; }
 
 /* === 리스트 뷰 === */
 .list-view-wrap {

@@ -201,6 +201,7 @@ const TasksView = {
       { key: 'due_date', label: '마감일', default: true },
       { key: 'subtasks', label: '서브태스크 진행률', default: true },
       { key: 'comments', label: '댓글 수', default: true },
+      { key: 'attachments', label: '첨부파일 표시', default: true },
       { key: 'checklist', label: '체크리스트 진행률', default: false },
     ];
     const cardFieldDropdownHtml = `
@@ -831,7 +832,7 @@ const TasksView = {
 
   // 카드 표시 항목 기본값 및 localStorage 읽기/쓰기
   _getCardFieldPrefs() {
-    const defaults = { category: true, assignee: true, due_date: true, subtasks: true, comments: true, checklist: false };
+    const defaults = { category: true, assignee: true, due_date: true, subtasks: true, comments: true, attachments: true, checklist: false };
     try {
       const saved = localStorage.getItem('kanban_card_fields');
       if (saved) return { ...defaults, ...JSON.parse(saved) };
@@ -895,6 +896,11 @@ const TasksView = {
       ? `<span class="comment-count">💬 ${t.comment_count}</span>`
       : '';
 
+    // 첨부파일 수 — 클립 아이콘
+    const attachmentBadge = (prefs.attachments && t.attachment_count > 0)
+      ? `<span class="attachment-count" title="첨부파일 ${t.attachment_count}개"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-1px"><path d="M10.5 3.5l-5.6 5.6a2.5 2.5 0 003.55 3.55l6.6-6.6a4 4 0 00-5.66-5.66l-6.6 6.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ${t.attachment_count}</span>`
+      : '';
+
     // 체크리스트 진행 상황
     const checklistBadge = (prefs.checklist && t.checklist_count > 0)
       ? `<span class="checklist-progress-badge">☑ ${t.checklist_done}/${t.checklist_count}</span>`
@@ -922,7 +928,7 @@ const TasksView = {
         </div>
         ${(categoryHtml || workTypeBadge) ? `<div style="margin-bottom:4px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;">${categoryHtml}${workTypeBadge}</div>` : ''}
         <div class="card-title">${escHtml(t.title)}</div>
-        ${subtaskBadge || commentBadge || checklistBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}</div>` : ''}
+        ${subtaskBadge || commentBadge || checklistBadge || attachmentBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}${attachmentBadge}</div>` : ''}
         <div class="card-footer">
           ${assignee}
           ${dueDateHtml}
