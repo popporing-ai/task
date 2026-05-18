@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS content_items (
   id           SERIAL PRIMARY KEY,
   title        VARCHAR(300) NOT NULL,
+  topic        VARCHAR(300),
   product_id   INTEGER REFERENCES products(id) ON DELETE SET NULL,
   channel      VARCHAR(10) NOT NULL
                CHECK (channel IN ('IG','FB','LI','YT','BL','EM','HM')),
@@ -102,6 +103,7 @@ CREATE TABLE IF NOT EXISTS content_items (
   created_at   TIMESTAMPTZ DEFAULT NOW(),
   updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_content_topic ON content_items(topic);
 
 -- 8. rrr_items (R&R)
 CREATE TABLE IF NOT EXISTS rrr_items (

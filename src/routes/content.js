@@ -63,28 +63,27 @@ router.get('/preview-id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// 콘텐츠 생성
+// 콘텐츠 생성 (단일)
 router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
   try {
-    const { title, product_id, channel, content_type, assignee_id,
+    const { title, topic, product_id, channel, content_type, assignee_id,
             publish_date, content_id, inflow_url, publish_url, status, memo } = req.body;
 
     if (!title || !channel || !content_type) {
       return res.status(400).json({ error: '제목, 채널, 타입을 입력해주세요.' });
     }
 
-    // content_id 자동 생성 또는 수동 입력 사용
     const finalContentId = content_id || (publish_date
       ? await generateContentId(publish_date, channel, content_type)
       : null);
 
     const { rows } = await db.query(`
       INSERT INTO content_items
-        (title, product_id, channel, content_type, assignee_id, publish_date,
+        (title, topic, product_id, channel, content_type, assignee_id, publish_date,
          content_id, inflow_url, publish_url, status, memo, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING *
-    `, [title, product_id || null, channel, content_type, assignee_id || null,
+    `, [title, topic || null, product_id || null, channel, content_type, assignee_id || null,
         publish_date || null, finalContentId, inflow_url || null,
         publish_url || null, status || 'planned', memo || null, req.user.id]);
 
@@ -92,19 +91,50 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// 콘텐츠 일괄 생성 — 하나의 주제로 여러 채널/타입 동시 생성
+// body: { topic, channels: [{channel, content_type}, ...], publish_date, product_id, assignee_id, status, memo }
+router.post('/batch', auditMiddleware('content_items'), async (req, res, next) => {
+  try {
+    const { topic, channels, publish_date, product_id, assignee_id, status, memo } = req.body;
+    if (!topic || !topic.trim()) {
+      return res.status(400).json({ error: '주제(topic)를 입력해주세요.' });
+    }
+    if (!Array.isArray(channels) || channels.length === 0) {
+      return res.status(400).json({ error: '채널/타입 조합을 1개 이상 선택해주세요.' });
+    }
+    const items = [];
+    for (const c of channels) {
+      const ch = c.channel;
+      const ct = c.content_type;
+      if (!ch || !ct) continue;
+      const cid = publish_date ? await generateContentId(publish_date, ch, ct) : null;
+      const { rows } = await db.query(`
+        INSERT INTO content_items
+          (title, topic, product_id, channel, content_type, assignee_id, publish_date,
+           content_id, status, memo, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        RETURNING *
+      `, [topic.trim(), topic.trim(), product_id || null, ch, ct, assignee_id || null,
+          publish_date || null, cid, status || 'planned', memo || null, req.user.id]);
+      items.push(rows[0]);
+    }
+    res.json({ data: items, message: `${items.length}개 콘텐츠가 생성되었습니다.` });
+  } catch (err) { next(err); }
+});
+
 // 콘텐츠 수정
 router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
   try {
-    const { title, product_id, channel, content_type, assignee_id,
+    const { title, topic, product_id, channel, content_type, assignee_id,
             publish_date, content_id, inflow_url, publish_url, status, memo } = req.body;
 
     const { rows } = await db.query(`
       UPDATE content_items SET
-        title=$1, product_id=$2, channel=$3, content_type=$4, assignee_id=$5,
-        publish_date=$6, content_id=$7, inflow_url=$8, publish_url=$9,
-        status=$10, memo=$11, updated_at=NOW()
-      WHERE id=$12 RETURNING *
-    `, [title, product_id || null, channel, content_type, assignee_id || null,
+        title=$1, topic=$2, product_id=$3, channel=$4, content_type=$5, assignee_id=$6,
+        publish_date=$7, content_id=$8, inflow_url=$9, publish_url=$10,
+        status=$11, memo=$12, updated_at=NOW()
+      WHERE id=$13 RETURNING *
+    `, [title, topic || null, product_id || null, channel, content_type, assignee_id || null,
         publish_date || null, content_id || null, inflow_url || null,
         publish_url || null, status, memo || null, req.params.id]);
 

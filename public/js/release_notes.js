@@ -7,9 +7,63 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.5.2';
+const CURRENT_VERSION = '2.6.0';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.6.0',
+    date: '2026-05-18',
+    title: '콘텐츠 캘린더 대개편 + AI 채팅 줄바꿈 + 릴리즈노트 구조 개선',
+    sections: [
+      {
+        kind: 'feature',
+        title: '콘텐츠 — 주제별 그룹 + 일괄 생성',
+        items: [
+          { text: '새 콘텐츠 추가 시 "단일 / 주제별 다중" 모드 선택 가능' },
+          {
+            text: '"주제별 다중" 모드 — 하나의 주제명 입력 → 여러 채널 동시 체크 → 채널마다 타입 지정 → 한 번에 생성',
+            demo: '예) 주제 = "2026 신제품 런칭"\n  ☑ IG (S 쇼츠)  ☑ FB (I 이미지)  ☑ BL (A 아티클)\n→ 3개 콘텐츠가 모두 "2026 신제품 런칭" 주제 하위로 생성됨',
+          },
+          { text: '콘텐츠 ID는 각 채널별로 자동 생성 (배포일 × 채널 × 타입 조합)' },
+        ],
+      },
+      {
+        kind: 'feature',
+        title: '콘텐츠 — 리스트 뷰 구조 변경',
+        items: [
+          { text: '주제별로 묶인 카드 형태 — 주제 헤더 클릭으로 펼치기/접기' },
+          { text: '주제 헤더에 채널 뱃지 + 완료/전체 카운트 + 발행일 범위 표시' },
+          { text: '주제 없는 단일 콘텐츠는 기존처럼 단독 행으로 표시' },
+        ],
+      },
+      {
+        kind: 'feature',
+        title: '콘텐츠 — 캘린더 뷰 추가',
+        items: [
+          { text: '상단 토글로 "📋 리스트" ↔ "🗓️ 캘린더" 전환' },
+          { text: '월 그리드에 배포 예정일 기준으로 콘텐츠 칩 표시 (채널별 색상)' },
+          { text: '캘린더 칩 클릭 → 콘텐츠 수정 폼 바로 열림' },
+        ],
+      },
+      {
+        kind: 'feature',
+        title: 'AI 어시스턴트 — 줄바꿈 입력',
+        items: [
+          { text: '채팅 입력창에서 Shift+Enter → 줄바꿈, Enter → 전송' },
+          { text: '입력창이 textarea로 변경되어 다중 줄 입력 자연스럽게 가능' },
+        ],
+      },
+      {
+        kind: 'design',
+        title: '릴리즈 노트 구조 개선',
+        items: [
+          { text: '이번 노트부터 부제별 그룹화 (🆕 기능 추가 / 🐛 버그 수정 / 🎨 디자인)' },
+          { text: '각 항목에 동작 데모 텍스트 + 스크린샷/GIF 첨부 가능 (image 필드 추가 시 자동 표시)' },
+          { text: '버그 수정은 텍스트만, 신규 기능은 가능한 한 동작 예시 또는 이미지 동봉' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.5.2',
     date: '2026-05-18',
@@ -214,6 +268,45 @@ const ReleaseNotes = {
     this._renderModal({ all: true });
   },
 
+  _renderEntryBody(it) {
+    // 새 형식: sections — 부제별로 그룹 + 동작 데모/이미지 첨부 가능
+    if (Array.isArray(it.sections) && it.sections.length) {
+      const KIND_META = {
+        feature: { label: '🆕 기능 추가', cls: 'feature' },
+        fix:     { label: '🐛 버그 수정',  cls: 'fix' },
+        design:  { label: '🎨 디자인 개선', cls: 'design' },
+      };
+      return it.sections.map(sec => {
+        const meta = KIND_META[sec.kind] || { label: sec.kind, cls: '' };
+        const items = (sec.items || []).map(itm => {
+          const text = typeof itm === 'string' ? itm : itm.text;
+          const demo = typeof itm === 'object' ? itm.demo : null;
+          const image = typeof itm === 'object' ? itm.image : null;
+          return `
+            <div class="rn-section-item">
+              <div class="rn-section-item-text">${escHtml(text)}</div>
+              ${demo ? `<div class="rn-section-item-demo">${escHtml(demo)}</div>` : ''}
+              ${image ? `<img class="rn-section-item-image" src="${escHtml(image)}" alt="동작 모습" loading="lazy">` : ''}
+            </div>
+          `;
+        }).join('');
+        return `
+          <div class="rn-section ${meta.cls}">
+            <div class="rn-section-title">${meta.label}${sec.title ? ' — ' + escHtml(sec.title) : ''}</div>
+            ${items}
+          </div>
+        `;
+      }).join('');
+    }
+    // 구형식 호환: changes 배열
+    if (Array.isArray(it.changes) && it.changes.length) {
+      return `<ul class="rn-changes">
+        ${it.changes.map(c => `<li><span class="rn-bullet">•</span><span>${escHtml(c)}</span></li>`).join('')}
+      </ul>`;
+    }
+    return '';
+  },
+
   _renderModal({ all = false } = {}) {
     // 기존 모달 제거
     document.getElementById('release-notes-modal')?.remove();
@@ -247,9 +340,7 @@ const ReleaseNotes = {
                 <h3 class="rn-entry-title">${escHtml(it.title)}</h3>
                 <span class="rn-entry-date">${escHtml(it.date)}</span>
               </div>
-              <ul class="rn-changes">
-                ${it.changes.map(c => `<li><span class="rn-bullet">•</span><span>${escHtml(c)}</span></li>`).join('')}
-              </ul>
+              ${this._renderEntryBody(it)}
             </div>
           `).join('')}
         </div>

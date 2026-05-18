@@ -110,7 +110,7 @@ const ChatWidget = {
           ${suggestions.map(s => `<button class="cw-sug" data-text="${escHtml(s)}">${escHtml(s)}</button>`).join('')}
         </div>` : ''}
         <div class="cw-input-row">
-          <input type="text" id="cw-input" class="cw-input" placeholder="업무에 대해 물어보세요…" autocomplete="off" ${this._loading ? 'disabled' : ''}>
+          <textarea id="cw-input" class="cw-input" rows="1" placeholder="업무에 대해 물어보세요…  (Shift+Enter 줄바꿈)" ${this._loading ? 'disabled' : ''}></textarea>
           <button class="cw-send" id="cw-send" ${this._loading ? 'disabled' : ''}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-6-5 14-2-6-5-2z" fill="currentColor"/></svg>
           </button>
@@ -141,7 +141,18 @@ const ChatWidget = {
       this._send(text);
     };
     send.addEventListener('click', submit);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    // Enter: 전송, Shift+Enter: 줄바꿈
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submit();
+      }
+    });
+    // textarea 자동 리사이즈 (max 5줄)
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+    });
     panel.querySelectorAll('.cw-sug').forEach(btn => {
       btn.addEventListener('click', () => {
         if (this._loading) return;
