@@ -7,9 +7,45 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.10.3';
+const CURRENT_VERSION = '2.10.4';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.10.4',
+    date: '2026-05-19',
+    title: '서브태스크 상태 dropdown + Enter 중복 방지 + 체크리스트 기능 제거',
+    sections: [
+      {
+        kind: 'feature',
+        title: '서브태스크 — 진행 중으로 직접 변경 가능',
+        items: [
+          {
+            text: '서브태스크 행의 상태 뱃지가 dropdown으로 바뀌어 할 일 ↔ 진행 중 ↔ 완료를 직접 선택 가능. 체크박스는 그대로 두고(할 일/완료 빠른 토글), 진행 중 같은 중간 상태도 dropdown으로 한 번에 지정.',
+            demo: '서브태스크 행:\n  [☐] 디자인 시안 작업  [할 일 ▾]  @홍길동  03/15  ✕\n                            ↑ 클릭하면 todo/in_progress/done 선택',
+          },
+          { text: '백엔드 PATCH /tasks/:taskId/subtasks/:id/status — 상태만 변경하는 전용 엔드포인트 추가. done 컬럼도 자동 동기화.' },
+        ],
+      },
+      {
+        kind: 'fix',
+        title: '서브태스크 — Enter 중복 추가 방지',
+        items: [
+          { text: '서브태스크 입력 후 Enter를 한 번 눌렀는데 항목이 2개 생기던 문제. busy 플래그 + button disabled + preventDefault/stopPropagation으로 차단.' },
+        ],
+      },
+      {
+        kind: 'fix',
+        title: '체크리스트 — 기능 전면 제거',
+        items: [
+          {
+            text: '사용하지 않는 체크리스트 기능을 UI/백엔드 모두에서 제거. 업무 상세 패널의 "체크리스트" 탭과 카드의 ☑ 진행률 뱃지 사라짐.',
+            demo: '제거 범위:\n  - 업무 상세 "체크리스트" 탭 + 내부 UI\n  - 칸반 카드 "표시 항목" 드롭다운의 "체크리스트 진행률" 옵션\n  - 카드 인디케이터의 ☑ 0/3 뱃지\n  - 백엔드 GET /tasks의 checklist_count 서브쿼리\n  - /task/api/checklists 라우트 마운트 (deprecated)',
+          },
+          { text: 'DB의 checklists / checklist_items 테이블은 보존 (데이터 손실 방지). 필요해지면 추후 복구 가능.' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.10.3',
     date: '2026-05-19',

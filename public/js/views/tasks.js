@@ -202,7 +202,6 @@ const TasksView = {
       { key: 'subtasks', label: '서브태스크 진행률', default: true },
       { key: 'comments', label: '댓글 수', default: true },
       { key: 'attachments', label: '첨부파일 표시', default: true },
-      { key: 'checklist', label: '체크리스트 진행률', default: false },
     ];
     const cardFieldDropdownHtml = `
       <div style="position:relative;display:inline-block;">
@@ -832,7 +831,7 @@ const TasksView = {
 
   // 카드 표시 항목 기본값 및 localStorage 읽기/쓰기
   _getCardFieldPrefs() {
-    const defaults = { category: true, assignee: true, due_date: true, subtasks: true, comments: true, attachments: true, checklist: false };
+    const defaults = { category: true, assignee: true, due_date: true, subtasks: true, comments: true, attachments: true };
     try {
       const saved = localStorage.getItem('kanban_card_fields');
       if (saved) return { ...defaults, ...JSON.parse(saved) };
@@ -901,11 +900,6 @@ const TasksView = {
       ? `<span class="attachment-count" title="첨부파일 ${t.attachment_count}개"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-1px"><path d="M10.5 3.5l-5.6 5.6a2.5 2.5 0 003.55 3.55l6.6-6.6a4 4 0 00-5.66-5.66l-6.6 6.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> ${t.attachment_count}</span>`
       : '';
 
-    // 체크리스트 진행 상황
-    const checklistBadge = (prefs.checklist && t.checklist_count > 0)
-      ? `<span class="checklist-progress-badge">☑ ${t.checklist_done}/${t.checklist_count}</span>`
-      : '';
-
     // 카테고리 태그 (설정에 따라)
     const categoryHtml = (prefs.category && t.category_name) ? categoryTag(t.category_name) : '';
 
@@ -928,7 +922,7 @@ const TasksView = {
         </div>
         ${(categoryHtml || workTypeBadge) ? `<div style="margin-bottom:4px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;">${categoryHtml}${workTypeBadge}</div>` : ''}
         <div class="card-title">${escHtml(t.title)}</div>
-        ${subtaskBadge || commentBadge || checklistBadge || attachmentBadge ? `<div class="card-indicators">${subtaskBadge}${checklistBadge}${commentBadge}${attachmentBadge}</div>` : ''}
+        ${subtaskBadge || commentBadge || attachmentBadge ? `<div class="card-indicators">${subtaskBadge}${commentBadge}${attachmentBadge}</div>` : ''}
         <div class="card-footer">
           ${assignee}
           ${dueDateHtml}
@@ -1042,7 +1036,6 @@ const TasksView = {
           <button class="detail-tab active" data-tab="info">상세</button>
           <button class="detail-tab" data-tab="subtasks">서브태스크</button>
           <button class="detail-tab" data-tab="comments">댓글</button>
-          <button class="detail-tab" data-tab="checklist">체크리스트</button>
           <button class="detail-tab" data-tab="attachments">첨부파일</button>
         </div>
 
@@ -1117,13 +1110,6 @@ const TasksView = {
             </div>
           </div>
 
-          <!-- 체크리스트 탭 -->
-          <div class="detail-tab-pane" data-pane="checklist" style="display:none;">
-            <div class="checklist-section" id="checklist-section">
-              <div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:12px;">불러오는 중...</div>
-            </div>
-          </div>
-
           <!-- 첨부파일 탭 -->
           <div class="detail-tab-pane" data-pane="attachments" style="display:none;">
             <div class="attachment-section">
@@ -1161,7 +1147,6 @@ const TasksView = {
     const tabPanes = overlay.querySelectorAll('.detail-tab-pane');
     let subtasksLoaded = false;
     let commentsLoaded = false;
-    let checklistLoaded = false;
     let attachmentsLoaded = false;
 
     tabBtns.forEach(btn => {
@@ -1180,10 +1165,6 @@ const TasksView = {
           commentsLoaded = true;
           await this._loadComments(task.id, overlay);
         }
-        if (btn.dataset.tab === 'checklist' && !checklistLoaded) {
-          checklistLoaded = true;
-          await this._loadChecklist(task.id, overlay);
-        }
         if (btn.dataset.tab === 'attachments' && !attachmentsLoaded) {
           attachmentsLoaded = true;
           await this._loadAttachments(task.id, overlay);
@@ -1191,11 +1172,16 @@ const TasksView = {
       });
     });
 
-    // 서브태스크 추가
-    overlay.querySelector('#btn-add-subtask')?.addEventListener('click', async () => {
+    // 서브태스크 추가 — 중복 제출 방지(busy 플래그) + Enter 키 preventDefault
+    let _subtaskAddBusy = false;
+    const addSubtask = async () => {
+      if (_subtaskAddBusy) return;
       const input = overlay.querySelector('#new-subtask');
       const title = input?.value.trim();
       if (!title) return;
+      _subtaskAddBusy = true;
+      const addBtn = overlay.querySelector('#btn-add-subtask');
+      if (addBtn) addBtn.disabled = true;
       const assignee_id = overlay.querySelector('#new-subtask-assignee')?.value || null;
       const status = overlay.querySelector('#new-subtask-status')?.value || 'todo';
       const due_date = overlay.querySelector('#new-subtask-due')?.value || null;
@@ -1206,10 +1192,18 @@ const TasksView = {
         await this._loadSubtasks(task.id, overlay);
       } catch (e) {
         App.toast('서브태스크 추가 실패', 'error');
+      } finally {
+        _subtaskAddBusy = false;
+        if (addBtn) addBtn.disabled = false;
       }
-    });
+    };
+    overlay.querySelector('#btn-add-subtask')?.addEventListener('click', addSubtask);
     overlay.querySelector('#new-subtask')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') overlay.querySelector('#btn-add-subtask')?.click();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        addSubtask();
+      }
     });
 
     // 댓글 추가
@@ -1378,13 +1372,19 @@ const TasksView = {
         const dueHtml = s.due_date
           ? `<span style="font-size:10px;color:var(--color-text-hint);">${s.due_date.slice(0,10)}</span>`
           : '';
+        const statusSelectHtml = `
+          <select class="subtask-status-select ${statusClass[st] || 'subtask-status-todo'}" title="상태 변경">
+            ${['todo','in_progress','done'].map(v =>
+              `<option value="${v}" ${st === v ? 'selected' : ''}>${statusLabel[v]}</option>`
+            ).join('')}
+          </select>`;
         return `
           <div class="subtask-item${st === 'done' ? ' done' : ''}" data-subtask-id="${s.id}">
-            <input type="checkbox" class="subtask-check" ${st === 'done' ? 'checked' : ''}>
+            <input type="checkbox" class="subtask-check" ${st === 'done' ? 'checked' : ''} title="완료 토글">
             <div style="flex:1;min-width:0;">
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                 <span class="subtask-title">${escHtml(s.title)}</span>
-                <span class="subtask-status-badge ${statusClass[st] || 'subtask-status-todo'}">${statusLabel[st] || st}</span>
+                ${statusSelectHtml}
                 ${assigneeHtml}${dueHtml}
               </div>
             </div>
@@ -1392,7 +1392,7 @@ const TasksView = {
           </div>`;
       }).join('');
 
-      // 체크박스 토글 → status 동기화
+      // 체크박스 토글 → status 동기화 (todo ↔ done)
       container.querySelectorAll('.subtask-check').forEach(cb => {
         cb.addEventListener('change', async () => {
           const item = cb.closest('.subtask-item');
@@ -1403,6 +1403,22 @@ const TasksView = {
           } catch (e) {
             App.toast('업데이트 실패', 'error');
             cb.checked = !cb.checked;
+          }
+        });
+      });
+
+      // 상태 dropdown 변경 → 직접 상태 지정 (todo / in_progress / done)
+      container.querySelectorAll('.subtask-status-select').forEach(sel => {
+        sel.addEventListener('change', async (e) => {
+          e.stopPropagation();
+          const item = sel.closest('.subtask-item');
+          const id = item.dataset.subtaskId;
+          const newStatus = sel.value;
+          try {
+            await API.patch(`/tasks/${taskId}/subtasks/${id}/status`, { status: newStatus });
+            await this._loadSubtasks(taskId, overlay);
+          } catch {
+            App.toast('상태 변경 실패', 'error');
           }
         });
       });
@@ -1653,145 +1669,6 @@ const TasksView = {
     } catch (e) {
       container.innerHTML = '<div style="font-size:12px;color:var(--color-warn-text);">불러오기 실패</div>';
     }
-  },
-
-  // 체크리스트 로드 및 렌더
-  async _loadChecklist(taskId, overlay) {
-    const section = overlay.querySelector('#checklist-section');
-    if (!section) return;
-    try {
-      const res = await API.get(`/checklists/task/${taskId}`);
-      const checklists = res.data || [];
-
-      if (checklists.length === 0) {
-        // 체크리스트 없음 → 새 체크리스트 생성 UI만 표시
-        section.innerHTML = this._renderChecklistEmpty(taskId, overlay);
-        this._bindChecklistCreateEvents(taskId, overlay, section);
-        return;
-      }
-
-      // 첫 번째 체크리스트 사용 (단일 체크리스트 모델)
-      const cl = checklists[0];
-      const items = cl.items || [];
-      const done = items.filter(i => i.done).length;
-      const total = items.length;
-
-      section.innerHTML = `
-        <div class="checklist-section-inner">
-          <div class="checklist-header">
-            <strong>${escHtml(cl.title)}</strong>
-            <span class="checklist-progress">${done}/${total}</span>
-          </div>
-          <div class="checklist-items" id="checklist-items-${cl.id}">
-            ${items.map(item => `
-              <div class="checklist-item${item.done ? ' done' : ''}" data-item-id="${item.id}">
-                <input type="checkbox" class="checklist-item-check" ${item.done ? 'checked' : ''}>
-                <span>${escHtml(item.content)}</span>
-                <button class="checklist-item-del" title="삭제">✕</button>
-              </div>
-            `).join('')}
-            <div class="checklist-item-add">
-              <input type="text" placeholder="항목 추가..." id="new-checklist-item-${cl.id}">
-              <button class="btn btn-primary" id="btn-add-checklist-item-${cl.id}" style="padding:5px 10px;font-size:12px;">추가</button>
-            </div>
-          </div>
-        </div>
-      `;
-
-      // 체크박스 토글
-      section.querySelectorAll('.checklist-item-check').forEach(cb => {
-        cb.addEventListener('change', async () => {
-          const itemEl = cb.closest('.checklist-item');
-          const itemId = itemEl.dataset.itemId;
-          try {
-            await API.patch(`/checklists/items/${itemId}/toggle`, {});
-            itemEl.classList.toggle('done', cb.checked);
-            // 진행률 업데이트
-            const allItems = section.querySelectorAll('.checklist-item');
-            const doneCount = [...allItems].filter(el => el.querySelector('input[type=checkbox]')?.checked).length;
-            section.querySelector('.checklist-progress').textContent = `${doneCount}/${allItems.length}`;
-          } catch {
-            App.toast('업데이트 실패', 'error');
-            cb.checked = !cb.checked;
-          }
-        });
-      });
-
-      // 항목 삭제
-      section.querySelectorAll('.checklist-item-del').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const itemEl = btn.closest('.checklist-item');
-          const itemId = itemEl.dataset.itemId;
-          try {
-            await API.del(`/checklists/items/${itemId}`);
-            itemEl.remove();
-            // 진행률 업데이트
-            const allItems = section.querySelectorAll('.checklist-item');
-            const doneCount = [...allItems].filter(el => el.querySelector('input[type=checkbox]')?.checked).length;
-            section.querySelector('.checklist-progress').textContent = `${doneCount}/${allItems.length}`;
-          } catch {
-            App.toast('삭제 실패', 'error');
-          }
-        });
-      });
-
-      // 항목 추가
-      const addInput = section.querySelector(`#new-checklist-item-${cl.id}`);
-      const addBtn = section.querySelector(`#btn-add-checklist-item-${cl.id}`);
-      const addItem = async () => {
-        const content = addInput?.value.trim();
-        if (!content) return;
-        try {
-          await API.post(`/checklists/${cl.id}/items`, { content });
-          addInput.value = '';
-          // 리로드
-          const res2 = await API.get(`/checklists/task/${taskId}`);
-          const cl2 = (res2.data || [])[0];
-          if (cl2) {
-            // 재렌더
-            const tmpOverlay = { querySelector: (sel) => overlay.querySelector(sel) };
-            await this._loadChecklist(taskId, overlay);
-          }
-        } catch {
-          App.toast('항목 추가 실패', 'error');
-        }
-      };
-      addBtn?.addEventListener('click', addItem);
-      addInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItem(); });
-
-    } catch {
-      section.innerHTML = '<div style="padding:12px;color:var(--color-warn-text);font-size:12px;">불러오기 실패</div>';
-    }
-  },
-
-  // 체크리스트 없을 때 생성 UI
-  _renderChecklistEmpty(taskId, overlay) {
-    return `
-      <div style="text-align:center;padding:12px 0 16px;">
-        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:12px;">체크리스트가 없습니다</div>
-        <div style="display:flex;gap:8px;align-items:center;max-width:320px;margin:0 auto;">
-          <input type="text" id="new-checklist-title" placeholder="체크리스트 이름..." style="flex:1;background:var(--color-bg-secondary);border:0.5px solid var(--color-border);border-radius:6px;color:var(--color-text-primary);font-family:inherit;font-size:12px;padding:6px 10px;outline:none;">
-          <button class="btn btn-primary" id="btn-create-checklist" style="padding:5px 10px;font-size:12px;">만들기</button>
-        </div>
-      </div>
-    `;
-  },
-
-  // 체크리스트 생성 이벤트 바인딩
-  _bindChecklistCreateEvents(taskId, overlay, section) {
-    const createBtn = section.querySelector('#btn-create-checklist');
-    const titleInput = section.querySelector('#new-checklist-title');
-    const doCreate = async () => {
-      const title = titleInput?.value.trim() || '체크리스트';
-      try {
-        await API.post('/checklists', { task_id: taskId, title });
-        await this._loadChecklist(taskId, overlay);
-      } catch {
-        App.toast('체크리스트 생성 실패', 'error');
-      }
-    };
-    createBtn?.addEventListener('click', doCreate);
-    titleInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCreate(); });
   },
 
   // 첨부파일 로드 및 렌더

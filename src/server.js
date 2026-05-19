@@ -32,7 +32,7 @@ app.use('/task/api/tasks', require('./routes/comments'));
 app.use('/task/api/tags', require('./routes/tags'));
 app.use('/task/api/notifications', require('./routes/notifications'));
 app.use('/task/api/attachments', require('./routes/attachments'));
-app.use('/task/api/checklists', require('./routes/checklists'));
+// checklists 라우트는 deprecated (v2.10.4 — 기능 제거). 테이블은 보존.
 app.use('/task/api/users', require('./routes/users'));
 app.use('/task/api/calendar', require('./routes/calendar'));
 app.use('/task/api/weekly-reports', require('./routes/weekly_reports'));

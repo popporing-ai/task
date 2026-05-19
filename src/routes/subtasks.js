@@ -73,6 +73,25 @@ router.patch('/:taskId/subtasks/:id/toggle', auditMiddleware('subtasks'), async 
   } catch (err) { next(err); }
 });
 
+// 하위 업무 상태만 변경 (todo / in_progress / done)
+router.patch('/:taskId/subtasks/:id/status', auditMiddleware('subtasks'), async (req, res, next) => {
+  try {
+    const { id, taskId } = req.params;
+    const { status } = req.body || {};
+    const allowed = ['todo', 'in_progress', 'done'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ data: null, error: 'status 값이 올바르지 않습니다.' });
+    }
+    const { rows } = await db.query(`
+      UPDATE subtasks
+      SET status = $1, done = ($1 = 'done')
+      WHERE id=$2 AND task_id=$3 RETURNING *
+    `, [status, id, taskId]);
+    if (!rows.length) return res.status(404).json({ data: null, error: '하위 업무를 찾을 수 없습니다.' });
+    res.json({ data: rows[0] });
+  } catch (err) { next(err); }
+});
+
 // 하위 업무 삭제
 router.delete('/:taskId/subtasks/:id', auditMiddleware('subtasks'), async (req, res, next) => {
   try {
