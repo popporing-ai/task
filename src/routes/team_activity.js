@@ -630,8 +630,15 @@ ${tasks.map(t => {
 - 마케팅 업무·콘텐츠·일정·담당자 외의 질문(예: 일반 상식, 잡담, 정치, 코딩 도움 등)은
   정중히 거절하고 "이 화면은 마케팅 업무 현황 조회 전용입니다"라고 안내합니다.
 - 답변은 간결하게. 표가 더 명확하면 마크다운 표 사용.
-- 외부 링크·이미지·코드 블록은 만들지 않습니다 (단, 마크다운 표는 OK).
+- 외부 링크·이미지·코드 블록·JSON 객체를 그대로 텍스트로 출력하지 않습니다. (특히 \`{"title":"..."}\` 같은 raw JSON을 답변 본문에 절대 노출 금지)
 - 답변 끝에 사족 붙이지 말고 바로 본론.
+- **빈 응답 금지**. 답할 말이 없으면 "어떤 도움이 더 필요하실까요?" 라고라도 답하세요.
+
+# 대화 이력 활용 (매우 중요)
+- 이전 메시지들이 위에 system 다음으로 user/assistant 순으로 주어집니다. **반드시 그 흐름을 읽고 맥락을 유지**하세요. 매 메시지를 새로운 대화로 취급하지 마세요.
+- 사용자가 "그거", "그 항목", "그 타이틀", "방금 거", "위에 있던" 같은 지시어를 쓰면 직전 메시지에서 언급된 엔티티/조건/주제를 가리킵니다. 그 맥락을 그대로 이어서 처리하세요.
+- 엔티티 종류(콘텐츠/업무/일정/타임라인)는 사용자가 명시적으로 바꾸지 않는 한 직전 대화의 종류를 유지합니다. 예) 사용자가 "콘텐츠 X 삭제"라고 한 뒤 "그거 삭제"라고 하면 콘텐츠로 처리 (절대 업무로 바꾸지 마세요).
+- 도구 결과가 이전에 0건이었으면 사용자는 후속 메시지에서 키워드를 정정하거나 다른 조건을 줄 가능성이 큽니다. 그걸 반영해서 다시 도구를 호출하세요.
 
 # 답변 스타일
 - "정리해줘" → 마크다운 불릿 또는 표
@@ -759,15 +766,38 @@ bulk_delete_* 또는 list_* 가 0건을 반환하면 단순히 "데이터가 없
     const MAX_ITER = 5;
     let reply = null;
 
+    // 도구 결과 요약을 fallback 응답으로 만드는 헬퍼 — LLM 후속 호출이 실패해도 사용자에게는 정상 응답
+    const fallbackReplyFromTools = () => {
+      if (!toolResults.length) return null;
+      const oks = toolResults.filter(t => t.result?.ok);
+      const errs = toolResults.filter(t => !t.result?.ok);
+      const parts = [];
+      if (oks.length) parts.push(oks.map(t => t.result.summary || '작업이 완료되었습니다.').join('\n'));
+      if (errs.length) parts.push(errs.map(t => `⚠ ${t.result.error || '오류'}`).join('\n'));
+      return parts.join('\n\n') || null;
+    };
+
     try {
       for (let iter = 0; iter < MAX_ITER; iter++) {
-        const data = await callLLM(
-          apiUrl, model, llmMessages,
-          useTools ? TOOL_DEFINITIONS : null, headers
-        );
+        let data;
+        try {
+          data = await callLLM(
+            apiUrl, model, llmMessages,
+            useTools ? TOOL_DEFINITIONS : null, headers
+          );
+        } catch (llmErr) {
+          // LLM 호출 실패 — 이미 도구가 실행돼서 결과가 있으면 그 요약을 응답으로 사용
+          const fb = fallbackReplyFromTools();
+          if (fb) {
+            console.warn('LLM 후속 호출 실패 — 도구 결과 요약으로 fallback:', llmErr.message);
+            reply = fb;
+            break;
+          }
+          throw llmErr; // 도구 결과도 없으면 진짜 실패 → 외부 catch로
+        }
         const msg = data.choices?.[0]?.message;
         if (!msg) {
-          reply = '응답을 생성할 수 없습니다.';
+          reply = fallbackReplyFromTools() || '응답을 생성하지 못했습니다. 다시 한 번 말씀해주세요.';
           break;
         }
 
@@ -798,17 +828,29 @@ bulk_delete_* 또는 list_* 가 0건을 반환하면 단순히 "데이터가 없
 
         // tool_calls 없으면 최종 응답
         reply = (msg.content || '').trim();
+        if (!reply) {
+          // LLM이 빈 content를 반환한 경우 — 도구 결과 요약을 사용하거나 친절한 안내
+          reply = fallbackReplyFromTools() || '지금 응답을 생성하지 못했어요. 한 번 더 말씀해주실래요?';
+        }
         break;
       }
     } catch (e) {
       console.error('LLM/Tool 호출 실패:', e.message);
+      // 도구가 이미 실행됐으면 그 결과를 응답으로 반환 (502 대신 200)
+      const fb = fallbackReplyFromTools();
+      if (fb) {
+        return res.json({
+          data: { reply: fb, model, tool_results: toolResults },
+          message: 'OK (LLM 후속 응답 실패, 도구 결과로 응답)',
+        });
+      }
       return res.status(502).json({
         data: null,
         message: `AI 호출 실패: ${e.message}`,
       });
     }
 
-    if (!reply) reply = '응답이 비어있습니다.';
+    if (!reply) reply = fallbackReplyFromTools() || '응답이 비어있습니다. 다시 시도해주세요.';
 
     res.json({
       data: { reply, model, tool_results: toolResults },

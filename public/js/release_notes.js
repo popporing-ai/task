@@ -7,9 +7,51 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.9.1';
+const CURRENT_VERSION = '2.9.2';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.9.2',
+    date: '2026-05-19',
+    title: 'AI 어시스턴트 502 해소 + 대화 이력 유지 + 단축 URL 서비스 복구',
+    sections: [
+      {
+        kind: 'fix',
+        title: '단축 URL — LRL.KR 복구 불가로 TinyURL로 환원',
+        items: [
+          {
+            text: 'v2.9.1에서 LRL.KR로 교체했으나 실제 호출 시 v4 엔드포인트는 404, v5는 API 키 필수(401)로 무료 키 없이 동작 불가. 추가 검증으로 is.gd / v.gd는 virnect.com 도메인을 거부함. 결과적으로 안정 동작하는 무료 서비스는 TinyURL뿐이라 다시 환원.',
+            demo: '검증 결과:\n  LRL.KR v4 /url/short  → 404 Not Found (deprecated)\n  LRL.KR v5 /url/short  → 401 Unauthorized (key 필요)\n  is.gd / v.gd          → "database insert failed" (virnect 도메인 거부)\n  TinyURL               → 정상 동작',
+          },
+          { text: 'TinyURL의 5초 preview 페이지는 클릭자 브라우저 쿠키 사이드 동작 — SNS 수신자는 (preview 쿠키가 없으므로) 즉시 이동. 본인 브라우저에서만 보이면 tinyurl.com/preview.php에서 disable 가능.' },
+        ],
+      },
+      {
+        kind: 'fix',
+        title: '도구 실행 후 LLM 후속 응답 실패해도 결과는 정상 표시',
+        items: [
+          {
+            text: '예전엔 "삭제 진행" 같은 후속 요청에서 도구는 잘 실행됐는데 LLM이 마지막 요약 생성 중 실패하면 502 오류로 떴음. 이제 도구가 이미 성공했다면 그 결과 요약을 그대로 사용자에게 응답해서 502 대신 정상 결과 표시.',
+            demo: '이전: "삭제" → 실제 삭제 완료 → 502 오류 페이지\n이후: "삭제" → 실제 삭제 완료 → "콘텐츠 2건 삭제 완료" 메시지',
+          },
+          { text: 'LLM이 빈 content를 반환하는 경우(드물지만 발생)에도 도구 결과 요약 fallback. 마지막 안전망으로 "한 번 더 말씀해주실래요?" 친절 안내.' },
+        ],
+      },
+      {
+        kind: 'fix',
+        title: '대화 이력 유지 강화 — 매 메시지를 새 대화로 취급하지 않도록',
+        items: [
+          {
+            text: '시스템 프롬프트에 대화 이력 활용 규칙 명시. "그거", "그 타이틀", "방금 거" 같은 지시어가 직전 메시지의 엔티티를 가리킴을 LLM이 이해하도록 강제.',
+            demo: '시나리오:\n  유저: "콘텐츠 test27 다 삭제"\n  AI: (조회 결과 0건 → 다시 묻기)\n  유저: "test27 이게 정확한 제목임"\n  AI: 이전 콘텐츠 맥락을 그대로 이어서 콘텐츠 도구로 재시도\n  (이전엔 업무 도구로 잘못 분기되던 버그)',
+          },
+          { text: '엔티티 종류(콘텐츠/업무/일정/타임라인)는 사용자가 명시적으로 바꾸지 않는 한 이전 대화의 종류 유지.' },
+          { text: '0건 결과 후 사용자가 조건/키워드를 정정해서 다시 요청하면 자동으로 그 정정값으로 재호출.' },
+          { text: '`{"title":"test27"}` 같은 raw JSON을 답변 본문에 노출하지 못하도록 시스템 프롬프트에 명시 (LLM 출력 정제).' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.9.1',
     date: '2026-05-19',
