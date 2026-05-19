@@ -31,6 +31,27 @@ function buildInflowUrl(contentId, productName) {
   return `${base}${sep}src=${contentId}`;
 }
 
+// TinyURL 무료 API로 단축 URL 생성 — 실패 시 null 반환 (요청 자체는 막지 않음)
+async function shortenUrl(longUrl) {
+  if (!longUrl) return null;
+  try {
+    // 4초 타임아웃 — 단축 실패가 콘텐츠 저장을 막지 않도록
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`, {
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const text = (await res.text()).trim();
+    // TinyURL은 성공 시 단축 URL 텍스트만, 실패 시 "Error" 류 문자열 반환
+    if (!text || /^error/i.test(text) || !/^https?:\/\//.test(text)) return null;
+    return text;
+  } catch {
+    return null;
+  }
+}
+
 // 콘텐츠 ID 자동 생성
 async function generateContentId(publishDate, channel, contentType) {
   const base = `${publishDate.replace(/-/g, '').slice(0, 8)}_${channel}_${contentType}`;
@@ -91,7 +112,7 @@ router.get('/preview-id', async (req, res, next) => {
 router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
   try {
     const { title, topic, product_id, channel, content_type, assignee_id,
-            publish_date, content_id, inflow_url, publish_url, status, memo } = req.body;
+            publish_date, content_id, inflow_url, short_url, publish_url, status, memo } = req.body;
 
     if (!title || !channel || !content_type) {
       return res.status(400).json({ error: '제목, 채널, 타입을 입력해주세요.' });
@@ -112,14 +133,20 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
       finalInflowUrl = buildInflowUrl(finalContentId, pName);
     }
 
+    // short_url 자동 생성 — 클라이언트 미전송 시 TinyURL로 단축
+    let finalShortUrl = short_url || null;
+    if (!finalShortUrl && finalInflowUrl) {
+      finalShortUrl = await shortenUrl(finalInflowUrl);
+    }
+
     const { rows } = await db.query(`
       INSERT INTO content_items
         (title, topic, product_id, channel, content_type, assignee_id, publish_date,
-         content_id, inflow_url, publish_url, status, memo, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         content_id, inflow_url, short_url, publish_url, status, memo, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
     `, [title, topic || null, product_id || null, channel, content_type, assignee_id || null,
-        publish_date || null, finalContentId, finalInflowUrl || null,
+        publish_date || null, finalContentId, finalInflowUrl || null, finalShortUrl || null,
         publish_url || null, status || 'planned', memo || null, req.user.id]);
 
     res.json({ data: rows[0], message: '콘텐츠가 추가되었습니다.' });
@@ -144,21 +171,35 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
       productName = pRows[0]?.name || null;
     }
 
-    const items = [];
+    // 1단계: content_id + inflow_url 계산 (단축은 병렬로 별도)
+    const prepared = [];
     for (const c of channels) {
       const ch = c.channel;
       const ct = c.content_type;
       if (!ch || !ct) continue;
       const cid = publish_date ? await generateContentId(publish_date, ch, ct) : null;
       const inflowUrl = buildInflowUrl(cid, productName);
+      prepared.push({ ch, ct, cid, inflowUrl });
+    }
+
+    // 2단계: TinyURL 단축을 병렬 호출 (n번 채널이면 n번 동시에)
+    const shortUrls = await Promise.all(
+      prepared.map(p => p.inflowUrl ? shortenUrl(p.inflowUrl) : Promise.resolve(null))
+    );
+
+    // 3단계: 일괄 INSERT
+    const items = [];
+    for (let idx = 0; idx < prepared.length; idx++) {
+      const p = prepared[idx];
+      const sUrl = shortUrls[idx] || null;
       const { rows } = await db.query(`
         INSERT INTO content_items
           (title, topic, product_id, channel, content_type, assignee_id, publish_date,
-           content_id, inflow_url, status, memo, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+           content_id, inflow_url, short_url, status, memo, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         RETURNING *
-      `, [topic.trim(), topic.trim(), product_id || null, ch, ct, assignee_id || null,
-          publish_date || null, cid, inflowUrl, status || 'planned', memo || null, req.user.id]);
+      `, [topic.trim(), topic.trim(), product_id || null, p.ch, p.ct, assignee_id || null,
+          publish_date || null, p.cid, p.inflowUrl, sUrl, status || 'planned', memo || null, req.user.id]);
       items.push(rows[0]);
     }
     res.json({ data: items, message: `${items.length}개 콘텐츠가 생성되었습니다.` });
@@ -169,16 +210,36 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
 router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
   try {
     const { title, topic, product_id, channel, content_type, assignee_id,
-            publish_date, content_id, inflow_url, publish_url, status, memo } = req.body;
+            publish_date, content_id, inflow_url, short_url, publish_url, status, memo } = req.body;
+
+    // 기존 short_url과 inflow_url 비교 — inflow_url이 바뀌었는데 short_url을 클라이언트가 안 보냈으면 재생성
+    const { rows: prev } = await db.query('SELECT inflow_url, short_url FROM content_items WHERE id=$1', [req.params.id]);
+    if (prev.length === 0) {
+      return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
+    }
+    const prevInflow = prev[0].inflow_url;
+    const prevShort = prev[0].short_url;
+
+    let finalShortUrl;
+    if (short_url !== undefined) {
+      // 클라이언트가 명시적으로 보냄 (빈 문자열이면 단축 제거 의도)
+      finalShortUrl = short_url || null;
+    } else if (inflow_url && inflow_url !== prevInflow) {
+      // inflow_url이 변경됨 → 재단축
+      finalShortUrl = await shortenUrl(inflow_url);
+    } else {
+      // 기존 값 유지
+      finalShortUrl = prevShort;
+    }
 
     const { rows } = await db.query(`
       UPDATE content_items SET
         title=$1, topic=$2, product_id=$3, channel=$4, content_type=$5, assignee_id=$6,
-        publish_date=$7, content_id=$8, inflow_url=$9, publish_url=$10,
-        status=$11, memo=$12, updated_at=NOW()
-      WHERE id=$13 RETURNING *
+        publish_date=$7, content_id=$8, inflow_url=$9, short_url=$10, publish_url=$11,
+        status=$12, memo=$13, updated_at=NOW()
+      WHERE id=$14 RETURNING *
     `, [title, topic || null, product_id || null, channel, content_type, assignee_id || null,
-        publish_date || null, content_id || null, inflow_url || null,
+        publish_date || null, content_id || null, inflow_url || null, finalShortUrl,
         publish_url || null, status, memo || null, req.params.id]);
 
     if (rows.length === 0) {

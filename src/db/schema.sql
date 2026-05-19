@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS content_items (
   publish_date DATE,
   content_id   VARCHAR(60) UNIQUE,
   inflow_url   TEXT,
+  short_url    TEXT,
   publish_url  TEXT,
   status       VARCHAR(20) NOT NULL DEFAULT 'planned'
                CHECK (status IN ('planned','done','skipped')),

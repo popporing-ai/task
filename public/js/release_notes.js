@@ -7,9 +7,49 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.8.2';
+const CURRENT_VERSION = '2.9.0';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.9.0',
+    date: '2026-05-19',
+    title: '콘텐츠 — TinyURL 자동 단축 URL 생성 + 원본/단축 둘 다 복사',
+    sections: [
+      {
+        kind: 'feature',
+        title: '단축 URL 자동 생성',
+        items: [
+          {
+            text: '콘텐츠 생성·수정 시 유입 URL이 TinyURL 무료 API로 자동 단축되어 함께 저장됨. SNS 게시할 때 짧은 링크 그대로 복사해서 사용 가능.',
+            demo: '예) 원본: https://remotehome.virnect.com/ko-kr/pages/contact?src=20260521_LI_S\n     단축: https://tinyurl.com/xxxxxx (자동 생성)',
+          },
+          { text: '주제별 다중 생성 시 채널마다 병렬로 단축 호출 → 추가 지연 거의 없음 (1초 내외).' },
+          { text: '단축 실패해도 콘텐츠 저장은 정상 진행 (short_url만 null로 비어 있고, 나중에 폼에서 재시도 가능).' },
+        ],
+      },
+      {
+        kind: 'feature',
+        title: '리스트 — 원본 + 단축 URL 둘 다 복사',
+        items: [
+          {
+            text: '콘텐츠 리스트 행에 복사 버튼이 2개로 나뉨: (왼쪽) 원본 유입 URL 복사, (오른쪽 — 공유 아이콘) 단축 URL 복사.',
+            demo: '리스트 행 콘텐츠 ID 옆:\n  [📋] ← 원본 URL 복사\n  [🔗] ← 단축 URL 복사 (단축 있을 때만 표시)',
+          },
+          { text: '단축 URL 없는 항목은 두 번째 버튼이 안 보이고 첫 버튼만 표시.' },
+          { text: '복사 토스트가 "원본 URL이(가) 복사되었습니다" / "단축 URL이(가) 복사되었습니다" 로 구분되어 표시.' },
+        ],
+      },
+      {
+        kind: 'feature',
+        title: '폼 — 단축 URL 필드 추가',
+        items: [
+          { text: '콘텐츠 추가/수정 폼에 "단축 URL" 필드 추가. 비워두면 저장 시 서버가 자동 단축, 직접 다른 단축 URL을 붙여넣으면 그 값 그대로 유지.' },
+          { text: '유입 URL을 수정하면 단축 URL 필드가 자동으로 비워져 저장 시 재단축됨.' },
+          { text: 'migration-015 — content_items 테이블에 short_url TEXT 컬럼 추가 (서버 재기동 시 자동 적용).' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.8.2',
     date: '2026-05-18',
