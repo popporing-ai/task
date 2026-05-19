@@ -31,26 +31,8 @@ function buildInflowUrl(contentId, productName) {
   return `${base}${sep}src=${contentId}`;
 }
 
-// TinyURL 무료 API로 단축 URL 생성 — 실패 시 null 반환 (요청 자체는 막지 않음)
-// 검증 결과: LRL.KR v4 = 404 (deprecated), LRL.KR v5 = 401 (키 필요), is.gd/v.gd = virnect 도메인 거부.
-// TinyURL이 가장 안정적이고 무료·무제한. preview 페이지는 사용자(클릭자) 브라우저 쿠키 사이드 문제로 발신 측 해결 불가.
-async function shortenUrl(longUrl) {
-  if (!longUrl) return null;
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 4000);
-    const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`, {
-      signal: ctrl.signal,
-    });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    const text = (await res.text()).trim();
-    if (!text || /^error/i.test(text) || !/^https?:\/\//.test(text)) return null;
-    return text;
-  } catch {
-    return null;
-  }
-}
+// short_url 자동 단축은 제거됨 (TinyURL preview 이슈 등으로 안정적 무료 서비스 없음)
+// 사용자가 직접 외부 서비스로 단축한 URL을 폼에 입력하는 방식으로 운영.
 
 // 콘텐츠 ID 자동 생성
 async function generateContentId(publishDate, channel, contentType) {
@@ -133,11 +115,8 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
       finalInflowUrl = buildInflowUrl(finalContentId, pName);
     }
 
-    // short_url 자동 생성 — 클라이언트 미전송 시 TinyURL로 단축
-    let finalShortUrl = short_url || null;
-    if (!finalShortUrl && finalInflowUrl) {
-      finalShortUrl = await shortenUrl(finalInflowUrl);
-    }
+    // short_url은 사용자가 외부에서 단축 후 폼에 입력한 값만 저장 (자동 단축 없음)
+    const finalShortUrl = short_url || null;
 
     const { rows } = await db.query(`
       INSERT INTO content_items
@@ -182,24 +161,18 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
       prepared.push({ ch, ct, cid, inflowUrl });
     }
 
-    // 2단계: TinyURL 단축을 병렬 호출 (n번 채널이면 n번 동시에)
-    const shortUrls = await Promise.all(
-      prepared.map(p => p.inflowUrl ? shortenUrl(p.inflowUrl) : Promise.resolve(null))
-    );
-
-    // 3단계: 일괄 INSERT
+    // 2단계: 일괄 INSERT (short_url은 사용자가 나중에 폼에서 입력)
     const items = [];
     for (let idx = 0; idx < prepared.length; idx++) {
       const p = prepared[idx];
-      const sUrl = shortUrls[idx] || null;
       const { rows } = await db.query(`
         INSERT INTO content_items
           (title, topic, product_id, channel, content_type, assignee_id, publish_date,
-           content_id, inflow_url, short_url, status, memo, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           content_id, inflow_url, status, memo, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         RETURNING *
       `, [topic.trim(), topic.trim(), product_id || null, p.ch, p.ct, assignee_id || null,
-          publish_date || null, p.cid, p.inflowUrl, sUrl, status || 'planned', memo || null, req.user.id]);
+          publish_date || null, p.cid, p.inflowUrl, status || 'planned', memo || null, req.user.id]);
       items.push(rows[0]);
     }
     res.json({ data: items, message: `${items.length}개 콘텐츠가 생성되었습니다.` });
@@ -212,24 +185,16 @@ router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
     const { title, topic, product_id, channel, content_type, assignee_id,
             publish_date, content_id, inflow_url, short_url, publish_url, status, memo } = req.body;
 
-    // 기존 short_url과 inflow_url 비교 — inflow_url이 바뀌었는데 short_url을 클라이언트가 안 보냈으면 재생성
-    const { rows: prev } = await db.query('SELECT inflow_url, short_url FROM content_items WHERE id=$1', [req.params.id]);
-    if (prev.length === 0) {
-      return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
-    }
-    const prevInflow = prev[0].inflow_url;
-    const prevShort = prev[0].short_url;
-
+    // short_url은 사용자가 폼에 직접 입력한 값만 저장. 클라이언트 미전송 시 기존 값 유지.
     let finalShortUrl;
     if (short_url !== undefined) {
-      // 클라이언트가 명시적으로 보냄 (빈 문자열이면 단축 제거 의도)
       finalShortUrl = short_url || null;
-    } else if (inflow_url && inflow_url !== prevInflow) {
-      // inflow_url이 변경됨 → 재단축
-      finalShortUrl = await shortenUrl(inflow_url);
     } else {
-      // 기존 값 유지
-      finalShortUrl = prevShort;
+      const { rows: prev } = await db.query('SELECT short_url FROM content_items WHERE id=$1', [req.params.id]);
+      if (prev.length === 0) {
+        return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
+      }
+      finalShortUrl = prev[0].short_url;
     }
 
     const { rows } = await db.query(`

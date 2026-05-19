@@ -7,9 +7,29 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.10.0';
+const CURRENT_VERSION = '2.10.1';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.10.1',
+    date: '2026-05-19',
+    title: '단축 URL — 자동 생성 제거, 수동 입력만 유지',
+    sections: [
+      {
+        kind: 'fix',
+        title: 'TinyURL 자동 단축 제거 (preview 이슈로 사용 불가 판단)',
+        items: [
+          {
+            text: '안정적인 무료 단축 서비스(TinyURL/LRL.KR/is.gd/v.gd)가 우리 도메인 기준 모두 문제 있어 자동 단축 기능 제거. short_url 컬럼 + 폼 필드 + 리스트 복사 버튼은 그대로 유지 — 사용자가 본인이 원하는 서비스로 외부에서 단축한 URL을 폼에 직접 붙여넣는 방식으로 운영.',
+            demo: '운영 흐름:\n  1. 콘텐츠 생성 후 상세에서 유입 URL 복사\n  2. 원하는 단축 서비스(예: bit.ly, tinyurl, 사내 도구 등)에서 직접 단축\n  3. 그 단축 URL을 폼의 "단축 URL" 필드에 붙여넣고 저장\n  4. 리스트에 공유 아이콘 복사 버튼이 생겨서 한 번에 복사 가능',
+          },
+          { text: '백엔드: 콘텐츠 단일/배치/수정 모두 자동 단축 호출 제거. 클라이언트가 보낸 short_url 값만 그대로 저장.' },
+          { text: '폼 라벨: "TinyURL 자동 생성" → "외부 단축 서비스에서 직접 단축 후 붙여넣기" 로 변경.' },
+          { text: '기존에 자동 단축으로 저장된 short_url 값(tinyurl.com/...)은 그대로 보존 — 필요 시 폼에서 수동 교체 가능.' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.10.0',
     date: '2026-05-19',
