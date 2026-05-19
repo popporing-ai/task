@@ -31,22 +31,26 @@ function buildInflowUrl(contentId, productName) {
   return `${base}${sep}src=${contentId}`;
 }
 
-// TinyURL 무료 API로 단축 URL 생성 — 실패 시 null 반환 (요청 자체는 막지 않음)
+// LRL.KR 무료 API로 단축 URL 생성 — 실패 시 null 반환 (요청 자체는 막지 않음)
+// 엔드포인트: POST https://api.lrl.kr/v4/url/short  Body: { url } → 201 { result: { url }, message: "SUCCESS" }
+// LRL.KR은 즉시 301 리다이렉트 (preview/광고 페이지 없음)
 async function shortenUrl(longUrl) {
   if (!longUrl) return null;
   try {
-    // 4초 타임아웃 — 단축 실패가 콘텐츠 저장을 막지 않도록
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 4000);
-    const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`, {
+    const res = await fetch('https://api.lrl.kr/v4/url/short', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: longUrl }),
       signal: ctrl.signal,
     });
     clearTimeout(t);
-    if (!res.ok) return null;
-    const text = (await res.text()).trim();
-    // TinyURL은 성공 시 단축 URL 텍스트만, 실패 시 "Error" 류 문자열 반환
-    if (!text || /^error/i.test(text) || !/^https?:\/\//.test(text)) return null;
-    return text;
+    if (!res.ok && res.status !== 201) return null;
+    const data = await res.json().catch(() => null);
+    const short = data?.result?.url;
+    if (typeof short !== 'string' || !/^https?:\/\//.test(short)) return null;
+    return short;
   } catch {
     return null;
   }

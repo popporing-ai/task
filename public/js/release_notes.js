@@ -7,9 +7,29 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.9.0';
+const CURRENT_VERSION = '2.9.1';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.9.1',
+    date: '2026-05-19',
+    title: '단축 URL 서비스 — TinyURL → LRL.KR 교체 (즉시 리다이렉트)',
+    sections: [
+      {
+        kind: 'fix',
+        title: '단축 URL이 preview 페이지 없이 바로 이동되도록 교체',
+        items: [
+          {
+            text: 'TinyURL이 브라우저 쿠키 상태에 따라 5초짜리 preview 페이지를 끼우는 케이스가 있어 LRL.KR(한국 무료 단축)로 교체.',
+            demo: '이전: https://tinyurl.com/xxxxxx (브라우저에 따라 preview 페이지 거침)\n이후: https://lrl.kr/Xxx (즉시 301 리다이렉트, preview/광고 없음)',
+          },
+          { text: 'API: POST https://api.lrl.kr/v4/url/short (회원가입·API 키 불필요, 무료 무제한).' },
+          { text: '기존에 TinyURL로 만들어진 단축 URL은 그대로 유지(이력 보존). 새로 만드는 콘텐츠부터 LRL.KR로 단축.' },
+          { text: '폼 라벨도 "TinyURL 자동 생성" → "LRL.KR 자동 생성" 으로 정정.' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.9.0',
     date: '2026-05-19',

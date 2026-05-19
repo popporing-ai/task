@@ -475,7 +475,7 @@ const ContentView = {
           <input type="text" id="f-inflow-url" value="${escHtml(item?.inflow_url || '')}" placeholder="콘텐츠 ID 기반 자동 생성">
         </div>
         <div class="form-group">
-          <label>단축 URL (TinyURL 자동 생성)</label>
+          <label>단축 URL (LRL.KR 자동 생성)</label>
           <input type="text" id="f-short-url" value="${escHtml(item?.short_url || '')}" placeholder="${isEdit ? (item?.inflow_url ? '저장 시 자동 단축됨 (수동 입력도 가능)' : '유입 URL 있어야 단축 가능') : '저장 시 자동 단축됨'}">
           <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">SNS 게시용 짧은 링크. 비워두면 유입 URL을 기준으로 자동 생성됩니다.</div>
         </div>
