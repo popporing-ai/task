@@ -31,8 +31,27 @@ function buildInflowUrl(contentId, productName) {
   return `${base}${sep}src=${contentId}`;
 }
 
-// short_url 자동 단축은 제거됨 (TinyURL preview 이슈 등으로 안정적 무료 서비스 없음)
-// 사용자가 직접 외부 서비스로 단축한 URL을 폼에 입력하는 방식으로 운영.
+// da.gd 무료 API로 단축 URL 생성 — 실패 시 null 반환 (요청 자체는 막지 않음)
+// 검증 결과: da.gd는 즉시 301 리다이렉트 + preview 없음 + virnect 도메인 정상 처리 + API 키 불필요.
+// (대안들: TinyURL=preview 쿠키 이슈, LRL.KR=v4 deprecated/v5 키 필요, is.gd=virnect 거부)
+async function shortenUrl(longUrl) {
+  if (!longUrl) return null;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    const res = await fetch(`https://da.gd/s?url=${encodeURIComponent(longUrl)}`, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'task-app/1.0' },
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const text = (await res.text()).trim();
+    if (!text || /^error/i.test(text) || !/^https?:\/\//.test(text)) return null;
+    return text;
+  } catch {
+    return null;
+  }
+}
 
 // 콘텐츠 ID 자동 생성
 async function generateContentId(publishDate, channel, contentType) {
@@ -115,8 +134,11 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
       finalInflowUrl = buildInflowUrl(finalContentId, pName);
     }
 
-    // short_url은 사용자가 외부에서 단축 후 폼에 입력한 값만 저장 (자동 단축 없음)
-    const finalShortUrl = short_url || null;
+    // short_url 자동 생성 — 클라이언트 미전송 시 da.gd로 단축
+    let finalShortUrl = short_url || null;
+    if (!finalShortUrl && finalInflowUrl) {
+      finalShortUrl = await shortenUrl(finalInflowUrl);
+    }
 
     const { rows } = await db.query(`
       INSERT INTO content_items
@@ -161,18 +183,24 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
       prepared.push({ ch, ct, cid, inflowUrl });
     }
 
-    // 2단계: 일괄 INSERT (short_url은 사용자가 나중에 폼에서 입력)
+    // 2단계: da.gd 단축을 병렬 호출 (채널마다 동시)
+    const shortUrls = await Promise.all(
+      prepared.map(p => p.inflowUrl ? shortenUrl(p.inflowUrl) : Promise.resolve(null))
+    );
+
+    // 3단계: 일괄 INSERT
     const items = [];
     for (let idx = 0; idx < prepared.length; idx++) {
       const p = prepared[idx];
+      const sUrl = shortUrls[idx] || null;
       const { rows } = await db.query(`
         INSERT INTO content_items
           (title, topic, product_id, channel, content_type, assignee_id, publish_date,
-           content_id, inflow_url, status, memo, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+           content_id, inflow_url, short_url, status, memo, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         RETURNING *
       `, [topic.trim(), topic.trim(), product_id || null, p.ch, p.ct, assignee_id || null,
-          publish_date || null, p.cid, p.inflowUrl, status || 'planned', memo || null, req.user.id]);
+          publish_date || null, p.cid, p.inflowUrl, sUrl, status || 'planned', memo || null, req.user.id]);
       items.push(rows[0]);
     }
     res.json({ data: items, message: `${items.length}개 콘텐츠가 생성되었습니다.` });
@@ -185,16 +213,29 @@ router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
     const { title, topic, product_id, channel, content_type, assignee_id,
             publish_date, content_id, inflow_url, short_url, publish_url, status, memo } = req.body;
 
-    // short_url은 사용자가 폼에 직접 입력한 값만 저장. 클라이언트 미전송 시 기존 값 유지.
+    // short_url 처리:
+    //  - 클라이언트가 명시적으로 보냄(빈 문자열 포함): 그 값 사용 (단, 빈 문자열 + inflow_url 존재 시 자동 재단축)
+    //  - 클라이언트 미전송: 기존 값 유지
+    //  - inflow_url이 바뀌었고 short_url을 비웠으면 da.gd로 자동 재단축
+    const { rows: prev } = await db.query('SELECT inflow_url, short_url FROM content_items WHERE id=$1', [req.params.id]);
+    if (prev.length === 0) {
+      return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
+    }
+    const prevInflow = prev[0].inflow_url;
+    const prevShort = prev[0].short_url;
+
     let finalShortUrl;
-    if (short_url !== undefined) {
-      finalShortUrl = short_url || null;
+    if (short_url) {
+      // 사용자가 직접 채움
+      finalShortUrl = short_url;
+    } else if (short_url === '' && inflow_url) {
+      // 명시적으로 비움 → 자동 재단축
+      finalShortUrl = await shortenUrl(inflow_url);
+    } else if (short_url === undefined && inflow_url && inflow_url !== prevInflow) {
+      // inflow_url이 바뀌었는데 short_url 미전송 → 자동 재단축
+      finalShortUrl = await shortenUrl(inflow_url);
     } else {
-      const { rows: prev } = await db.query('SELECT short_url FROM content_items WHERE id=$1', [req.params.id]);
-      if (prev.length === 0) {
-        return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
-      }
-      finalShortUrl = prev[0].short_url;
+      finalShortUrl = prevShort;
     }
 
     const { rows } = await db.query(`

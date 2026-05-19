@@ -7,9 +7,32 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.10.1';
+const CURRENT_VERSION = '2.10.2';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.10.2',
+    date: '2026-05-19',
+    title: '단축 URL — da.gd로 자동 단축 부활 (preview 페이지 없음)',
+    sections: [
+      {
+        kind: 'feature',
+        title: '단축 URL 자동 생성 부활 — 이번엔 da.gd',
+        items: [
+          {
+            text: 'TinyURL preview 이슈로 자동 단축을 잠시 끄기 전, 대안 서비스를 재검증해서 da.gd로 부활. da.gd는 is.gd의 자매 서비스로 즉시 301 리다이렉트 + preview/광고 페이지 없음 + virnect 도메인 정상 처리 + API 키 불필요.',
+            demo: '검증 결과:\n  TinyURL → preview 5초 페이지 (브라우저 쿠키 의존)\n  is.gd / v.gd → virnect 도메인 거부 ("database insert failed")\n  LRL.KR v4/v5 → 404 / 401 (키 필요)\n  da.gd → ✓ 정상, 즉시 리다이렉트, virnect URL 단축 OK',
+          },
+          {
+            text: '콘텐츠 생성/수정 시 유입 URL이 있으면 자동으로 da.gd 단축 URL이 함께 저장됨. 폼의 "단축 URL" 필드 비워두면 저장 시 자동 채워짐. 직접 다른 단축 URL을 붙여넣으면 그 값 그대로 유지.',
+            demo: '예) 원본: https://remotehome.virnect.com/ko-kr/pages/contact?src=20260519_LI_S\n     단축: https://da.gd/XxXxXx (자동 생성, 즉시 이동)',
+          },
+          { text: '주제별 다중 생성 시에도 채널별로 da.gd 병렬 호출. 폼의 유입 URL을 수정하면 단축 URL 필드가 자동으로 비워져 저장 시 재단축됨.' },
+          { text: 'API: GET https://da.gd/s?url=...  무료·무제한·키 불필요. 단축 실패 시에도 콘텐츠 저장은 정상 진행 (short_url만 null).' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.10.1',
     date: '2026-05-19',
