@@ -621,30 +621,41 @@ const ContentView = {
       });
     });
 
-    // 단일 모드 — content_id + inflow URL 자동 생성
-    const updatePreview = async () => {
+    // source 필드 변경 시: content_id + inflow_url + short_url 모두 비워서 서버가 재생성하도록 함
+    const onSourceFieldChange = async () => {
       const date = document.getElementById('f-date')?.value;
       const ch = document.getElementById('f-channel')?.value;
       const type = document.getElementById('f-type')?.value;
+      // 미리보기 갱신 + 폼 필드 비우기 (저장 시 서버가 새로 채움)
+      const cidInput = document.getElementById('f-content-id');
+      const inflowInput = document.getElementById('f-inflow-url');
+      const shortInput = document.getElementById('f-short-url');
+      if (cidInput) cidInput.value = '';
+      if (inflowInput) inflowInput.value = '';
+      if (shortInput) shortInput.value = '';
       if (date && ch && type) {
         try {
           const res = await API.get(`/content/preview-id?publish_date=${date}&channel=${ch}&content_type=${type}`);
-          const cid = res.data.content_id;
-          document.getElementById('f-id-preview').textContent = cid;
-          if (!document.getElementById('f-content-id').value) {
-            document.getElementById('f-content-id').value = cid;
-          }
-          this._updateInflowUrl(cid);
+          document.getElementById('f-id-preview').textContent = res.data.content_id;
         } catch {}
+      } else {
+        document.getElementById('f-id-preview').textContent = '배포일, 채널, 타입을 입력하면 미리보기';
       }
     };
 
-    document.getElementById('f-date')?.addEventListener('change', updatePreview);
-    document.getElementById('f-channel')?.addEventListener('change', updatePreview);
-    document.getElementById('f-type')?.addEventListener('change', updatePreview);
-    document.getElementById('f-product')?.addEventListener('change', () => this._updateInflowUrl());
+    document.getElementById('f-date')?.addEventListener('change', onSourceFieldChange);
+    document.getElementById('f-channel')?.addEventListener('change', onSourceFieldChange);
+    document.getElementById('f-type')?.addEventListener('change', onSourceFieldChange);
 
-    // 유입 URL이 사용자에 의해 변경되면 단축 URL은 자동 비움 → 저장 시 서버가 재단축
+    // 제품 변경 → inflow_url + short_url 비움 (content_id는 유지)
+    document.getElementById('f-product')?.addEventListener('change', () => {
+      const inflowInput = document.getElementById('f-inflow-url');
+      const shortInput = document.getElementById('f-short-url');
+      if (inflowInput) inflowInput.value = '';
+      if (shortInput) shortInput.value = '';
+    });
+
+    // 유입 URL이 사용자에 의해 직접 수정되면 단축 URL 비움 → 저장 시 서버가 재단축
     document.getElementById('f-inflow-url')?.addEventListener('input', () => {
       const shortInput = document.getElementById('f-short-url');
       if (shortInput) shortInput.value = '';

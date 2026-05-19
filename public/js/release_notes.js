@@ -7,9 +7,43 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.10.2';
+const CURRENT_VERSION = '2.10.3';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.10.3',
+    date: '2026-05-19',
+    title: '콘텐츠 수정 안정화 — derived 필드 자동 일관성 + 관리자 삭제 audit 정정',
+    sections: [
+      {
+        kind: 'fix',
+        title: '콘텐츠 수정 시 코드값·유입 URL·단축 URL이 source 필드 변경을 자동 추적',
+        items: [
+          {
+            text: '배포일·채널·타입을 수정하면 코드값(content_id)이 자동 재생성, 그에 따라 유입 URL과 단축 URL(da.gd)도 모두 재생성됩니다. 제품을 바꾸면 유입 URL과 단축 URL이 새 제품 페이지 기준으로 재생성됩니다.',
+            demo: '예) 콘텐츠 채널을 IG → FB로 변경 후 저장\n  코드값:   20260519_IG_S      → 20260519_FB_S\n  유입 URL: …?src=20260519_IG_S  → …?src=20260519_FB_S\n  단축 URL: da.gd/abc            → da.gd/xyz (재생성)',
+          },
+          {
+            text: '프론트 폼: 배포일/채널/타입 input 변경 시 코드값·유입 URL·단축 URL 필드가 자동으로 비워져 저장 시 서버가 새로 채움. 제품 변경 시엔 유입 URL·단축 URL만 비움 (코드값 유지).',
+          },
+          {
+            text: '백엔드 PUT: source 필드를 prev row와 머지해 derived 필드를 항상 일관되게 재생성. content_id 자동 재생성 시 자기 자신 row 제외 처리로 `_2` 같은 잘못된 suffix가 붙는 버그 수정.',
+          },
+          { text: '제품 변경 같은 단순 수정으로 데이터가 사라지던 증상도 함께 해소(필드 누락 없이 prev 값 보존).' },
+        ],
+      },
+      {
+        kind: 'fix',
+        title: '관리자 대량 삭제 — audit_logs 기록 정정',
+        items: [
+          {
+            text: 'v2.10.0의 bulk_delete가 audit_logs 테이블에 잘못된 action(\'bulk_delete\')과 NULL record_id로 INSERT를 시도해 항상 실패(VARCHAR(10) + CHECK 제약). 행 단위 DELETE 로그(old_value 포함)로 정정 — 변경 이력에서 무엇이 삭제됐는지 그대로 추적 가능.',
+          },
+          { text: '테이블명도 audit_log → audit_logs 로 정정 (스키마와 일치).' },
+        ],
+      },
+    ],
+  },
   {
     version: '2.10.2',
     date: '2026-05-19',

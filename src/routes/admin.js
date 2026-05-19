@@ -48,27 +48,35 @@ router.post('/bulk-delete/:entity', async (req, res, next) => {
       return res.status(400).json({ error: '유효한 ID가 없습니다.' });
     }
 
-    // 트랜잭션 없이 단일 DELETE (CASCADE 또는 FK 무관하게 entity별 단순 삭제)
+    // 삭제 전 old_value 캡처 (audit 용)
+    const { rows: oldRows } = await db.query(
+      `SELECT * FROM ${meta.table} WHERE id = ANY($1::int[])`,
+      [cleanIds]
+    );
+
     const { rows } = await db.query(
       `DELETE FROM ${meta.table} WHERE id = ANY($1::int[]) RETURNING id`,
       [cleanIds]
     );
 
-    // 간단한 audit log — bulk_delete 메타로 기록
+    // 행 단위 DELETE 감사 로그 (스키마: action VARCHAR(10) CHECK CREATE|UPDATE|DELETE, record_id NOT NULL)
     try {
-      await db.query(`
-        INSERT INTO audit_log (user_id, user_name, action, table_name, record_id, old_value, new_value, ip_address)
-        VALUES ($1, $2, 'bulk_delete', $3, NULL, $4::jsonb, NULL, $5)
-      `, [
-        req.user.id,
-        req.user.name,
-        meta.audit,
-        JSON.stringify({ deleted_ids: rows.map(r => r.id), requested_count: cleanIds.length }),
-        req.ip || null,
-      ]);
+      for (const row of oldRows) {
+        await db.query(
+          `INSERT INTO audit_logs (user_id, user_name, action, table_name, record_id, old_value, new_value, ip_address)
+           VALUES ($1, $2, 'DELETE', $3, $4, $5::jsonb, NULL, $6)`,
+          [
+            req.user.id,
+            req.user.name,
+            meta.audit,
+            row.id,
+            JSON.stringify(row),
+            req.ip || null,
+          ]
+        );
+      }
     } catch (e) {
-      // audit 실패는 응답에 영향 안 줌
-      console.warn('audit_log 기록 실패:', e.message);
+      console.warn('audit_logs 기록 실패:', e.message);
     }
 
     res.json({

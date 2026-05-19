@@ -53,12 +53,18 @@ async function shortenUrl(longUrl) {
   }
 }
 
-// 콘텐츠 ID 자동 생성
-async function generateContentId(publishDate, channel, contentType) {
+// 콘텐츠 ID 자동 생성 (excludeId: UPDATE 시 자기 자신을 제외)
+async function generateContentId(publishDate, channel, contentType, excludeId = null) {
   const base = `${publishDate.replace(/-/g, '').slice(0, 8)}_${channel}_${contentType}`;
+  const params = [`${base}%`];
+  let extra = '';
+  if (excludeId) {
+    params.push(excludeId);
+    extra = ' AND id <> $2';
+  }
   const { rows } = await db.query(
-    `SELECT content_id FROM content_items WHERE content_id LIKE $1 ORDER BY content_id`,
-    [`${base}%`]
+    `SELECT content_id FROM content_items WHERE content_id LIKE $1${extra} ORDER BY content_id`,
+    params
   );
   if (rows.length === 0) return base;
   return `${base}_${rows.length + 1}`;
@@ -213,29 +219,66 @@ router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
     const { title, topic, product_id, channel, content_type, assignee_id,
             publish_date, content_id, inflow_url, short_url, publish_url, status, memo } = req.body;
 
-    // short_url 처리:
-    //  - 클라이언트가 명시적으로 보냄(빈 문자열 포함): 그 값 사용 (단, 빈 문자열 + inflow_url 존재 시 자동 재단축)
-    //  - 클라이언트 미전송: 기존 값 유지
-    //  - inflow_url이 바뀌었고 short_url을 비웠으면 da.gd로 자동 재단축
-    const { rows: prev } = await db.query('SELECT inflow_url, short_url FROM content_items WHERE id=$1', [req.params.id]);
-    if (prev.length === 0) {
+    // 현재 row 가져오기 — derived 필드 재생성 기준
+    const { rows: prevRows } = await db.query('SELECT * FROM content_items WHERE id=$1', [req.params.id]);
+    if (prevRows.length === 0) {
       return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
     }
-    const prevInflow = prev[0].inflow_url;
-    const prevShort = prev[0].short_url;
+    const prev = prevRows[0];
 
+    // 최종 source 필드 — 요청에 있으면 그 값, 없으면 prev 유지
+    const finalPublishDate = (publish_date !== undefined ? publish_date : prev.publish_date) || null;
+    const finalChannel     = channel || prev.channel;
+    const finalContentType = content_type || prev.content_type;
+    const finalProductId   = (product_id !== undefined ? product_id : prev.product_id) || null;
+    const finalTitle       = title !== undefined ? title : prev.title;
+    const finalTopic       = topic !== undefined ? topic : prev.topic;
+    const finalAssigneeId  = (assignee_id !== undefined ? assignee_id : prev.assignee_id) || null;
+    const finalStatus      = status || prev.status;
+    const finalMemo        = memo !== undefined ? memo : prev.memo;
+    const finalPublishUrl  = publish_url !== undefined ? publish_url : prev.publish_url;
+
+    // content_id — 빈 값이면 source 필드 기준으로 자동 재생성 (자기 자신 제외)
+    let finalContentId;
+    if (content_id) {
+      finalContentId = content_id; // 사용자가 직접 지정
+    } else if (finalPublishDate && finalChannel && finalContentType) {
+      finalContentId = await generateContentId(
+        String(finalPublishDate).slice(0, 10),
+        finalChannel,
+        finalContentType,
+        prev.id,
+      );
+    } else {
+      finalContentId = prev.content_id || null;
+    }
+
+    // inflow_url — 빈 값이면 product + content_id 기준으로 재생성
+    let finalInflowUrl;
+    if (inflow_url) {
+      finalInflowUrl = inflow_url;
+    } else if (finalContentId) {
+      let pName = null;
+      if (finalProductId) {
+        const { rows: pRows } = await db.query('SELECT name FROM products WHERE id = $1', [finalProductId]);
+        pName = pRows[0]?.name || null;
+      }
+      finalInflowUrl = buildInflowUrl(finalContentId, pName);
+    } else {
+      finalInflowUrl = null;
+    }
+
+    // short_url — 빈 값이면 da.gd로 재단축. inflow_url이 바뀌었어도 재단축.
     let finalShortUrl;
     if (short_url) {
-      // 사용자가 직접 채움
-      finalShortUrl = short_url;
-    } else if (short_url === '' && inflow_url) {
-      // 명시적으로 비움 → 자동 재단축
-      finalShortUrl = await shortenUrl(inflow_url);
-    } else if (short_url === undefined && inflow_url && inflow_url !== prevInflow) {
-      // inflow_url이 바뀌었는데 short_url 미전송 → 자동 재단축
-      finalShortUrl = await shortenUrl(inflow_url);
+      finalShortUrl = short_url; // 사용자가 직접 채운 값 존중
+    } else if (finalInflowUrl && finalInflowUrl !== prev.inflow_url) {
+      finalShortUrl = await shortenUrl(finalInflowUrl);
+    } else if (short_url === '' || short_url === null) {
+      // 명시적으로 비웠으면 재단축
+      finalShortUrl = finalInflowUrl ? await shortenUrl(finalInflowUrl) : null;
     } else {
-      finalShortUrl = prevShort;
+      finalShortUrl = prev.short_url; // 기존 값 유지
     }
 
     const { rows } = await db.query(`
@@ -244,9 +287,9 @@ router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
         publish_date=$7, content_id=$8, inflow_url=$9, short_url=$10, publish_url=$11,
         status=$12, memo=$13, updated_at=NOW()
       WHERE id=$14 RETURNING *
-    `, [title, topic || null, product_id || null, channel, content_type, assignee_id || null,
-        publish_date || null, content_id || null, inflow_url || null, finalShortUrl,
-        publish_url || null, status, memo || null, req.params.id]);
+    `, [finalTitle, finalTopic || null, finalProductId, finalChannel, finalContentType, finalAssigneeId,
+        finalPublishDate, finalContentId, finalInflowUrl, finalShortUrl,
+        finalPublishUrl || null, finalStatus, finalMemo || null, req.params.id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
