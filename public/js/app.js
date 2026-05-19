@@ -203,7 +203,7 @@ const App = {
 
   navigate(view) {
     // 관리자 전용 뷰 접근 차단 (비관리자는 대시보드로 이동)
-    const adminOnlyViews = ['audit'];
+    const adminOnlyViews = ['audit', 'bulk-delete'];
     if (adminOnlyViews.includes(view) && this.user?.role !== 'admin') {
       view = 'dashboard';
     }
@@ -225,6 +225,7 @@ const App = {
       'weekly-report': '팀 활동',
       settings: '설정',
       audit: '변경 이력',
+      'bulk-delete': '대량 삭제 (관리자)',
     };
     // 브레드크럼 업데이트
     const currentEl = document.getElementById('topbar-current');
@@ -250,6 +251,7 @@ const App = {
       'weekly-report': WeeklyReportView,
       settings: SettingsView,
       audit: AuditView,
+      'bulk-delete': typeof AdminBulkView !== 'undefined' ? AdminBulkView : null,
     };
 
     if (views[view]) views[view].render();
