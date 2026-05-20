@@ -365,7 +365,7 @@ const RRRView = {
             <div style="font-size:20px;font-weight:700;color:var(--color-plan-text);">${d.summary.tasks_in_progress}</div>
           </div>
           <div style="background:var(--color-warn-bg);padding:12px;border-radius:10px;text-align:center;">
-            <div style="font-size:11px;color:var(--color-warn-text);font-weight:600;margin-bottom:2px;">미진행</div>
+            <div style="font-size:11px;color:var(--color-warn-text);font-weight:600;margin-bottom:2px;">지연</div>
             <div style="font-size:20px;font-weight:700;color:var(--color-warn-text);">${d.summary.tasks_blocked}</div>
           </div>
           <div style="background:var(--color-attention-bg);padding:12px;border-radius:10px;text-align:center;">
@@ -385,7 +385,7 @@ const RRRView = {
 
       // 진행 중 / 미진행 (최대 10)
       const inProgList = (d.in_progress_tasks || []).slice(0, 10).map(t => {
-        const statusLabel = t.status === 'in_progress' ? '진행' : t.status === 'blocked' ? '미진행' : '예정';
+        const statusLabel = t.status === 'in_progress' ? '진행' : t.status === 'blocked' ? '지연' : '예정';
         const statusClass = t.status === 'blocked' ? 'badge-warn' : 'badge-plan';
         const due = t.due_date ? ` · 마감 ${String(t.due_date).slice(5, 10)}` : '';
         return `
@@ -423,7 +423,7 @@ const RRRView = {
         ` : ''}
 
         <div style="margin-bottom:18px;">
-          <div style="font-size:13px;font-weight:700;margin-bottom:8px;">🔄 현재 진행/미진행 (최대 10건)</div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px;">🔄 현재 진행/지연 (최대 10건)</div>
           <div>${inProgList}</div>
         </div>
 

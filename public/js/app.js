@@ -727,7 +727,7 @@ const App = {
       todo: { label: '할 일', cls: 'badge-plan' },
       in_progress: { label: '진행 중', cls: 'badge-plan' },
       done: { label: '완료', cls: 'badge-done' },
-      blocked: { label: '미진행', cls: 'badge-skip' },
+      blocked: { label: '지연', cls: 'badge-skip' },
       planned: { label: '예정', cls: 'badge-plan' },
       skipped: { label: '미진행', cls: 'badge-skip' },
       tbd: { label: 'TBD', cls: 'badge-skip' },

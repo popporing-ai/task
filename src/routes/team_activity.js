@@ -397,7 +397,7 @@ router.post('/ai-summary', async (req, res, next) => {
 [완료한 업무 ${completed.length}건]
 ${completed.map(t => `- [${t.category_name || '미분류'}] ${t.title} (${t.points || 0}pt)`).join('\n') || '없음'}
 
-[진행 중 / 미진행 업무]
+[진행 중 / 지연 업무]
 ${inProgress.map(t => `- [${t.category_name || '미분류'}] ${t.title} (${t.status}, 마감 ${t.due_date || '미정'})`).join('\n') || '없음'}
 
 [발행/예정 콘텐츠 ${contentItems.length}건]
@@ -575,7 +575,7 @@ router.post('/chat', async (req, res, next) => {
 [완료한 업무 ${completed.length}건]
 ${completed.map(t => `- ${t.done_date} [${t.category_name||'미분류'}] ${t.title} (${t.points||0}pt, ${t.work_type})`).join('\n') || '없음'}
 
-[현재 진행/예정/미진행]
+[현재 진행/예정/지연]
 ${inProg.map(t => `- [${t.category_name||'미분류'}] ${t.title} (${t.status}, 마감 ${t.due_date||'미정'})`).join('\n') || '없음'}
 
 [기간 내 콘텐츠]
@@ -607,12 +607,12 @@ ${issueRows.map(i => `- ${i.task_title}: ${i.description} (${i.issue_type}, ${i.
 
       contextBlock = `
 [현재 업무 현황 — 오늘 ${today}]
-전체 ${tasks.length}건 / 완료 ${completedCount} / 진행중 ${inProgressCount} / 할일 ${todoCount} / 미진행 ${blockedCount} / 지연 ${overdueCount}
+전체 ${tasks.length}건 / 완료 ${completedCount} / 진행중 ${inProgressCount} / 할일 ${todoCount} / 지연 ${blockedCount} / 기한초과 ${overdueCount}
 
 [업무 목록 (최대 200건)]
 ${tasks.map(t => {
   const due = t.due_date ? new Date(t.due_date).toISOString().slice(0,10) : '없음';
-  const overdue = t.due_date && due < today && t.status !== 'done' ? ' ⚠지연' : '';
+  const overdue = t.due_date && due < today && t.status !== 'done' ? ' ⚠기한초과' : '';
   return `- [${t.category_name||'미분류'}] ${t.title} (${t.status}, 마감 ${due}, ${t.assignee_name||'미배정'}, ${t.points||0}pt)${overdue}`;
 }).join('\n')}
 `;

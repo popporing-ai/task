@@ -163,7 +163,7 @@ app.get('/task/api/dashboard', authMiddleware, async (req, res, next) => {
       FROM tasks WHERE status = 'in_progress'
     `);
 
-    // 미진행 업무 수
+    // 지연 업무 수 (blocked)
     const blockedTasks = await db.query(`
       SELECT COUNT(*) AS count FROM tasks WHERE status = 'blocked'
     `);

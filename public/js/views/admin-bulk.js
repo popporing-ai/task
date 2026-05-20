@@ -122,7 +122,7 @@ const AdminBulkView = {
     }
     if (fields.includes('status')) {
       const opts = this.entity === 'tasks'
-        ? [['', '상태 전체'], ['todo','할 일'], ['in_progress','진행 중'], ['done','완료'], ['blocked','미진행']]
+        ? [['', '상태 전체'], ['todo','할 일'], ['in_progress','진행 중'], ['done','완료'], ['blocked','지연']]
         : this.entity === 'content'
         ? [['', '상태 전체'], ['planned','예정'], ['done','완료'], ['skipped','미진행']]
         : this.entity === 'timeline'

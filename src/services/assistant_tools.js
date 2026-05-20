@@ -585,7 +585,7 @@ async function buildMarkdownReport(db, userId, dateFrom, dateTo) {
   lines.push(`**기간**: ${dateFrom} ~ ${dateTo}  ·  **생성일**: ${today}`);
   lines.push('');
   lines.push('## 📊 한눈에 보기');
-  lines.push(`- 완료 **${completed.length}건** / 진행·예정·미진행 **${inProg.length}건** / 콘텐츠 **${content.length}건**`);
+  lines.push(`- 완료 **${completed.length}건** / 진행·예정·지연 **${inProg.length}건** / 콘텐츠 **${content.length}건**`);
   lines.push('');
   if (byCat.length) {
     lines.push('## 🗂️ 카테고리별 완료');
@@ -617,9 +617,9 @@ async function buildMarkdownReport(db, userId, dateFrom, dateTo) {
     });
   }
   if (inProg.length) {
-    lines.push('## 🔄 진행 중 / 예정 / 미진행');
+    lines.push('## 🔄 진행 중 / 예정 / 지연');
     inProg.forEach(t => {
-      const s = t.status === 'in_progress' ? '진행' : t.status === 'blocked' ? '미진행' : '예정';
+      const s = t.status === 'in_progress' ? '진행' : t.status === 'blocked' ? '지연' : '예정';
       const due = t.due_date ? ` · 마감 ${String(t.due_date).slice(0, 10)}` : '';
       lines.push(`- [${s}] ${t.category_name ? `[${t.category_name}] ` : ''}${t.title}${due}`);
     });

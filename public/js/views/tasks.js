@@ -73,7 +73,7 @@ const TasksView = {
       { key: 'todo', label: '할 일' },
       { key: 'in_progress', label: '진행 중' },
       { key: 'done', label: '완료' },
-      { key: 'blocked', label: '미진행' },
+      { key: 'blocked', label: '지연' },
     ];
 
     // 활성 필터 태그 생성
@@ -330,7 +330,7 @@ const TasksView = {
               <button class="btn btn-danger" id="bulk-delete-btn">삭제</button>
               <button class="btn" id="bulk-cancel-btn">취소</button>
               <div id="bulk-status-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--color-bg-primary);border:0.5px solid var(--color-border);border-radius:8px;padding:6px;z-index:90;box-shadow:var(--shadow-md);">
-                ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'미진행'}].map(s=>`<button class="bulk-status-opt" data-status="${s.v}" style="display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;border:none;background:transparent;color:var(--color-text-primary);border-radius:6px;cursor:pointer;">${s.l}</button>`).join('')}
+                ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'지연'}].map(s=>`<button class="bulk-status-opt" data-status="${s.v}" style="display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;border:none;background:transparent;color:var(--color-text-primary);border-radius:6px;cursor:pointer;">${s.l}</button>`).join('')}
               </div>
               <div id="bulk-assignee-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--color-bg-primary);border:0.5px solid var(--color-border);border-radius:8px;padding:6px;z-index:90;box-shadow:var(--shadow-md);">
                 ${App.users.map(u=>`<button class="bulk-assignee-opt" data-user-id="${u.id}" style="display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;border:none;background:transparent;color:var(--color-text-primary);border-radius:6px;cursor:pointer;">${escHtml(u.name)}</button>`).join('')}
@@ -366,7 +366,7 @@ const TasksView = {
                     </td>
                     <td>
                       <select class="list-status-select" data-id="${t.id}" style="font-size:11px;padding:2px 6px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;cursor:pointer;">
-                        ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'미진행'}].map(s=>`<option value="${s.v}" ${t.status===s.v?'selected':''}>${s.l}</option>`).join('')}
+                        ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'지연'}].map(s=>`<option value="${s.v}" ${t.status===s.v?'selected':''}>${s.l}</option>`).join('')}
                       </select>
                     </td>
                   </tr>
@@ -387,7 +387,7 @@ const TasksView = {
       todo:        { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M5 8h6M8 5v6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', msg: '할 일이 없습니다' },
       in_progress: { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 4.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>', msg: '진행 중인 업무 없음' },
       done:        { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 8l2 2 3.5-4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>', msg: '완료된 업무 없음' },
-      blocked:     { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', msg: '미진행 없음' },
+      blocked:     { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', msg: '지연 없음' },
     };
 
     content.innerHTML = filterHtml + `
@@ -944,7 +944,7 @@ const TasksView = {
       { key: 'todo', label: '할 일', color: 'var(--color-plan-text)' },
       { key: 'in_progress', label: '진행 중', color: 'var(--color-primary)' },
       { key: 'done', label: '완료', color: 'var(--color-done-text)' },
-      { key: 'blocked', label: '미진행', color: 'var(--color-warn-text)' },
+      { key: 'blocked', label: '지연', color: 'var(--color-warn-text)' },
     ];
 
     const menu = document.createElement('div');
@@ -999,7 +999,7 @@ const TasksView = {
 
   openDetail(task) {
     App.setDeepLink('tasks', task.id);
-    const statusLabel = { todo: '할 일', in_progress: '진행 중', done: '완료', blocked: '미진행' }[task.status] || task.status;
+    const statusLabel = { todo: '할 일', in_progress: '진행 중', done: '완료', blocked: '지연' }[task.status] || task.status;
     const statusClass = { todo: 'badge-plan', in_progress: 'badge-plan', done: 'badge-done', blocked: 'badge-warn' }[task.status] || 'badge-plan';
 
     const assigneeHtml = task.assignee_name
@@ -1810,7 +1810,7 @@ const TasksView = {
           <label><input type="radio" name="f-status" value="todo" ${task.status==='todo' ? 'checked' : ''}>할 일</label>
           <label><input type="radio" name="f-status" value="in_progress" ${task.status==='in_progress' ? 'checked' : ''}>진행 중</label>
           <label><input type="radio" name="f-status" value="done" ${task.status==='done' ? 'checked' : ''}>완료</label>
-          <label><input type="radio" name="f-status" value="blocked" ${task.status==='blocked' ? 'checked' : ''}>미진행</label>
+          <label><input type="radio" name="f-status" value="blocked" ${task.status==='blocked' ? 'checked' : ''}>지연</label>
         </div>
       </div>
     ` : '';

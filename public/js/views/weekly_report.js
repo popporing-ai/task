@@ -268,18 +268,18 @@ const WeeklyReportView = {
 
     body.innerHTML = `
       <div class="ta-team-totals">
-        ${this._totalCard('완료',    totals.done, '#5DD984')}
-        ${this._totalCard('진행 중', totals.in_progress, '#7B9BFA')}
-        ${this._totalCard('미진행',  totals.blocked, '#F07070')}
-        ${this._totalCard('지연',    totals.overdue, '#F5A94A')}
-        ${this._totalCard('콘텐츠',  totals.content, '#B08CF9')}
+        ${this._totalCard('완료',     totals.done, '#5DD984')}
+        ${this._totalCard('진행 중',  totals.in_progress, '#7B9BFA')}
+        ${this._totalCard('지연',     totals.blocked, '#F07070')}
+        ${this._totalCard('기한 초과', totals.overdue, '#F5A94A')}
+        ${this._totalCard('콘텐츠',   totals.content, '#B08CF9')}
       </div>
       <div class="ta-matrix-card">
         <table class="ta-matrix-table">
           <thead>
             <tr>
               <th class="sticky-l">담당자</th>
-              <th>완료</th><th>진행 중</th><th>미진행</th><th>지연</th>
+              <th>완료</th><th>진행 중</th><th>지연</th><th>기한 초과</th>
               <th>콘텐츠</th><th>댓글</th>
               <th>일별 추이</th><th>최근 활동</th>
             </tr>
@@ -487,7 +487,7 @@ const WeeklyReportView = {
         <div class="ta-summary-cards">
           ${this._sumCard('완료',       s.tasks_completed, '건', '#5DD984')}
           ${this._sumCard('진행 중',    s.tasks_in_progress, '건', '#7B9BFA')}
-          ${this._sumCard('미진행',     s.tasks_blocked,  '건', '#F07070')}
+          ${this._sumCard('지연',       s.tasks_blocked,  '건', '#F07070')}
           ${this._sumCard('콘텐츠 발행', s.content_published, '건', '#F5A94A')}
           ${this._sumCard('댓글',       s.comments_added, '개', '#B08CF9')}
         </div>
@@ -840,7 +840,7 @@ const WeeklyReportView = {
     if (this._activeTab === 'matrix' && this._matrixData) {
       const lines = [`📊 팀 매트릭스 — ${this._formatPeriodLabel(this._periodFrom, this._periodTo)}`, ''];
       this._matrixData.forEach(u => {
-        lines.push(`▸ ${u.name}: 완료 ${u.done_count} / 진행 중 ${u.in_progress_count} / 미진행 ${u.blocked_count} / 지연 ${u.overdue_count} / 콘텐츠 ${u.content_done}`);
+        lines.push(`▸ ${u.name}: 완료 ${u.done_count} / 진행 중 ${u.in_progress_count} / 지연 ${u.blocked_count} / 기한 초과 ${u.overdue_count} / 콘텐츠 ${u.content_done}`);
       });
       await this._copyText(lines.join('\n'));
       return;
@@ -867,7 +867,7 @@ const WeeklyReportView = {
 
     if (this._activeTab === 'matrix' && this._matrixData) {
       const lines = [`# 팀 활동 매트릭스`, `**기간**: ${period}  ·  **생성일**: ${today}`, ''];
-      lines.push(`| 담당자 | 완료 | 진행중 | 미진행 | 지연 | 콘텐츠 발행 | 댓글 |`);
+      lines.push(`| 담당자 | 완료 | 진행중 | 지연 | 기한 초과 | 콘텐츠 발행 | 댓글 |`);
       lines.push(`|---|---:|---:|---:|---:|---:|---:|`);
       this._matrixData.forEach(u => {
         lines.push(`| ${u.name} | ${u.done_count} | ${u.in_progress_count} | ${u.blocked_count} | ${u.overdue_count} | ${u.content_done}/${u.content_total} | ${u.comment_count} |`);
@@ -904,7 +904,7 @@ const WeeklyReportView = {
 
     // 요약 수치
     lines.push('## 📊 한눈에 보기');
-    lines.push(`- 완료 **${d.summary.tasks_completed}건** / 진행 중 **${d.summary.tasks_in_progress}건** / 미진행 **${d.summary.tasks_blocked}건**`);
+    lines.push(`- 완료 **${d.summary.tasks_completed}건** / 진행 중 **${d.summary.tasks_in_progress}건** / 지연 **${d.summary.tasks_blocked}건**`);
     lines.push(`- 콘텐츠 발행 **${d.summary.content_published}건** (예정 ${d.summary.content_planned || 0}건)`);
     lines.push(`- 작성한 코멘트 **${d.summary.comments_added}개**`);
     lines.push('');
@@ -948,9 +948,9 @@ const WeeklyReportView = {
 
     // 진행 중 / 예정
     if (d.in_progress_tasks?.length) {
-      lines.push('## 🔄 진행 중 / 예정 / 미진행');
+      lines.push('## 🔄 진행 중 / 예정 / 지연');
       d.in_progress_tasks.forEach(t => {
-        const statusLabel = t.status === 'in_progress' ? '진행' : t.status === 'blocked' ? '미진행' : '예정';
+        const statusLabel = t.status === 'in_progress' ? '진행' : t.status === 'blocked' ? '지연' : '예정';
         const due = t.due_date ? ` · 마감 ${this._fmtShortDate(t.due_date)}` : '';
         lines.push(`- [${statusLabel}] ${t.category_name ? `[${t.category_name}] ` : ''}${t.title}${due}`);
       });

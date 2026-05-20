@@ -305,7 +305,7 @@ const DashboardView = {
       { label: '진행 중', count: counts.in_progress, color: '#4F6EF7' },
       { label: '할 일',   count: counts.todo,        color: '#7B9BFA' },
       { label: '완료',    count: counts.done,        color: '#5DD984' },
-      { label: '미진행',  count: counts.blocked,     color: '#F07070' },
+      { label: '지연',  count: counts.blocked,     color: '#F07070' },
     ].filter(e => e.count > 0);
 
     const body = entries.length === 0
@@ -439,7 +439,7 @@ const DashboardView = {
     `;
   },
 
-  // ───────── 액션 필요 (지연 + 미진행) ─────────
+  // ───────── 액션 필요 (기한 초과 + 지연) ─────────
   _renderActionRequired() {
     const today = new Date(); today.setHours(0,0,0,0);
     const overdue = this._allTasks
@@ -451,14 +451,14 @@ const DashboardView = {
       .slice(0, 8);
 
     const rowsHtml = (items, kind) => items.length === 0
-      ? `<div class="dash-empty" style="padding:24px 0;">${kind === 'overdue' ? '지연된 업무가 없습니다' : '미진행 업무가 없습니다'}</div>`
+      ? `<div class="dash-empty" style="padding:24px 0;">${kind === 'overdue' ? '기한 초과 업무가 없습니다' : '지연 업무가 없습니다'}</div>`
       : items.map(t => {
           const days = t.due_date
             ? Math.floor((today - new Date(t.due_date)) / 86400000)
             : null;
           const dlabel = kind === 'overdue' && days !== null
             ? `<span class="dash-action-overdue">D+${days}</span>`
-            : `<span class="dash-action-blocked">미진행</span>`;
+            : `<span class="dash-action-blocked">지연</span>`;
           return `<div class="dash-action-row">
             ${dlabel}
             <span class="dash-action-title">${t.category_name ? `<span class="dash-action-cat">[${escHtml(t.category_name)}]</span> ` : ''}${escHtml(t.title)}</span>
@@ -470,14 +470,14 @@ const DashboardView = {
       <div class="dash-row dash-row-2">
         <div class="dash-card">
           <div class="dash-card-header">
-            <h3 class="dash-card-title">⚠ 지연 (D+1 이상)</h3>
+            <h3 class="dash-card-title">⚠ 기한 초과 (D+1 이상)</h3>
             <span class="dash-card-sub">${overdue.length > 7 ? '8건+' : overdue.length + '건'}</span>
           </div>
           ${rowsHtml(overdue, 'overdue')}
         </div>
         <div class="dash-card">
           <div class="dash-card-header">
-            <h3 class="dash-card-title">🚧 미진행 업무</h3>
+            <h3 class="dash-card-title">🚧 지연 업무</h3>
             <span class="dash-card-sub">${blocked.length > 7 ? '8건+' : blocked.length + '건'}</span>
           </div>
           ${rowsHtml(blocked, 'blocked')}
