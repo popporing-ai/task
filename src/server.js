@@ -35,6 +35,8 @@ app.use('/task/api/attachments', require('./routes/attachments'));
 // checklists 라우트는 deprecated (v2.10.4 — 기능 제거). 테이블은 보존.
 app.use('/task/api/users', require('./routes/users'));
 app.use('/task/api/calendar', require('./routes/calendar'));
+// 외부 공개 (인증 불필요, 읽기 전용) — 반드시 인증 라우트와 분리해서 마운트
+app.use('/task/api/public', require('./routes/public'));
 app.use('/task/api/weekly-reports', require('./routes/weekly_reports'));
 app.use('/task/api/team-activity', require('./routes/team_activity'));
 app.use('/task/api/admin', require('./routes/admin'));
@@ -277,6 +279,13 @@ app.get('/task/api/search', authMiddleware, async (req, res, next) => {
       }
     });
   } catch (err) { next(err); }
+});
+
+// 외부 공개 캘린더 페이지 (로그인 불필요, 읽기 전용)
+// SPA는 해시 라우팅(#/calendar)을 쓰므로 경로 /task/calendar 와 충돌하지 않음.
+// catch-all(/task/*)보다 먼저 등록해야 SPA로 흡수되지 않는다.
+app.get('/task/calendar', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'team-calendar.html'));
 });
 
 // SPA 폴백: /task로 접근 시 index.html

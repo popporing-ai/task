@@ -335,8 +335,9 @@ const CalendarView = {
           <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
           <span style="font-size:17px;font-weight:700;letter-spacing:-0.02em;line-height:1.3;">${escHtml(ev.title)}</span>
         </div>
-        <div style="margin-bottom:14px;">
+        <div style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap;">
           <span class="badge" style="background:${color}22;color:${color};">${escHtml(typeLabel)}</span>
+          ${ev.is_public ? `<span class="badge" style="background:#E6F4EA;color:#1E883B;">🌐 외부 공개</span>` : ''}
         </div>
         ${ev.description ? `<div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:14px;line-height:1.55;white-space:pre-wrap;">${escHtml(ev.description)}</div>` : ''}
         <div style="font-size:13px;color:var(--color-text-secondary);display:flex;flex-direction:column;gap:8px;background:var(--color-bg-secondary);padding:12px 14px;border-radius:10px;">
@@ -437,6 +438,14 @@ const CalendarView = {
         <label>담당자</label>
         <select id="cal-assignee">${App.userOptions(event?.assignee_id)}</select>
       </div>
+      <div class="form-group">
+        <label class="cal-allday-toggle">
+          <input type="checkbox" id="cal-public" ${event?.is_public ? 'checked' : ''}>
+          <span class="cal-allday-switch"></span>
+          <span class="cal-allday-text">외부 공개 (다른 부서 공유 캘린더에 노출)</span>
+        </label>
+        <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">켜면 로그인 없이 볼 수 있는 공유 URL(/task/calendar)에 이 일정이 표시됩니다.</div>
+      </div>
     `;
 
     App.openPanel(title, html, async () => {
@@ -453,6 +462,7 @@ const CalendarView = {
         // 색상은 유형에서 자동 매핑
         color: this.EVENT_COLORS[eventType] || this.EVENT_COLORS.general,
         assignee_id: document.getElementById('cal-assignee').value || null,
+        is_public: document.getElementById('cal-public').checked,
       };
 
       if (!data.title) {

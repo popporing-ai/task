@@ -67,7 +67,7 @@ router.get('/upcoming', async (req, res, next) => {
 router.post('/', auditMiddleware('calendar_events'), async (req, res, next) => {
   try {
     const { title, description, event_type, start_date, end_date,
-            start_time, end_time, all_day, color, assignee_id } = req.body;
+            start_time, end_time, all_day, color, assignee_id, is_public } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ data: null, message: '일정명은 필수입니다.' });
@@ -79,8 +79,8 @@ router.post('/', auditMiddleware('calendar_events'), async (req, res, next) => {
     const { rows } = await db.query(`
       INSERT INTO calendar_events
         (title, description, event_type, start_date, end_date,
-         start_time, end_time, all_day, color, assignee_id, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         start_time, end_time, all_day, color, assignee_id, is_public, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING *
     `, [
       title.trim(),
@@ -93,6 +93,7 @@ router.post('/', auditMiddleware('calendar_events'), async (req, res, next) => {
       all_day !== false,
       color || '#4F6EF7',
       assignee_id || null,
+      is_public === true,
       req.user.id,
     ]);
 
@@ -105,7 +106,7 @@ router.put('/:id', auditMiddleware('calendar_events'), async (req, res, next) =>
   try {
     const { id } = req.params;
     const { title, description, event_type, start_date, end_date,
-            start_time, end_time, all_day, color, assignee_id } = req.body;
+            start_time, end_time, all_day, color, assignee_id, is_public } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ data: null, message: '일정명은 필수입니다.' });
@@ -119,9 +120,9 @@ router.put('/:id', auditMiddleware('calendar_events'), async (req, res, next) =>
         title = $1, description = $2, event_type = $3,
         start_date = $4, end_date = $5,
         start_time = $6, end_time = $7,
-        all_day = $8, color = $9, assignee_id = $10,
+        all_day = $8, color = $9, assignee_id = $10, is_public = $11,
         updated_at = NOW()
-      WHERE id = $11
+      WHERE id = $12
       RETURNING *
     `, [
       title.trim(),
@@ -134,6 +135,7 @@ router.put('/:id', auditMiddleware('calendar_events'), async (req, res, next) =>
       all_day !== false,
       color || '#4F6EF7',
       assignee_id || null,
+      is_public === true,
       id,
     ]);
 
