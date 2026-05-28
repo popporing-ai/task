@@ -2,20 +2,18 @@
 const CalendarView = {
   // 빌트인 폴백 (API 로드 실패 시 사용)
   EVENT_COLORS: {
-    general:  '#4F6EF7',
-    meeting:  '#7B9BFA',
-    deadline: '#F07070',
-    campaign: '#5DD984',
-    event:    '#F5A623',
-    holiday:  '#9A9BA3',
+    general:       '#4F6EF7',
+    meeting:       '#7B9BFA',
+    business_trip: '#14B8A6',
+    event:         '#F5A623',
+    holiday:       '#9A9BA3',
   },
   EVENT_TYPE_LABELS: {
-    general:  '일반',
-    meeting:  '회의',
-    deadline: '마감',
-    campaign: '캠페인',
-    event:    '행사',
-    holiday:  '휴일',
+    general:       '일반',
+    meeting:       '회의',
+    business_trip: '출장',
+    event:         '행사',
+    holiday:       '휴일',
   },
 
   _eventTypes: [], // [{ id, type_key, label, color, is_builtin, sort_order }]

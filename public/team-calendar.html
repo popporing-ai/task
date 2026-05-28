@@ -76,14 +76,14 @@
       background: var(--color-bg-primary); border: 0.5px solid var(--color-border);
       border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-sm);
     }
-    .calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--color-bg-secondary); border-bottom: 0.5px solid var(--color-border); }
+    .calendar-header { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--color-bg-secondary); border-bottom: 0.5px solid var(--color-border); }
     .calendar-header-cell { padding: 10px 8px; text-align: center; font-size: 12px; font-weight: 600; color: var(--color-text-muted); }
     .calendar-header-cell.sun { color: #F07070; }
     .calendar-header-cell.sat { color: #7B9BFA; }
     .calendar-body { display: flex; flex-direction: column; }
-    .calendar-week { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 0.5px solid var(--color-border); }
+    .calendar-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 0.5px solid var(--color-border); }
     .calendar-week:last-child { border-bottom: none; }
-    .calendar-day { min-height: 104px; padding: 6px 8px; border-right: 0.5px solid var(--color-border); position: relative; }
+    .calendar-day { min-height: 104px; padding: 6px 8px; border-right: 0.5px solid var(--color-border); position: relative; min-width: 0; overflow: hidden; }
     .calendar-day:last-child { border-right: none; }
     .calendar-day.today { background: rgba(79,110,247,0.10); }
     .calendar-day.today .calendar-day-number { background: var(--color-primary); color: #fff; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; }
@@ -91,8 +91,9 @@
     .calendar-day.sun .calendar-day-number { color: #F07070; }
     .calendar-day.sat .calendar-day-number { color: #7B9BFA; }
     .calendar-day-number { font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; }
-    .calendar-day-events { display: flex; flex-direction: column; gap: 2px; }
+    .calendar-day-events { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .calendar-event {
+      display: block; max-width: 100%;
       background: var(--event-color, var(--color-primary)); color: #fff; font-size: 11px;
       padding: 2px 6px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; cursor: pointer; transition: opacity 0.15s, box-shadow 0.15s; line-height: 1.4;
@@ -156,8 +157,8 @@
   <script>
     // 외부 공개 캘린더 — 인증 없이 /task/api/public/* 만 호출하는 읽기 전용 뷰.
     const API_BASE = '/task/api/public';
-    const FALLBACK_COLORS = { general:'#4F6EF7', meeting:'#7B9BFA', deadline:'#F07070', campaign:'#5DD984', event:'#F5A623', holiday:'#9A9BA3' };
-    const FALLBACK_LABELS = { general:'일반', meeting:'회의', deadline:'마감', campaign:'캠페인', event:'행사', holiday:'휴일' };
+    const FALLBACK_COLORS = { general:'#4F6EF7', meeting:'#7B9BFA', business_trip:'#14B8A6', event:'#F5A623', holiday:'#9A9BA3' };
+    const FALLBACK_LABELS = { general:'일반', meeting:'회의', business_trip:'출장', event:'행사', holiday:'휴일' };
 
     const state = {
       year: new Date().getFullYear(),

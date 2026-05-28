@@ -71,7 +71,7 @@ const TOOL_DEFINITIONS = [
         properties: {
           start_from: { type: 'string', description: 'YYYY-MM-DD' },
           start_to:   { type: 'string', description: 'YYYY-MM-DD' },
-          event_type: { type: 'string', description: '유형 키 (general/meeting/deadline/campaign/event/holiday 또는 커스텀)' },
+          event_type: { type: 'string', description: '유형 키 (general/meeting/business_trip/event/holiday 또는 커스텀)' },
           assignee_me: { type: 'boolean' },
           limit:      { type: 'integer' },
         },
@@ -288,7 +288,7 @@ const TOOL_DEFINITIONS = [
           all_day:     { type: 'boolean', description: '종일 여부 (기본 true)' },
           start_time:  { type: 'string', description: 'HH:mm (종일 아닐 때)' },
           end_time:    { type: 'string', description: 'HH:mm' },
-          event_type:  { type: 'string', description: '유형 키 (general/meeting/deadline/campaign/event/holiday 또는 커스텀)' },
+          event_type:  { type: 'string', description: '유형 키 (general/meeting/business_trip/event/holiday 또는 커스텀)' },
           description: { type: 'string' },
           assignee_name: { type: 'string' },
         },
