@@ -434,13 +434,11 @@ const ContentView = {
           <label>콘텐츠 제목 *</label>
           <input type="text" id="f-title" value="${escHtml(item?.title || '')}" placeholder="콘텐츠 제목">
         </div>
-        ${!isEdit ? `
         <div class="form-group">
-          <label>주제 (선택, 같은 주제로 묶고 싶다면)</label>
+          <label>주제 ${isEdit ? '' : '(선택, 같은 주제로 묶고 싶다면)'}</label>
           <input type="text" id="f-topic-single" value="${escHtml(item?.topic || '')}" placeholder="예: 2026 신제품 런칭 캠페인">
-          <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">주제를 입력하면 리스트에서 같은 주제끼리 묶여서 보입니다.</div>
+          <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">같은 주제끼리 리스트에서 한 그룹으로 묶입니다. 비우면 그룹에서 빠져 단독 항목이 됩니다.</div>
         </div>
-        ` : ''}
         <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
           <div class="form-group">
             <label>제품</label>
