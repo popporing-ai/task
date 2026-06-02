@@ -31,29 +31,61 @@ function buildInflowUrl(contentId, productName) {
   return `${base}${sep}src=${contentId}`;
 }
 
-// da.gd 무료 API로 단축 URL 생성 — 실패 시 null 반환 (요청 자체는 막지 않음)
-// 검증 결과: da.gd는 즉시 301 리다이렉트 + preview 없음 + virnect 도메인 정상 처리 + API 키 불필요.
-// (대안들: TinyURL=preview 쿠키 이슈, LRL.KR=v4 deprecated/v5 키 필요, is.gd=virnect 거부)
-async function shortenUrl(longUrl) {
+// da.gd 무료 API로 단축 URL 생성 — 실패 시 null 반환 (요청 자체는 막지 않음).
+// 두 단계 안전장치:
+//   ① AbortController로 fetch 헤더 단계 타임아웃
+//   ② Promise.race로 wall-clock 하드 타임아웃 (body 단계 hang 방어)
+// 일부 도메인에서 da.gd가 응답 body를 늦게 흘려서 AbortController 신호가
+// res.text()까지 전파되지 않는 케이스가 관찰됨 → ②가 필요.
+async function shortenUrl(longUrl, timeoutMs = 2500) {
   if (!longUrl) return null;
+  const ctrl = new AbortController();
+  const abortTimer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const doFetch = (async () => {
+    try {
+      const res = await fetch(`https://da.gd/s?url=${encodeURIComponent(longUrl)}`, {
+        signal: ctrl.signal,
+        headers: { 'User-Agent': 'task-app/1.0' },
+      });
+      if (!res.ok) return null;
+      const text = (await res.text()).trim();
+      if (!text || /^error/i.test(text) || !/^https?:\/\//.test(text)) return null;
+      return text;
+    } catch {
+      return null;
+    }
+  })();
+  const guard = new Promise(resolve => setTimeout(() => resolve(null), timeoutMs + 500));
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 4000);
-    const res = await fetch(`https://da.gd/s?url=${encodeURIComponent(longUrl)}`, {
-      signal: ctrl.signal,
-      headers: { 'User-Agent': 'task-app/1.0' },
-    });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    const text = (await res.text()).trim();
-    if (!text || /^error/i.test(text) || !/^https?:\/\//.test(text)) return null;
-    return text;
-  } catch {
-    return null;
+    return await Promise.race([doFetch, guard]);
+  } finally {
+    clearTimeout(abortTimer);
   }
 }
 
+// 백그라운드 단축 — INSERT 직후 짧게 다시 시도해서 short_url 컬럼만 채움.
+// 요청-응답 사이클을 지연시키지 않는다. 실패해도 사용자 영향 없음.
+function scheduleBgShorten(itemId, inflowUrl) {
+  if (!itemId || !inflowUrl) return;
+  setImmediate(async () => {
+    try {
+      const sUrl = await shortenUrl(inflowUrl, 4000);
+      if (!sUrl) return;
+      await db.query(
+        `UPDATE content_items
+            SET short_url = $1
+          WHERE id = $2 AND (short_url IS NULL OR short_url = '')`,
+        [sUrl, itemId]
+      );
+    } catch (e) {
+      console.error(`[bg-shorten] id=${itemId} url=${inflowUrl} failed:`, e.message);
+    }
+  });
+}
+
 // 콘텐츠 ID 자동 생성 (excludeId: UPDATE 시 자기 자신을 제외)
+// 단순히 rows.length+1로 접미사를 붙이면 중간에 삭제된 케이스에서 충돌하므로
+// 실제 비어 있는 가장 작은 번호를 찾는다.
 async function generateContentId(publishDate, channel, contentType, excludeId = null) {
   const base = `${publishDate.replace(/-/g, '').slice(0, 8)}_${channel}_${contentType}`;
   const params = [`${base}%`];
@@ -63,11 +95,17 @@ async function generateContentId(publishDate, channel, contentType, excludeId = 
     extra = ' AND id <> $2';
   }
   const { rows } = await db.query(
-    `SELECT content_id FROM content_items WHERE content_id LIKE $1${extra} ORDER BY content_id`,
+    `SELECT content_id FROM content_items WHERE content_id LIKE $1${extra}`,
     params
   );
-  if (rows.length === 0) return base;
-  return `${base}_${rows.length + 1}`;
+  const taken = new Set(rows.map(r => r.content_id));
+  if (!taken.has(base)) return base;
+  for (let n = 2; n <= taken.size + 2; n++) {
+    const candidate = `${base}_${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  // 이론상 도달하지 않음 — 최후 폴백
+  return `${base}_${Date.now()}`;
 }
 
 // 콘텐츠 목록
@@ -140,10 +178,13 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
       finalInflowUrl = buildInflowUrl(finalContentId, pName);
     }
 
-    // short_url 자동 생성 — 클라이언트 미전송 시 da.gd로 단축
+    // short_url 자동 생성 — 클라이언트 미전송 시 da.gd로 단축.
+    // 동기 호출은 짧은 wall-clock cap을 적용. 시간 내 실패하면 등록은 그대로
+    // 진행하고(short_url=null), INSERT 후 백그라운드에서 재시도해 컬럼만 채운다.
+    // → 외부 단축 서비스 hang 때문에 콘텐츠 등록 자체가 막히는 문제를 차단.
     let finalShortUrl = short_url || null;
     if (!finalShortUrl && finalInflowUrl) {
-      finalShortUrl = await shortenUrl(finalInflowUrl);
+      finalShortUrl = await shortenUrl(finalInflowUrl, 2500);
     }
 
     const { rows } = await db.query(`
@@ -155,6 +196,11 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
     `, [title, topic || null, product_id || null, channel, content_type, assignee_id || null,
         publish_date || null, finalContentId, finalInflowUrl || null, finalShortUrl || null,
         publish_url || null, status || 'planned', memo || null, req.user.id]);
+
+    // 동기 단축이 실패했으면 백그라운드 재시도 (요청 응답을 막지 않음)
+    if (!finalShortUrl && finalInflowUrl) {
+      scheduleBgShorten(rows[0].id, finalInflowUrl);
+    }
 
     res.json({ data: rows[0], message: '콘텐츠가 추가되었습니다.' });
   } catch (err) { next(err); }
@@ -189,12 +235,12 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
       prepared.push({ ch, ct, cid, inflowUrl });
     }
 
-    // 2단계: da.gd 단축을 병렬 호출 (채널마다 동시)
+    // 2단계: da.gd 단축을 병렬 호출 (채널마다 동시, 짧은 cap)
     const shortUrls = await Promise.all(
-      prepared.map(p => p.inflowUrl ? shortenUrl(p.inflowUrl) : Promise.resolve(null))
+      prepared.map(p => p.inflowUrl ? shortenUrl(p.inflowUrl, 2500) : Promise.resolve(null))
     );
 
-    // 3단계: 일괄 INSERT
+    // 3단계: 일괄 INSERT + 실패분은 백그라운드 재시도
     const items = [];
     for (let idx = 0; idx < prepared.length; idx++) {
       const p = prepared[idx];
@@ -208,6 +254,7 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
       `, [topic.trim(), topic.trim(), product_id || null, p.ch, p.ct, assignee_id || null,
           publish_date || null, p.cid, p.inflowUrl, sUrl, status || 'planned', memo || null, req.user.id]);
       items.push(rows[0]);
+      if (!sUrl && p.inflowUrl) scheduleBgShorten(rows[0].id, p.inflowUrl);
     }
     res.json({ data: items, message: `${items.length}개 콘텐츠가 생성되었습니다.` });
   } catch (err) { next(err); }
@@ -269,14 +316,22 @@ router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
     }
 
     // short_url — 빈 값이면 da.gd로 재단축. inflow_url이 바뀌었어도 재단축.
+    // 짧은 wall-clock cap 적용. 실패하면 일단 null로 저장하고 백그라운드 재시도.
     let finalShortUrl;
+    let needBgShorten = false;
     if (short_url) {
       finalShortUrl = short_url; // 사용자가 직접 채운 값 존중
     } else if (finalInflowUrl && finalInflowUrl !== prev.inflow_url) {
-      finalShortUrl = await shortenUrl(finalInflowUrl);
+      finalShortUrl = await shortenUrl(finalInflowUrl, 2500);
+      if (!finalShortUrl) needBgShorten = true;
     } else if (short_url === '' || short_url === null) {
       // 명시적으로 비웠으면 재단축
-      finalShortUrl = finalInflowUrl ? await shortenUrl(finalInflowUrl) : null;
+      if (finalInflowUrl) {
+        finalShortUrl = await shortenUrl(finalInflowUrl, 2500);
+        if (!finalShortUrl) needBgShorten = true;
+      } else {
+        finalShortUrl = null;
+      }
     } else {
       finalShortUrl = prev.short_url; // 기존 값 유지
     }
@@ -293,6 +348,11 @@ router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
 
     if (rows.length === 0) {
       return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
+    }
+
+    // 동기 단축이 실패했으면 백그라운드 재시도
+    if (needBgShorten && finalInflowUrl) {
+      scheduleBgShorten(rows[0].id, finalInflowUrl);
     }
 
     res.json({ data: rows[0], message: '콘텐츠가 수정되었습니다.' });

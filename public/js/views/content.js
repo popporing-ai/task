@@ -565,11 +565,16 @@ const ContentView = {
           status: document.querySelector('input[name="f-status-batch"]:checked').value,
           memo: document.getElementById('f-memo-batch').value || null,
         };
-        const res = await API.post('/content/batch', data);
-        App.toast(`${res.data.length}개 콘텐츠가 생성되었습니다.`, 'success');
-        if (data.publish_date) this.month = data.publish_date.slice(0, 7);
-        this.render();
-        return;
+        try {
+          const res = await API.post('/content/batch', data);
+          App.toast(`${res.data.length}개 콘텐츠가 생성되었습니다.`, 'success');
+          if (data.publish_date) this.month = data.publish_date.slice(0, 7);
+          this.render();
+          return;
+        } catch (e) {
+          App.toast(`일괄 저장 실패: ${e.message || '알 수 없는 오류'}`, 'error');
+          return false;
+        }
       }
 
       // 단일
@@ -589,15 +594,20 @@ const ContentView = {
         memo: document.getElementById('f-memo').value,
       };
       if (!data.title) { App.toast('제목을 입력해주세요.', 'error'); return false; }
-      if (isEdit) {
-        await API.put(`/content/${item.id}`, data);
-        App.toast('수정되었습니다.', 'success');
-      } else {
-        await API.post('/content', data);
-        App.toast('추가되었습니다.', 'success');
+      try {
+        if (isEdit) {
+          await API.put(`/content/${item.id}`, data);
+          App.toast('수정되었습니다.', 'success');
+        } else {
+          await API.post('/content', data);
+          App.toast('추가되었습니다.', 'success');
+        }
+        if (data.publish_date) this.month = data.publish_date.slice(0, 7);
+        this.render();
+      } catch (e) {
+        App.toast(`저장 실패: ${e.message || '알 수 없는 오류'}`, 'error');
+        return false;
       }
-      if (data.publish_date) this.month = data.publish_date.slice(0, 7);
-      this.render();
     });
 
     // 모드 토글
