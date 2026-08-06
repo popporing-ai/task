@@ -7,9 +7,32 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.11.3';
+const CURRENT_VERSION = '2.11.4';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.11.4',
+    date: '2026-08-06',
+    title: '단축 URL 서비스 교체 — 접속 시 오류 나던 문제 수정 (da.gd -> tinyurl)',
+    sections: [
+      {
+        kind: 'fix',
+        title: '단축 URL 접속 시 오류 페이지가 뜨던 문제 수정',
+        items: [
+          {
+            text: '원인: 단축 URL을 da.gd 한 곳에만 의존했는데, da.gd가 개인이 운영하는 무료 서비스라 간헐적으로 죽거나 사내망에서 차단돼 링크 접속 시 da.gd 오류 페이지가 뜨는 사례가 있었습니다.',
+          },
+          {
+            text: '수정: 2002년부터 안정 운영 중인 tinyurl을 1순위 단축 서비스로 바꾸고, tinyurl이 실패할 때만 da.gd로 폴백하도록 했습니다. 여러 서비스를 순서대로 시도해 첫 성공을 채택합니다.',
+            demo: '이전: da.gd 단독 -> da.gd 장애/차단 시 링크 전체가 오류\n이후: tinyurl 우선 -> 실패 시 da.gd 폴백 -> 한 곳이 죽어도 링크 생성',
+          },
+          {
+            text: '참고: 이번 수정은 앞으로 새로 만드는 단축 URL에 적용됩니다. 이미 발행돼 나간 기존 da.gd 링크는 자동으로 바뀌지 않으니, 오류가 계속되는 링크는 해당 콘텐츠를 다시 저장해 새 단축 URL(tinyurl)로 재발행해 주세요.',
+          },
+        ],
+      },
+    ],
+  },
   {
     version: '2.11.3',
     date: '2026-06-02',

@@ -31,24 +31,35 @@ function buildInflowUrl(contentId, productName) {
   return `${base}${sep}src=${contentId}`;
 }
 
-// da.gd 무료 API로 단축 URL 생성 — 실패 시 null 반환 (요청 자체는 막지 않음).
+// 공개 단축 URL 서비스 목록 — 순서대로 시도해서 첫 성공을 채택.
+// da.gd는 개인이 운영하는 무료 서비스라 간헐적으로 죽거나 사내망에서 차단돼
+// "da.gd 페이지 자체에서 오류"가 뜨는 사례가 관찰됨(2026-08 확인). 그래서
+// 2002년부터 안정 운영 중인 tinyurl을 1순위로 두고 da.gd를 폴백으로만 둔다.
+// is.gd / v.gd는 확인 시점 "database insert failed" 상태라 목록에서 제외.
+// 두 서비스 모두 성공 시 순수 단축 URL 문자열을, 실패 시 "Error…" 텍스트를 반환.
+const SHORTENERS = [
+  (u) => `https://tinyurl.com/api-create.php?url=${encodeURIComponent(u)}`,
+  (u) => `https://da.gd/s?url=${encodeURIComponent(u)}`,
+];
+
+// 단일 단축 서비스 호출 — 성공 시 단축 URL, 실패 시 null.
 // 두 단계 안전장치:
 //   ① AbortController로 fetch 헤더 단계 타임아웃
 //   ② Promise.race로 wall-clock 하드 타임아웃 (body 단계 hang 방어)
-// 일부 도메인에서 da.gd가 응답 body를 늦게 흘려서 AbortController 신호가
-// res.text()까지 전파되지 않는 케이스가 관찰됨 → ②가 필요.
-async function shortenUrl(longUrl, timeoutMs = 2500) {
-  if (!longUrl) return null;
+// 일부 서비스가 응답 body를 늦게 흘려서 AbortController 신호가 res.text()까지
+// 전파되지 않는 케이스가 있어 ②가 필요.
+async function fetchShort(endpoint, timeoutMs) {
   const ctrl = new AbortController();
   const abortTimer = setTimeout(() => ctrl.abort(), timeoutMs);
   const doFetch = (async () => {
     try {
-      const res = await fetch(`https://da.gd/s?url=${encodeURIComponent(longUrl)}`, {
+      const res = await fetch(endpoint, {
         signal: ctrl.signal,
         headers: { 'User-Agent': 'task-app/1.0' },
       });
       if (!res.ok) return null;
       const text = (await res.text()).trim();
+      // "Error", "Error, database insert failed" 등 실패 응답을 걸러냄
       if (!text || /^error/i.test(text) || !/^https?:\/\//.test(text)) return null;
       return text;
     } catch {
@@ -61,6 +72,21 @@ async function shortenUrl(longUrl, timeoutMs = 2500) {
   } finally {
     clearTimeout(abortTimer);
   }
+}
+
+// 단축 URL 생성 — 서비스들을 순서대로 시도하고 첫 성공을 반환. 전체 실패 시 null
+// (요청 자체는 막지 않음). 남은 예산을 서비스 간에 나눠 써서 전체 wall-clock을
+// timeoutMs로 제한 — 외부 서비스가 전부 hang 해도 콘텐츠 등록을 막지 못한다.
+async function shortenUrl(longUrl, timeoutMs = 2500) {
+  if (!longUrl) return null;
+  const started = Date.now();
+  for (const endpoint of SHORTENERS) {
+    const remaining = timeoutMs - (Date.now() - started);
+    if (remaining < 400) break;
+    const short = await fetchShort(endpoint(longUrl), remaining);
+    if (short) return short;
+  }
+  return null;
 }
 
 // 백그라운드 단축 — INSERT 직후 짧게 다시 시도해서 short_url 컬럼만 채움.
