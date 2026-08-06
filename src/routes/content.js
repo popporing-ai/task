@@ -32,14 +32,15 @@ function buildInflowUrl(contentId, productName) {
 }
 
 // 공개 단축 URL 서비스 목록 — 순서대로 시도해서 첫 성공을 채택.
-// da.gd는 개인이 운영하는 무료 서비스라 간헐적으로 죽거나 사내망에서 차단돼
-// "da.gd 페이지 자체에서 오류"가 뜨는 사례가 관찰됨(2026-08 확인). 그래서
-// 2002년부터 안정 운영 중인 tinyurl을 1순위로 두고 da.gd를 폴백으로만 둔다.
+// 1순위는 da.gd — 클릭 시 중간 페이지 없이 곧바로 302 리다이렉트만 한다.
+// tinyurl은 방문자가 미리보기 모드를 켜 두면 리다이렉트 전에 tinyurl 미리보기
+// 페이지를 노출하는데, 이건 생성자 쪽에서 막을 수 없어 폴백으로만 둔다.
+// (da.gd는 개인 운영이라 간헐적으로 불안정 -> da.gd 생성 실패 시에만 tinyurl 사용)
 // is.gd / v.gd는 확인 시점 "database insert failed" 상태라 목록에서 제외.
 // 두 서비스 모두 성공 시 순수 단축 URL 문자열을, 실패 시 "Error…" 텍스트를 반환.
 const SHORTENERS = [
-  (u) => `https://tinyurl.com/api-create.php?url=${encodeURIComponent(u)}`,
   (u) => `https://da.gd/s?url=${encodeURIComponent(u)}`,
+  (u) => `https://tinyurl.com/api-create.php?url=${encodeURIComponent(u)}`,
 ];
 
 // 단일 단축 서비스 호출 — 성공 시 단축 URL, 실패 시 null.
