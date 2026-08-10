@@ -31,83 +31,16 @@ function buildInflowUrl(contentId, productName) {
   return `${base}${sep}src=${contentId}`;
 }
 
-// 공개 단축 URL 서비스 목록 — 순서대로 시도해서 첫 성공을 채택.
-// 1순위는 da.gd — 클릭 시 중간 페이지 없이 곧바로 302 리다이렉트만 한다.
-// tinyurl은 방문자가 미리보기 모드를 켜 두면 리다이렉트 전에 tinyurl 미리보기
-// 페이지를 노출하는데, 이건 생성자 쪽에서 막을 수 없어 폴백으로만 둔다.
-// (da.gd는 개인 운영이라 간헐적으로 불안정 -> da.gd 생성 실패 시에만 tinyurl 사용)
-// is.gd / v.gd는 확인 시점 "database insert failed" 상태라 목록에서 제외.
-// 두 서비스 모두 성공 시 순수 단축 URL 문자열을, 실패 시 "Error…" 텍스트를 반환.
-const SHORTENERS = [
-  (u) => `https://da.gd/s?url=${encodeURIComponent(u)}`,
-  (u) => `https://tinyurl.com/api-create.php?url=${encodeURIComponent(u)}`,
-];
-
-// 단일 단축 서비스 호출 — 성공 시 단축 URL, 실패 시 null.
-// 두 단계 안전장치:
-//   ① AbortController로 fetch 헤더 단계 타임아웃
-//   ② Promise.race로 wall-clock 하드 타임아웃 (body 단계 hang 방어)
-// 일부 서비스가 응답 body를 늦게 흘려서 AbortController 신호가 res.text()까지
-// 전파되지 않는 케이스가 있어 ②가 필요.
-async function fetchShort(endpoint, timeoutMs) {
-  const ctrl = new AbortController();
-  const abortTimer = setTimeout(() => ctrl.abort(), timeoutMs);
-  const doFetch = (async () => {
-    try {
-      const res = await fetch(endpoint, {
-        signal: ctrl.signal,
-        headers: { 'User-Agent': 'task-app/1.0' },
-      });
-      if (!res.ok) return null;
-      const text = (await res.text()).trim();
-      // "Error", "Error, database insert failed" 등 실패 응답을 걸러냄
-      if (!text || /^error/i.test(text) || !/^https?:\/\//.test(text)) return null;
-      return text;
-    } catch {
-      return null;
-    }
-  })();
-  const guard = new Promise(resolve => setTimeout(() => resolve(null), timeoutMs + 500));
-  try {
-    return await Promise.race([doFetch, guard]);
-  } finally {
-    clearTimeout(abortTimer);
-  }
-}
-
-// 단축 URL 생성 — 서비스들을 순서대로 시도하고 첫 성공을 반환. 전체 실패 시 null
-// (요청 자체는 막지 않음). 남은 예산을 서비스 간에 나눠 써서 전체 wall-clock을
-// timeoutMs로 제한 — 외부 서비스가 전부 hang 해도 콘텐츠 등록을 막지 못한다.
-async function shortenUrl(longUrl, timeoutMs = 2500) {
-  if (!longUrl) return null;
-  const started = Date.now();
-  for (const endpoint of SHORTENERS) {
-    const remaining = timeoutMs - (Date.now() - started);
-    if (remaining < 400) break;
-    const short = await fetchShort(endpoint(longUrl), remaining);
-    if (short) return short;
-  }
-  return null;
-}
-
-// 백그라운드 단축 — INSERT 직후 짧게 다시 시도해서 short_url 컬럼만 채움.
-// 요청-응답 사이클을 지연시키지 않는다. 실패해도 사용자 영향 없음.
-function scheduleBgShorten(itemId, inflowUrl) {
-  if (!itemId || !inflowUrl) return;
-  setImmediate(async () => {
-    try {
-      const sUrl = await shortenUrl(inflowUrl, 4000);
-      if (!sUrl) return;
-      await db.query(
-        `UPDATE content_items
-            SET short_url = $1
-          WHERE id = $2 AND (short_url IS NULL OR short_url = '')`,
-        [sUrl, itemId]
-      );
-    } catch (e) {
-      console.error(`[bg-shorten] id=${itemId} url=${inflowUrl} failed:`, e.message);
-    }
-  });
+// 외부 단축 URL 서비스는 더 이상 쓰지 않는다.
+// da.gd, tinyurl, is.gd, v.gd 모두 사용자 환경에서 리다이렉트 전에 자기네
+// 경고/미리보기 페이지를 끼워 넣는 게 관찰됐고(2026-08 확인), 이건 링크를
+// 만드는 쪽에서 끌 수 없다. 그래서 단축을 아예 하지 않고 short_url 자리에
+// 전체 유입 URL(virnect.com …?src=…)을 그대로 넣는다. 우리 도메인이라
+// 중간 페이지가 없고 항상 안정적이며 ?src= 추적도 유지된다.
+// 이미 저장돼 있던 옛 외부 단축 링크는 재저장 시 전체 유입 URL로 교체한다.
+const STALE_SHORT_RE = /^https?:\/\/(da\.gd|tinyurl\.com|is\.gd|v\.gd)\//i;
+function isStaleShort(url) {
+  return typeof url === 'string' && STALE_SHORT_RE.test(url.trim());
 }
 
 // 콘텐츠 ID 자동 생성 (excludeId: UPDATE 시 자기 자신을 제외)
@@ -205,14 +138,11 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
       finalInflowUrl = buildInflowUrl(finalContentId, pName);
     }
 
-    // short_url 자동 생성 — 클라이언트 미전송 시 da.gd로 단축.
-    // 동기 호출은 짧은 wall-clock cap을 적용. 시간 내 실패하면 등록은 그대로
-    // 진행하고(short_url=null), INSERT 후 백그라운드에서 재시도해 컬럼만 채운다.
-    // → 외부 단축 서비스 hang 때문에 콘텐츠 등록 자체가 막히는 문제를 차단.
-    let finalShortUrl = short_url || null;
-    if (!finalShortUrl && finalInflowUrl) {
-      finalShortUrl = await shortenUrl(finalInflowUrl, 2500);
-    }
+    // short_url — 사용자가 직접 넣은 게시용 URL이 있으면 존중, 없거나 옛 외부
+    // 단축 링크면 전체 유입 URL을 그대로 사용. (외부 단축 서비스 미사용)
+    const finalShortUrl = (short_url && !isStaleShort(short_url))
+      ? short_url
+      : (finalInflowUrl || null);
 
     const { rows } = await db.query(`
       INSERT INTO content_items
@@ -223,11 +153,6 @@ router.post('/', auditMiddleware('content_items'), async (req, res, next) => {
     `, [title, topic || null, product_id || null, channel, content_type, assignee_id || null,
         publish_date || null, finalContentId, finalInflowUrl || null, finalShortUrl || null,
         publish_url || null, status || 'planned', memo || null, req.user.id]);
-
-    // 동기 단축이 실패했으면 백그라운드 재시도 (요청 응답을 막지 않음)
-    if (!finalShortUrl && finalInflowUrl) {
-      scheduleBgShorten(rows[0].id, finalInflowUrl);
-    }
 
     res.json({ data: rows[0], message: '콘텐츠가 추가되었습니다.' });
   } catch (err) { next(err); }
@@ -251,7 +176,7 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
       productName = pRows[0]?.name || null;
     }
 
-    // 1단계: content_id + inflow_url 계산 (단축은 병렬로 별도)
+    // 1단계: content_id + inflow_url 계산
     const prepared = [];
     for (const c of channels) {
       const ch = c.channel;
@@ -262,16 +187,9 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
       prepared.push({ ch, ct, cid, inflowUrl });
     }
 
-    // 2단계: da.gd 단축을 병렬 호출 (채널마다 동시, 짧은 cap)
-    const shortUrls = await Promise.all(
-      prepared.map(p => p.inflowUrl ? shortenUrl(p.inflowUrl, 2500) : Promise.resolve(null))
-    );
-
-    // 3단계: 일괄 INSERT + 실패분은 백그라운드 재시도
+    // 2단계: 일괄 INSERT — short_url은 전체 유입 URL을 그대로 사용 (외부 단축 미사용)
     const items = [];
-    for (let idx = 0; idx < prepared.length; idx++) {
-      const p = prepared[idx];
-      const sUrl = shortUrls[idx] || null;
+    for (const p of prepared) {
       const { rows } = await db.query(`
         INSERT INTO content_items
           (title, topic, product_id, channel, content_type, assignee_id, publish_date,
@@ -279,9 +197,8 @@ router.post('/batch', auditMiddleware('content_items'), async (req, res, next) =
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         RETURNING *
       `, [topic.trim(), topic.trim(), product_id || null, p.ch, p.ct, assignee_id || null,
-          publish_date || null, p.cid, p.inflowUrl, sUrl, status || 'planned', memo || null, req.user.id]);
+          publish_date || null, p.cid, p.inflowUrl, p.inflowUrl || null, status || 'planned', memo || null, req.user.id]);
       items.push(rows[0]);
-      if (!sUrl && p.inflowUrl) scheduleBgShorten(rows[0].id, p.inflowUrl);
     }
     res.json({ data: items, message: `${items.length}개 콘텐츠가 생성되었습니다.` });
   } catch (err) { next(err); }
@@ -342,26 +259,12 @@ router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
       finalInflowUrl = null;
     }
 
-    // short_url — 빈 값이면 da.gd로 재단축. inflow_url이 바뀌었어도 재단축.
-    // 짧은 wall-clock cap 적용. 실패하면 일단 null로 저장하고 백그라운드 재시도.
-    let finalShortUrl;
-    let needBgShorten = false;
-    if (short_url) {
-      finalShortUrl = short_url; // 사용자가 직접 채운 값 존중
-    } else if (finalInflowUrl && finalInflowUrl !== prev.inflow_url) {
-      finalShortUrl = await shortenUrl(finalInflowUrl, 2500);
-      if (!finalShortUrl) needBgShorten = true;
-    } else if (short_url === '' || short_url === null) {
-      // 명시적으로 비웠으면 재단축
-      if (finalInflowUrl) {
-        finalShortUrl = await shortenUrl(finalInflowUrl, 2500);
-        if (!finalShortUrl) needBgShorten = true;
-      } else {
-        finalShortUrl = null;
-      }
-    } else {
-      finalShortUrl = prev.short_url; // 기존 값 유지
-    }
+    // short_url — 사용자가 직접 넣은 게시용 URL이 있으면 존중. 비었거나 옛 외부
+    // 단축 링크(da.gd/tinyurl 등)면 전체 유입 URL로 교체. (외부 단축 미사용)
+    // → 옛 콘텐츠도 아무 값이나 저장만 하면 short_url이 전체 유입 URL로 정리됨.
+    const finalShortUrl = (short_url && !isStaleShort(short_url))
+      ? short_url
+      : (finalInflowUrl || null);
 
     const { rows } = await db.query(`
       UPDATE content_items SET
@@ -375,11 +278,6 @@ router.put('/:id', auditMiddleware('content_items'), async (req, res, next) => {
 
     if (rows.length === 0) {
       return res.status(404).json({ error: '콘텐츠를 찾을 수 없습니다.' });
-    }
-
-    // 동기 단축이 실패했으면 백그라운드 재시도
-    if (needBgShorten && finalInflowUrl) {
-      scheduleBgShorten(rows[0].id, finalInflowUrl);
     }
 
     res.json({ data: rows[0], message: '콘텐츠가 수정되었습니다.' });

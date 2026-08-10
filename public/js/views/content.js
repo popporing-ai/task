@@ -173,7 +173,7 @@ const ContentView = {
     const publishLink = item.publish_url
       ? `<a href="${escHtml(item.publish_url)}" target="_blank" rel="noopener" class="cc-row-link" title="배포 URL 열기">↗</a>`
       : '';
-    // 원본 유입 URL 복사 + 단축 URL 복사 — 둘 다 노출 (있을 때만)
+    // 원본 유입 URL 복사 + 게시용 URL 복사 — 둘 다 노출 (있을 때만)
     const copyIcon = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5.5" y="5.5" width="8.5" height="9" rx="1.3" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3.3A1.3 1.3 0 0 1 4.3 2H11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
     const shortCopyIcon = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 2.5a2 2 0 11.7 1.55L6.95 6.45a2 2 0 010 3.1l3.75 2.4A2 2 0 1110 13.5a2 2 0 01.3-1.05L6.55 10.05a2 2 0 110-4.1L10.3 3.55A2 2 0 0110 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
     let copyButtons = '';
@@ -182,8 +182,9 @@ const ContentView = {
     } else if (item.content_id) {
       copyButtons += `<button class="cc-cid-copy" data-copy-text="${escHtml(item.content_id)}" data-copy-kind="id" title="콘텐츠 ID 복사">${copyIcon}</button>`;
     }
-    if (item.short_url) {
-      copyButtons += `<button class="cc-cid-copy cc-cid-copy-short" data-copy-text="${escHtml(item.short_url)}" data-copy-kind="short" title="단축 URL 복사 (${escHtml(item.short_url)})">${shortCopyIcon}</button>`;
+    // short_url이 유입 URL과 다를 때만 별도 버튼 노출 (같으면 위 버튼과 중복)
+    if (item.short_url && item.short_url !== item.inflow_url) {
+      copyButtons += `<button class="cc-cid-copy cc-cid-copy-short" data-copy-text="${escHtml(item.short_url)}" data-copy-kind="short" title="게시용 URL 복사 (${escHtml(item.short_url)})">${shortCopyIcon}</button>`;
     }
     const idBadge = item.content_id
       ? `<span class="cc-row-cid" title="${escHtml(item.content_id)}">${escHtml(item.content_id)}${copyButtons}</span>`
@@ -330,7 +331,7 @@ const ContentView = {
         e.stopPropagation();
         const text = btn.dataset.copyText;
         if (!text) { App.toast('복사할 내용이 없습니다.', 'error'); return; }
-        const kindMap = { url: '원본 URL', short: '단축 URL', id: '콘텐츠 ID' };
+        const kindMap = { url: '원본 URL', short: '게시용 URL', id: '콘텐츠 ID' };
         const kind = kindMap[btn.dataset.copyKind] || 'URL';
         const done = () => App.toast(`${kind}이(가) 복사되었습니다`, 'success');
         if (navigator.clipboard) {
@@ -473,9 +474,9 @@ const ContentView = {
           <input type="text" id="f-inflow-url" value="${escHtml(item?.inflow_url || '')}" placeholder="콘텐츠 ID 기반 자동 생성">
         </div>
         <div class="form-group">
-          <label>단축 URL (da.gd 자동 생성)</label>
-          <input type="text" id="f-short-url" value="${escHtml(item?.short_url || '')}" placeholder="${isEdit ? '저장 시 자동 단축 (수동 입력도 가능)' : '저장 시 자동 단축됨 (da.gd)'}">
-          <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">SNS 게시용 짧은 링크. 비워두면 유입 URL을 기준으로 자동 생성됩니다(da.gd, preview 페이지 없음).</div>
+          <label>게시용 URL</label>
+          <input type="text" id="f-short-url" value="${escHtml((item?.short_url && !/^https?:\/\/(da\.gd|tinyurl\.com|is\.gd|v\.gd)\//i.test(item.short_url)) ? item.short_url : '')}" placeholder="비우면 유입 URL이 그대로 채워집니다">
+          <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">SNS 게시용 링크. 비워두면 유입 URL이 그대로 채워집니다. 외부 단축 서비스(da.gd, tinyurl 등)는 클릭 시 경고/미리보기 페이지가 떠서 더 이상 쓰지 않습니다.</div>
         </div>
         <div class="form-group">
           <label>배포 완료 URL</label>
@@ -663,7 +664,7 @@ const ContentView = {
       if (shortInput) shortInput.value = '';
     });
 
-    // 유입 URL이 사용자에 의해 직접 수정되면 단축 URL 비움 → 저장 시 서버가 재단축
+    // 유입 URL이 사용자에 의해 직접 수정되면 게시용 URL 비움 → 저장 시 서버가 새 유입 URL로 채움
     document.getElementById('f-inflow-url')?.addEventListener('input', () => {
       const shortInput = document.getElementById('f-short-url');
       if (shortInput) shortInput.value = '';
