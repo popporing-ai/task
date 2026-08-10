@@ -40,6 +40,7 @@ app.use('/task/api/public', require('./routes/public'));
 app.use('/task/api/weekly-reports', require('./routes/weekly_reports'));
 app.use('/task/api/team-activity', require('./routes/team_activity'));
 app.use('/task/api/admin', require('./routes/admin'));
+app.use('/task/api/brand-guide', require('./routes/brand_guide'));
 
 // 메타 API (제품, 대시보드)
 const authMiddleware = require('./middleware/auth');

@@ -226,6 +226,7 @@ const App = {
       settings: '설정',
       audit: '변경 이력',
       'bulk-delete': '대량 삭제 (관리자)',
+      'brand-guide': '브랜드 메시지 가이드',
     };
     // 브레드크럼 업데이트
     const currentEl = document.getElementById('topbar-current');
@@ -252,6 +253,7 @@ const App = {
       settings: SettingsView,
       audit: AuditView,
       'bulk-delete': typeof AdminBulkView !== 'undefined' ? AdminBulkView : null,
+      'brand-guide': typeof BrandGuideView !== 'undefined' ? BrandGuideView : null,
     };
 
     if (views[view]) views[view].render();

@@ -5989,3 +5989,205 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; color: var(--color-text-primary); font
 }
 .bd-cell-id { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 11px; color: var(--color-text-muted); }
 
+/* === 브랜드 메시지 가이드 === */
+.brand-guide-wrap {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px 0;
+}
+.brand-guide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.brand-guide-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-guide-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-guide-version-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-primary-bg);
+  padding: 3px 10px;
+  border-radius: 12px;
+  letter-spacing: 0.02em;
+}
+.brand-guide-current-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-done-text);
+  background: rgba(74,185,100,0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.brand-guide-past-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-warn-text);
+  background: rgba(245,158,11,0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.brand-guide-date {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.brand-guide-history-select {
+  font-size: 12px;
+  padding: 5px 10px;
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  min-width: 180px;
+}
+.brand-guide-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0 0 6px 0;
+  letter-spacing: -0.02em;
+}
+.brand-guide-change-note {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 0 24px 0;
+  padding: 8px 12px;
+  background: var(--color-bg-hover);
+  border-radius: 8px;
+  border-left: 3px solid var(--color-primary);
+}
+.brand-guide-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.brand-guide-section {
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.brand-guide-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+.brand-guide-section-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-primary);
+}
+.brand-guide-section-body p {
+  margin: 0 0 6px 0;
+}
+.brand-guide-section-body p:last-child {
+  margin-bottom: 0;
+}
+.brand-guide-slogan {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-primary);
+}
+/* 접기/펼치기 패널 */
+.brand-guide-collapsible {
+  border: 0.5px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.brand-guide-collapsible-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 20px;
+  border: none;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.brand-guide-collapsible-toggle:hover {
+  background: var(--color-bg-hover);
+}
+.brand-guide-toggle-arrow {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+.brand-guide-collapsible.open .brand-guide-toggle-arrow {
+  transform: rotate(90deg);
+}
+.brand-guide-copy-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 0.5px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.brand-guide-copy-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.brand-guide-collapsible-body {
+  padding: 0 20px 20px;
+}
+.brand-guide-ai-text {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--color-bg-secondary);
+  padding: 16px;
+  border-radius: 8px;
+  margin: 0;
+  font-family: inherit;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* === 칸반 브랜드 가이드 참조 핀 === */
+.brand-guide-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  margin-bottom: 12px;
+  background: var(--color-primary-bg);
+  border: 0.5px solid rgba(79,110,247,0.25);
+  border-radius: 8px;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.brand-guide-pin:hover {
+  background: rgba(79,110,247,0.18);
+  border-color: var(--color-primary);
+}
+

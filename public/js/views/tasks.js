@@ -376,7 +376,19 @@ const TasksView = {
         </div>
       `;
 
-      content.innerHTML = filterHtml + listHtml;
+      // 브랜드 가이드 참조 핀 (리스트 뷰 상단)
+      const listPinHtml = `
+        <div class="brand-guide-pin" id="brand-guide-pin">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <span>브랜드 메시지 가이드</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:0.5"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      `;
+      content.innerHTML = filterHtml + listPinHtml + listHtml;
+      // 브랜드 가이드 핀 클릭 이벤트
+      content.querySelector('#brand-guide-pin')?.addEventListener('click', () => {
+        App.navigate('brand-guide');
+      });
       this._bindFilterBarEvents(content);
       this._bindListViewEvents(content);
       return;
@@ -390,7 +402,16 @@ const TasksView = {
       blocked:     { icon: '<svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.3"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>', msg: '지연 없음' },
     };
 
-    content.innerHTML = filterHtml + `
+    // 브랜드 가이드 참조 핀 (칸반 상단 고정)
+    const brandGuidePinHtml = `
+      <div class="brand-guide-pin" id="brand-guide-pin">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <span>브랜드 메시지 가이드</span>
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:0.5"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    `;
+
+    content.innerHTML = filterHtml + brandGuidePinHtml + `
       <div class="kanban-board">
         ${cols.map(col => {
           const colTasks = this.getSorted(filtered.filter(t => t.status === col.key));
@@ -417,6 +438,11 @@ const TasksView = {
         }).join('')}
       </div>
     `;
+
+    // 브랜드 가이드 핀 클릭 -> 브랜드 메시지 가이드 뷰로 이동
+    content.querySelector('#brand-guide-pin')?.addEventListener('click', () => {
+      App.navigate('brand-guide');
+    });
 
     // 칸반 빠른 추가 버튼
     content.querySelector('#kanban-quick-add')?.addEventListener('click', () => this.openForm());

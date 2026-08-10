@@ -650,6 +650,22 @@ ${tasks.map(t => {
 ${contextBlock}
 `;
 
+    // ─── 브랜드 메시지 가이드 톤 주입 (있으면) ───
+    try {
+      const bgRes = await db.query('SELECT slogan, message_direction, comms_rules, ai_instructions FROM brand_guide_versions WHERE is_current = true LIMIT 1');
+      if (bgRes.rows.length > 0) {
+        const bg = bgRes.rows[0];
+        const parts = [];
+        if (bg.slogan) parts.push(`슬로건: ${bg.slogan}`);
+        if (bg.message_direction) parts.push(`메시지 방향:\n${bg.message_direction}`);
+        if (bg.comms_rules) parts.push(`대외 커뮤니케이션 규칙:\n${bg.comms_rules}`);
+        if (bg.ai_instructions) parts.push(`상세 지침:\n${bg.ai_instructions}`);
+        if (parts.length > 0) {
+          systemPrompt += `\n# 브랜드 메시지 지침 (톤 가이드)\n${parts.join('\n\n')}\n`;
+        }
+      }
+    } catch { /* 브랜드 가이드 테이블 미존재 등 -> 무시 */ }
+
     // ─── 도구 호출 활성화 시 시스템 프롬프트 보강 ───
     const useTools = req.body.use_tools !== false; // 기본 활성화
     if (useTools) {
