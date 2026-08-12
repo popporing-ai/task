@@ -72,6 +72,54 @@ const App = {
     // 새 버전 업데이트 안내 팝업 (1회)
     setTimeout(() => { try { ReleaseNotes.showLatest(); } catch {} }, 600);
 
+    // R&R 새 버전 안내 팝업 (1회)
+    setTimeout(() => {
+      try {
+        API.get('/rrr/versions').then(res => {
+          const versions = res.data || [];
+          const current = versions.find(v => v.is_current);
+          if (!current) return;
+          const stored = localStorage.getItem('task_rrr_version');
+          // 최초 방문(stored가 null)이면 버전만 저장하고 팝업 생략
+          if (!stored) {
+            localStorage.setItem('task_rrr_version', current.version);
+            return;
+          }
+          if (stored === current.version) return;
+          // 새 버전 감지 -> 안내 팝업
+          localStorage.setItem('task_rrr_version', current.version);
+          const title = current.title ? ` - ${current.title}` : '';
+          const note = current.change_note || '';
+          const effectiveDate = current.effective_date
+            ? new Date(current.effective_date).toLocaleDateString('ko-KR')
+            : '';
+          const dateStr = effectiveDate ? `${effectiveDate} 시행` : '';
+          // 팝오버 모달로 표시
+          const overlay = document.createElement('div');
+          overlay.className = 'popover-overlay';
+          overlay.innerHTML = `
+            <div class="popover" style="max-width:420px;width:90%;text-align:center;padding:32px 28px;">
+              <button class="popover-close" title="닫기">×</button>
+              <div style="font-size:32px;margin-bottom:12px;">&#128221;</div>
+              <div style="font-size:17px;font-weight:700;margin-bottom:6px;">R&R이 업데이트되었습니다</div>
+              <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <span class="brand-guide-version-badge">v${escHtml(current.version)}</span>
+                ${dateStr ? `<span style="font-size:12px;color:var(--color-text-muted);">${escHtml(dateStr)}</span>` : ''}
+              </div>
+              ${title ? `<div style="font-size:14px;font-weight:600;margin-bottom:6px;">${escHtml(title.slice(3))}</div>` : ''}
+              ${note ? `<div style="font-size:13px;color:var(--color-text-muted);line-height:1.6;margin-bottom:16px;">${escHtml(note)}</div>` : ''}
+              <button class="btn btn-primary" id="rrr-announce-ok" style="min-width:120px;">확인</button>
+            </div>
+          `;
+          document.body.appendChild(overlay);
+          const close = () => overlay.remove();
+          overlay.querySelector('.popover-close').addEventListener('click', close);
+          overlay.querySelector('#rrr-announce-ok').addEventListener('click', close);
+          overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+        }).catch(() => {});
+      } catch {}
+    }, 1200);
+
     // 사이드바 하단 버전 라벨 + 클릭 시 전체 릴리즈 노트
     try {
       const verEl = document.getElementById('sb-version-text');

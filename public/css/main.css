@@ -5815,6 +5815,50 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; color: var(--color-text-primary); font
 .rrr-card { cursor: pointer; }
 .rrr-card:hover { box-shadow: var(--shadow-md); border-color: var(--color-primary-muted); }
 
+/* R&R 버전 헤더 */
+.rrr-version-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.rrr-version-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rrr-version-header-right {
+  flex-shrink: 0;
+}
+.rrr-version-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+.rrr-version-note {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.rrr-readonly-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(245,158,11,0.12);
+  border: 0.5px solid rgba(245,158,11,0.25);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #F5A94A;
+  margin-bottom: 16px;
+}
+.rrr-readonly-banner svg { flex-shrink: 0; color: #F5A94A; }
+
 /* === 캘린더 종일 토글 (Toss 스타일 스위치) === */
 .cal-allday-toggle {
   display: inline-flex !important;
