@@ -443,13 +443,17 @@ const SettingsView = {
       <div class="settings-section-header">
         <div>
           <div class="settings-section-title">업무 분류</div>
-          <div class="settings-section-desc">업무 카드의 분류 태그로 사용됩니다. 위/아래 화살표로 순서를 바꾸면 선택 목록에도 그 순서로 반영됩니다.</div>
+          <div class="settings-section-desc">업무 카드의 분류 태그로 사용됩니다. 행을 드래그하거나 화살표로 순서를 바꾸면 분류 선택 목록에도 그 순서로 반영됩니다.</div>
         </div>
         <button class="btn btn-primary" id="btn-add-category">+ 분류 추가</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden">
-        <table class="settings-table">
-          <thead><tr><th>색상</th><th>분류명</th><th style="width:120px;text-align:right">작업</th></tr></thead>
+        <table class="settings-table settings-table-sortable">
+          <thead><tr>
+            <th style="width:34px"></th>
+            <th style="text-align:left">분류명</th>
+            <th style="width:190px;text-align:right">작업</th>
+          </tr></thead>
           <tbody id="category-tbody">
             ${categories.length === 0
               ? `<tr><td colspan="3" style="text-align:center;color:var(--color-text-hint);padding:40px">
@@ -466,31 +470,72 @@ const SettingsView = {
       this.openCategoryPanel(null, categories);
     });
 
-    // 순서 변경 — 위/아래 이동 후 전체 순서를 서버에 저장
-    const moveCat = async (id, dir) => {
+    const tbody = document.getElementById('category-tbody');
+
+    // 로컬 배열 순서를 즉시 화면에 반영하고, 서버 저장은 백그라운드로 (왕복 대기 없음)
+    const rerenderRows = () => {
+      tbody.innerHTML = categories.map(c => this._categoryRowHtml(c, true)).join('');
+    };
+    const persistOrder = () => {
+      const orders = categories.map((c, i) => ({ id: c.id, sort_order: i + 1 }));
+      App.categories = categories.slice(); // 드롭다운 등 즉시 반영
+      API.post('/categories/reorder', { orders }).catch(() => {
+        App.toast('순서 저장에 실패했습니다. 새로고침 후 다시 시도해주세요.', 'error');
+      });
+    };
+    const moveCat = (id, dir) => {
       const idx = categories.findIndex(c => String(c.id) === String(id));
       if (idx < 0) return;
       const swap = dir === 'up' ? idx - 1 : idx + 1;
       if (swap < 0 || swap >= categories.length) return; // 경계에서는 무시
       [categories[idx], categories[swap]] = [categories[swap], categories[idx]];
-      const orders = categories.map((c, i) => ({ id: c.id, sort_order: i + 1 }));
-      try {
-        await API.post('/categories/reorder', { orders });
-        await App.loadMeta();
-        await this._renderCategories();
-      } catch {
-        App.toast('순서 변경에 실패했습니다.', 'error');
-      }
+      rerenderRows();
+      persistOrder();
     };
 
-    document.getElementById('category-tbody').addEventListener('click', async (e) => {
+    // 드래그로 한 번에 이동
+    let dragId = null;
+    tbody.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('tr.cat-row');
+      if (!row) return;
+      dragId = row.dataset.id;
+      e.dataTransfer.effectAllowed = 'move';
+      row.classList.add('dragging');
+    });
+    tbody.addEventListener('dragend', () => {
+      dragId = null;
+      tbody.querySelectorAll('.dragging, .drag-over').forEach(r => r.classList.remove('dragging', 'drag-over'));
+    });
+    tbody.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const row = e.target.closest('tr.cat-row');
+      tbody.querySelectorAll('.drag-over').forEach(r => r.classList.remove('drag-over'));
+      if (row && row.dataset.id !== dragId) row.classList.add('drag-over');
+    });
+    tbody.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const row = e.target.closest('tr.cat-row');
+      if (!row || !dragId || row.dataset.id === dragId) return;
+      const targetId = row.dataset.id;
+      const from = categories.findIndex(c => String(c.id) === String(dragId));
+      if (from < 0) return;
+      const [moved] = categories.splice(from, 1);
+      const to = categories.findIndex(c => String(c.id) === String(targetId));
+      categories.splice(to < 0 ? categories.length : to, 0, moved);
+      dragId = null;
+      rerenderRows();
+      persistOrder();
+    });
+
+    tbody.addEventListener('click', async (e) => {
       const editBtn = e.target.closest('.btn-edit-cat');
       const delBtn  = e.target.closest('.btn-del-cat');
       const upBtn   = e.target.closest('.btn-cat-up');
       const downBtn = e.target.closest('.btn-cat-down');
 
-      if (upBtn)   { await moveCat(upBtn.dataset.id, 'up'); return; }
-      if (downBtn) { await moveCat(downBtn.dataset.id, 'down'); return; }
+      if (upBtn)   { moveCat(upBtn.dataset.id, 'up'); return; }
+      if (downBtn) { moveCat(downBtn.dataset.id, 'down'); return; }
 
       if (editBtn) {
         const cat = categories.find(c => String(c.id) === editBtn.dataset.id);
@@ -514,22 +559,25 @@ const SettingsView = {
   },
 
   _categoryRowHtml(c, isAdmin = true) {
+    const handleCol = isAdmin
+      ? `<td class="cat-drag-handle" title="드래그로 순서 변경">⋮⋮</td>`
+      : '<td></td>';
     const actionsCol = isAdmin ? `
         <td style="text-align:right;white-space:nowrap">
           <button class="btn btn-default btn-cat-up" data-id="${c.id}" title="위로" style="padding:4px 8px;margin-right:2px">↑</button>
-          <button class="btn btn-default btn-cat-down" data-id="${c.id}" title="아래로" style="padding:4px 8px;margin-right:6px">↓</button>
+          <button class="btn btn-default btn-cat-down" data-id="${c.id}" title="아래로" style="padding:4px 8px;margin-right:8px">↓</button>
           <button class="btn btn-default btn-edit-cat" data-id="${c.id}" style="margin-right:6px">수정</button>
           <button class="btn btn-danger btn-del-cat" data-id="${c.id}">삭제</button>
         </td>` : '';
     return `
-      <tr>
+      <tr class="cat-row" data-id="${c.id}" ${isAdmin ? 'draggable="true"' : ''}>
+        ${handleCol}
         <td>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${escHtml(c.color)};flex-shrink:0;box-shadow:0 0 6px ${escHtml(c.color)}55"></span>
-            <span style="font-size:13px;color:var(--color-text-muted)">${escHtml(c.color)}</span>
+          <div class="cat-name-cell">
+            <span class="cat-color-dot" style="background:${escHtml(c.color)}" title="${escHtml(c.color)}"></span>
+            <span class="cat-name-text">${escHtml(c.name)}</span>
           </div>
         </td>
-        <td>${escHtml(c.name)}</td>
         ${actionsCol}
       </tr>
     `;
