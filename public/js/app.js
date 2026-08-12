@@ -700,6 +700,19 @@ const App = {
         `<option value="${u.id}" ${u.id == selected ? 'selected' : ''}>${u.name}</option>`
       ).join('');
   },
+  // 업무 배정용 사용자 옵션 (마케팅 멤버만 + 현재 담당자 보존)
+  assignableUserOptions(selected) {
+    const members = this.assignableUsers();
+    const opts = members.map(u =>
+      `<option value="${u.id}" ${u.id == selected ? 'selected' : ''}>${u.name}</option>`
+    );
+    // 현재 담당자가 마케팅 멤버 목록에 없으면 선택 보존용으로 추가
+    if (selected && !members.some(u => u.id == selected)) {
+      const cur = this.users.find(u => u.id == selected);
+      if (cur) opts.push(`<option value="${cur.id}" selected>${cur.name}</option>`);
+    }
+    return '<option value="">선택</option>' + opts.join('');
+  },
   productOptions(selected) {
     return '<option value="">선택</option>' +
       this.products.map(p =>

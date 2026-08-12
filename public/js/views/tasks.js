@@ -103,7 +103,7 @@ const TasksView = {
         </div>
         <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">담당자</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
-          ${App.users.map(u => `
+          ${App.assignableUsers().map(u => `
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;padding:3px 8px;border-radius:6px;border:0.5px solid var(--color-border);background:${this.filterAssignees.includes(String(u.id)) ? 'var(--color-primary-bg)' : 'var(--color-bg-secondary)'};color:var(--color-text-primary);transition:background 0.12s;">
               <input type="checkbox" data-filter-user="${u.id}" ${this.filterAssignees.includes(String(u.id)) ? 'checked' : ''} style="width:auto;height:auto;margin:0;accent-color:var(--color-primary);">
               ${escHtml(u.name)}
@@ -333,7 +333,7 @@ const TasksView = {
                 ${[{v:'todo',l:'할 일'},{v:'in_progress',l:'진행 중'},{v:'done',l:'완료'},{v:'blocked',l:'지연'}].map(s=>`<button class="bulk-status-opt" data-status="${s.v}" style="display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;border:none;background:transparent;color:var(--color-text-primary);border-radius:6px;cursor:pointer;">${s.l}</button>`).join('')}
               </div>
               <div id="bulk-assignee-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--color-bg-primary);border:0.5px solid var(--color-border);border-radius:8px;padding:6px;z-index:90;box-shadow:var(--shadow-md);">
-                ${App.users.map(u=>`<button class="bulk-assignee-opt" data-user-id="${u.id}" style="display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;border:none;background:transparent;color:var(--color-text-primary);border-radius:6px;cursor:pointer;">${escHtml(u.name)}</button>`).join('')}
+                ${App.assignableUsers().map(u=>`<button class="bulk-assignee-opt" data-user-id="${u.id}" style="display:block;width:100%;text-align:left;padding:6px 10px;font-size:12px;border:none;background:transparent;color:var(--color-text-primary);border-radius:6px;cursor:pointer;">${escHtml(u.name)}</button>`).join('')}
               </div>
             </div>
           ` : ''}
@@ -1112,7 +1112,7 @@ const TasksView = {
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <select id="new-subtask-assignee" style="flex:1;min-width:100px;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
                   <option value="">담당자 선택</option>
-                  ${App.users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
+                  ${App.assignableUsers().map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
                 </select>
                 <select id="new-subtask-status" style="width:100px;height:32px;font-size:12px;background:var(--color-bg-secondary);color:var(--color-text-primary);border:0.5px solid var(--color-border);border-radius:6px;padding:0 8px;">
                   <option value="todo">할 일</option>
@@ -1857,7 +1857,7 @@ const TasksView = {
       <div class="form-row">
         <div class="form-group">
           <label>담당자</label>
-          <select id="f-assignee">${App.userOptions(task?.assignee_id)}</select>
+          <select id="f-assignee">${App.assignableUserOptions(task?.assignee_id)}</select>
         </div>
         <div class="form-group">
           <label>마감일</label>

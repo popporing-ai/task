@@ -258,7 +258,8 @@ const WeeklyReportView = {
 
   _renderMatrix() {
     const body = document.getElementById('ta-body');
-    const users = this._matrixData || [];
+    const memberIds = App.assignableUsers().map(u => u.id);
+    const users = (this._matrixData || []).filter(u => memberIds.includes(u.id));
     const totals = users.reduce((acc, u) => {
       acc.done += u.done_count; acc.in_progress += u.in_progress_count;
       acc.blocked += u.blocked_count; acc.overdue += u.overdue_count;
@@ -458,8 +459,11 @@ const WeeklyReportView = {
     if (!d) return;
     const s = d.summary;
     const periodLabel = this._formatPeriodLabel(d.period.from, d.period.to);
-    // admin 사용자는 셀렉트에서 제외 (팀원 위주 조회)
-    const selectableUsers = App.users.filter(u => u.role !== 'admin' || u.id === this._selectedUserId);
+    // 마케팅 멤버만 표시 (현재 선택된 사용자가 목록에 없으면 보존)
+    const memberList = App.assignableUsers();
+    const selectableUsers = memberList.some(u => u.id == this._selectedUserId)
+      ? memberList
+      : [...memberList, ...App.users.filter(u => u.id == this._selectedUserId)];
     const userSelector = this._isAdmin ? `
       <select id="ta-user-select" class="ta-user-select-inline">
         ${selectableUsers.map(u => `<option value="${u.id}" ${u.id == this._selectedUserId ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}

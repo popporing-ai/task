@@ -434,7 +434,7 @@ const CalendarView = {
       </div>
       <div class="form-group">
         <label>담당자</label>
-        <select id="cal-assignee">${App.userOptions(event?.assignee_id)}</select>
+        <select id="cal-assignee">${App.assignableUserOptions(event?.assignee_id)}</select>
       </div>
       <div class="form-group">
         <label class="cal-allday-toggle">

@@ -397,7 +397,8 @@ const DashboardView = {
 
   // ───────── 팀 활동 카드 (admin only) ─────────
   _renderTeamCard() {
-    const matrix = (this._teamMatrix || []).slice(0, 10);
+    const memberIds = App.assignableUsers().map(u => u.id);
+    const matrix = (this._teamMatrix || []).filter(m => memberIds.includes(m.id)).slice(0, 10);
     if (!matrix.length) {
       return `
         <div class="dash-card">

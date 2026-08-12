@@ -60,7 +60,7 @@ const ContentView = {
 
     const assigneeOptions = `
       <option value="">전체 담당자</option>
-      ${App.users.map(u =>
+      ${App.assignableUsers().map(u =>
         `<option value="${u.id}" ${this.filterAssignee == u.id ? 'selected' : ''}>${escHtml(u.name)}</option>`
       ).join('')}
     `;
@@ -457,7 +457,7 @@ const ContentView = {
         <div class="form-row">
           <div class="form-group">
             <label>담당자</label>
-            <select id="f-form-assignee">${App.userOptions(item?.assignee_id)}</select>
+            <select id="f-form-assignee">${App.assignableUserOptions(item?.assignee_id)}</select>
           </div>
           <div class="form-group">
             <label>배포 예정일</label>
@@ -517,7 +517,7 @@ const ContentView = {
         <div class="form-row">
           <div class="form-group">
             <label>담당자 (공통)</label>
-            <select id="f-assignee-batch">${App.userOptions()}</select>
+            <select id="f-assignee-batch">${App.assignableUserOptions()}</select>
           </div>
           <div class="form-group">
             <label>상태</label>

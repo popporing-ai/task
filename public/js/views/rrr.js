@@ -44,6 +44,9 @@ const RRRView = {
 
   renderCards(content) {
     const isAdmin = App.user?.role === 'admin';
+    // 마케팅 멤버만 표시
+    const memberIds = App.assignableUsers().map(u => u.id);
+    this.data = this.data.filter(u => memberIds.includes(u.user_id));
     if (this.data.length === 0) {
       content.innerHTML = `
         <div class="empty-state">
@@ -446,7 +449,7 @@ const RRRView = {
     const html = `
       <div class="form-group">
         <label>팀원</label>
-        <select id="f-user">${App.userOptions(userId)}</select>
+        <select id="f-user">${App.assignableUserOptions(userId)}</select>
       </div>
       <div class="form-group">
         <label>유형</label>
