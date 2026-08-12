@@ -136,37 +136,25 @@ const SettingsView = {
       return;
     }
 
-    const isAdmin = App.user?.role === 'admin';
-    const headerCols = isAdmin
-      ? '<th style="width:80px">색상</th><th>이름</th><th style="width:90px;color:var(--color-text-muted);font-size:11px;">분류</th><th style="width:160px;text-align:right">작업</th>'
-      : '<th style="width:80px">색상</th><th>이름</th><th style="width:90px;color:var(--color-text-muted);font-size:11px;">분류</th>';
-    const colCount = isAdmin ? 4 : 3;
-
-    const addBtnHtml = isAdmin
-      ? '<button class="btn btn-primary" id="btn-add-event-type">+ 유형 추가</button>'
-      : '<span class="settings-readonly-note">일정 유형은 관리자만 추가·수정할 수 있습니다.</span>';
-
     wrap.innerHTML = `
       <div class="settings-section-header">
         <div>
           <div class="settings-section-title">일정 유형</div>
-          <div class="settings-section-desc">팀 캘린더에서 사용할 일정 유형. 기본 유형은 색상·이름만 수정 가능합니다.</div>
+          <div class="settings-section-desc">팀 캘린더에서 사용할 일정 유형. 기본 유형은 색상, 이름만 수정 가능합니다.</div>
         </div>
-        ${addBtnHtml}
+        <button class="btn btn-primary" id="btn-add-event-type">+ 유형 추가</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden">
         <table class="settings-table">
-          <thead><tr>${headerCols}</tr></thead>
+          <thead><tr><th style="width:80px">색상</th><th>이름</th><th style="width:90px;color:var(--color-text-muted);font-size:11px;">분류</th><th style="width:160px;text-align:right">작업</th></tr></thead>
           <tbody id="event-type-tbody">
             ${types.length === 0
-              ? `<tr><td colspan="${colCount}" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 유형이 없습니다.</td></tr>`
-              : types.map(t => this._eventTypeRowHtml(t, isAdmin)).join('')}
+              ? `<tr><td colspan="4" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 유형이 없습니다.</td></tr>`
+              : types.map(t => this._eventTypeRowHtml(t, true)).join('')}
           </tbody>
         </table>
       </div>
     `;
-
-    if (!isAdmin) return;
 
     document.getElementById('btn-add-event-type').addEventListener('click', () => {
       this._openEventTypePanel(null);
@@ -406,35 +394,28 @@ const SettingsView = {
       return;
     }
 
-    const isAdmin = App.user?.role === 'admin';
-
     // 상단 토픽 버튼은 사용 안 함 (바디로 이동)
     const actions = document.getElementById('topbar-actions');
     actions.innerHTML = '';
-
-    const colCount = isAdmin ? 3 : 2;
-    const headerCols = isAdmin
-      ? '<th>색상</th><th>분류명</th><th style="width:120px;text-align:right">작업</th>'
-      : '<th>색상</th><th>분류명</th>';
 
     wrap.innerHTML = `
       <div class="settings-section-header">
         <div>
           <div class="settings-section-title">업무 분류</div>
-          <div class="settings-section-desc">업무 카드의 분류 태그로 사용됩니다.${isAdmin ? '' : ' 수정·삭제는 관리자만 가능합니다.'}</div>
+          <div class="settings-section-desc">업무 카드의 분류 태그로 사용됩니다.</div>
         </div>
         <button class="btn btn-primary" id="btn-add-category">+ 분류 추가</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden">
         <table class="settings-table">
-          <thead><tr>${headerCols}</tr></thead>
+          <thead><tr><th>색상</th><th>분류명</th><th style="width:120px;text-align:right">작업</th></tr></thead>
           <tbody id="category-tbody">
             ${categories.length === 0
-              ? `<tr><td colspan="${colCount}" style="text-align:center;color:var(--color-text-hint);padding:40px">
+              ? `<tr><td colspan="3" style="text-align:center;color:var(--color-text-hint);padding:40px">
                    등록된 분류가 없습니다.<br>
                    <span style="font-size:12px;margin-top:4px;display:block">상단의 + 분류 추가 버튼으로 만들어보세요</span>
                  </td></tr>`
-              : categories.map(c => this._categoryRowHtml(c, isAdmin)).join('')}
+              : categories.map(c => this._categoryRowHtml(c, true)).join('')}
           </tbody>
         </table>
       </div>
@@ -444,31 +425,29 @@ const SettingsView = {
       this.openCategoryPanel(null, categories);
     });
 
-    if (isAdmin) {
-      document.getElementById('category-tbody').addEventListener('click', async (e) => {
-        const editBtn = e.target.closest('.btn-edit-cat');
-        const delBtn  = e.target.closest('.btn-del-cat');
+    document.getElementById('category-tbody').addEventListener('click', async (e) => {
+      const editBtn = e.target.closest('.btn-edit-cat');
+      const delBtn  = e.target.closest('.btn-del-cat');
 
-        if (editBtn) {
-          const cat = categories.find(c => String(c.id) === editBtn.dataset.id);
-          if (cat) this.openCategoryPanel(cat, categories);
-        }
+      if (editBtn) {
+        const cat = categories.find(c => String(c.id) === editBtn.dataset.id);
+        if (cat) this.openCategoryPanel(cat, categories);
+      }
 
-        if (delBtn) {
-          const cat = categories.find(c => String(c.id) === delBtn.dataset.id);
-          const ok = await App.confirm(`"${cat?.name}" 분류를 삭제하시겠습니까?`);
-          if (!ok) return;
-          try {
-            await API.del(`/categories/${cat.id}`);
-            App.toast(`"${cat?.name}" 분류가 삭제되었습니다.`, 'info');
-            await App.loadMeta();
-            await this._renderCategories();
-          } catch {
-            App.toast('삭제에 실패했습니다.', 'error');
-          }
+      if (delBtn) {
+        const cat = categories.find(c => String(c.id) === delBtn.dataset.id);
+        const ok = await App.confirm(`"${cat?.name}" 분류를 삭제하시겠습니까?`);
+        if (!ok) return;
+        try {
+          await API.del(`/categories/${cat.id}`);
+          App.toast(`"${cat?.name}" 분류가 삭제되었습니다.`, 'info');
+          await App.loadMeta();
+          await this._renderCategories();
+        } catch {
+          App.toast('삭제에 실패했습니다.', 'error');
         }
-      });
-    }
+      }
+    });
   },
 
   _categoryRowHtml(c, isAdmin = true) {
@@ -551,17 +530,8 @@ const SettingsView = {
       return;
     }
 
-    const isAdmin = App.user?.role === 'admin';
     const actions = document.getElementById('topbar-actions');
     actions.innerHTML = '';
-
-    const colCount = isAdmin ? 2 : 1;
-    const headerCols = isAdmin
-      ? '<th>제품명</th><th style="width:120px;text-align:right">작업</th>'
-      : '<th>제품명</th>';
-    const addBtnHtml = isAdmin
-      ? '<button class="btn btn-primary" id="btn-add-product">+ 제품 추가</button>'
-      : '<span class="settings-readonly-note">제품 추가·수정·삭제는 관리자만 가능합니다.</span>';
 
     wrap.innerHTML = `
       <div class="settings-section-header">
@@ -569,49 +539,47 @@ const SettingsView = {
           <div class="settings-section-title">제품 목록</div>
           <div class="settings-section-desc">콘텐츠/업무에서 제품 태그로 사용됩니다.</div>
         </div>
-        ${addBtnHtml}
+        <button class="btn btn-primary" id="btn-add-product">+ 제품 추가</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden">
         <table class="settings-table">
-          <thead><tr>${headerCols}</tr></thead>
+          <thead><tr><th>제품명</th><th style="width:120px;text-align:right">작업</th></tr></thead>
           <tbody id="product-tbody">
             ${products.length === 0
-              ? `<tr><td colspan="${colCount}" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 제품이 없습니다.</td></tr>`
-              : products.map(p => this._productRowHtml(p, isAdmin)).join('')}
+              ? `<tr><td colspan="2" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 제품이 없습니다.</td></tr>`
+              : products.map(p => this._productRowHtml(p, true)).join('')}
           </tbody>
         </table>
       </div>
     `;
 
-    if (isAdmin) {
-      document.getElementById('btn-add-product').addEventListener('click', () => {
-        this.openProductPanel(null, products);
-      });
+    document.getElementById('btn-add-product').addEventListener('click', () => {
+      this.openProductPanel(null, products);
+    });
 
-      document.getElementById('product-tbody').addEventListener('click', async (e) => {
-        const editBtn = e.target.closest('.btn-edit-prod');
-        const delBtn  = e.target.closest('.btn-del-prod');
+    document.getElementById('product-tbody').addEventListener('click', async (e) => {
+      const editBtn = e.target.closest('.btn-edit-prod');
+      const delBtn  = e.target.closest('.btn-del-prod');
 
-        if (editBtn) {
-          const prod = products.find(p => String(p.id) === editBtn.dataset.id);
-          if (prod) this.openProductPanel(prod, products);
+      if (editBtn) {
+        const prod = products.find(p => String(p.id) === editBtn.dataset.id);
+        if (prod) this.openProductPanel(prod, products);
+      }
+
+      if (delBtn) {
+        const prod = products.find(p => String(p.id) === delBtn.dataset.id);
+        const ok = await App.confirm(`"${prod?.name}" 제품을 삭제하시겠습니까?`);
+        if (!ok) return;
+        try {
+          await API.del(`/products/${prod.id}`);
+          App.toast(`"${prod?.name}" 제품이 삭제되었습니다.`, 'info');
+          await App.loadMeta();
+          await this._renderProducts();
+        } catch {
+          App.toast('삭제에 실패했습니다.', 'error');
         }
-
-        if (delBtn) {
-          const prod = products.find(p => String(p.id) === delBtn.dataset.id);
-          const ok = await App.confirm(`"${prod?.name}" 제품을 삭제하시겠습니까?`);
-          if (!ok) return;
-          try {
-            await API.del(`/products/${prod.id}`);
-            App.toast(`"${prod?.name}" 제품이 삭제되었습니다.`, 'info');
-            await App.loadMeta();
-            await this._renderProducts();
-          } catch {
-            App.toast('삭제에 실패했습니다.', 'error');
-          }
-        }
-      });
-    }
+      }
+    });
   },
 
   _productRowHtml(p, isAdmin = true) {
@@ -741,14 +709,15 @@ const SettingsView = {
               <th>이름</th>
               <th>이메일</th>
               <th>권한</th>
+              <th>마케팅본부</th>
               <th>상태</th>
               <th>가입일</th>
-              <th style="width:180px;text-align:right">작업</th>
+              <th style="width:240px;text-align:right">작업</th>
             </tr>
           </thead>
           <tbody id="member-tbody">
             ${users.length === 0
-              ? '<tr><td colspan="6" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 사용자가 없습니다</td></tr>'
+              ? '<tr><td colspan="7" style="text-align:center;color:var(--color-text-hint);padding:40px">등록된 사용자가 없습니다</td></tr>'
               : users.map(u => this._memberRowHtml(u)).join('')}
           </tbody>
         </table>
@@ -759,6 +728,8 @@ const SettingsView = {
     document.getElementById('member-tbody')?.addEventListener('click', async (e) => {
       const roleBtn = e.target.closest('.btn-toggle-role');
       const activeBtn = e.target.closest('.btn-toggle-active');
+      const mktBtn = e.target.closest('.btn-toggle-mkt');
+      const delBtn = e.target.closest('.btn-del-user');
 
       if (roleBtn) {
         const userId = roleBtn.dataset.id;
@@ -785,14 +756,51 @@ const SettingsView = {
           App.toast('상태 변경 실패', 'error');
         }
       }
+
+      if (mktBtn) {
+        const userId = mktBtn.dataset.id;
+        const newVal = mktBtn.dataset.currentMkt === 'true' ? false : true;
+        try {
+          await API.patch(`/users/${userId}/marketing-member`, { is_marketing_member: newVal });
+          App.toast(newVal ? '마케팅본부 소속으로 설정되었습니다.' : '마케팅본부 소속이 해제되었습니다.', 'success');
+          await App.loadMeta();
+          await this._renderMembers();
+        } catch {
+          App.toast('마케팅본부 소속 변경 실패', 'error');
+        }
+      }
+
+      if (delBtn) {
+        const userId = delBtn.dataset.id;
+        const userName = delBtn.dataset.name;
+        if (String(userId) === String(App.user.id)) {
+          App.toast('자기 자신은 삭제할 수 없습니다.', 'error');
+          return;
+        }
+        const ok = await App.confirm(`"${userName}" 사용자를 삭제하시겠습니까? 이 사용자의 세션, 알림, 댓글, R&R 등이 함께 삭제되고, 배정된 업무는 담당자가 비워집니다. 되돌릴 수 없습니다.`);
+        if (!ok) return;
+        try {
+          await API.del(`/users/${userId}`);
+          App.toast(`"${userName}" 사용자가 삭제되었습니다.`, 'success');
+          await App.loadMeta();
+          await this._renderMembers();
+        } catch (err) {
+          App.toast(err.message || '삭제 실패', 'error');
+        }
+      }
     });
   },
 
   _memberRowHtml(u) {
     const isActive = u.is_active !== false;
+    const isMkt = u.is_marketing_member === true;
+    const isSelf = String(u.id) === String(App.user?.id);
     const roleBadge = u.role === 'admin'
       ? '<span class="badge badge-plan">관리자</span>'
       : '<span class="badge" style="background:rgba(148,163,184,0.15);color:#94A3B8;">일반</span>';
+    const mktBadge = isMkt
+      ? '<span class="badge badge-done">소속</span>'
+      : '<span class="badge badge-skip">미소속</span>';
     const statusBadge = isActive
       ? '<span class="badge badge-done">활성</span>'
       : '<span class="badge badge-skip">비활성</span>';
@@ -808,15 +816,20 @@ const SettingsView = {
         </td>
         <td>${escHtml(u.email || '-')}</td>
         <td>${roleBadge}</td>
+        <td>${mktBadge}</td>
         <td>${statusBadge}</td>
         <td>${joinDate}</td>
         <td style="text-align:right">
-          <button class="btn btn-default btn-toggle-role" data-id="${u.id}" data-current-role="${u.role}" style="margin-right:6px;font-size:12px;padding:4px 10px;">
+          <button class="btn btn-default btn-toggle-role" data-id="${u.id}" data-current-role="${u.role}" style="margin-right:4px;font-size:12px;padding:4px 8px;">
             ${u.role === 'admin' ? '일반으로' : '관리자로'}
           </button>
-          <button class="btn ${isActive ? 'btn-danger' : 'btn-primary'} btn-toggle-active" data-id="${u.id}" data-current-active="${isActive}" style="font-size:12px;padding:4px 10px;">
+          <button class="btn btn-default btn-toggle-mkt" data-id="${u.id}" data-current-mkt="${isMkt}" style="margin-right:4px;font-size:12px;padding:4px 8px;">
+            ${isMkt ? '본부 해제' : '본부 설정'}
+          </button>
+          <button class="btn ${isActive ? 'btn-danger' : 'btn-primary'} btn-toggle-active" data-id="${u.id}" data-current-active="${isActive}" style="margin-right:4px;font-size:12px;padding:4px 8px;">
             ${isActive ? '비활성화' : '활성화'}
           </button>
+          ${isSelf ? '' : `<button class="btn btn-danger btn-del-user" data-id="${u.id}" data-name="${escHtml(u.name || '')}" style="font-size:12px;padding:4px 8px;" title="사용자 삭제">삭제</button>`}
         </td>
       </tr>
     `;

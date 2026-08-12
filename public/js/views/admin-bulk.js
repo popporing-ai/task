@@ -86,6 +86,8 @@ const AdminBulkView = {
         this.entity = btn.dataset.bdEntity;
         this.selected = new Set();
         this.filters = {};
+        // 탭 활성 상태 갱신
+        content.querySelectorAll('.bd-tab[data-bd-entity]').forEach(t => t.classList.toggle('active', t.dataset.bdEntity === this.entity));
         this.renderBody();
       });
     });

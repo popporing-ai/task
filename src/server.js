@@ -57,16 +57,8 @@ app.get('/task/api/products', authMiddleware, async (req, res, next) => {
 
 const auditMiddleware = require('./middleware/audit');
 
-// 제품 관리는 관리자만
-const adminOnlyProducts = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ data: null, message: '제품 추가·수정·삭제는 관리자만 가능합니다.' });
-  }
-  next();
-};
-
-// POST /task/api/products — 제품 생성
-app.post('/task/api/products', authMiddleware, adminOnlyProducts, auditMiddleware('products'), async (req, res, next) => {
+// POST /task/api/products — 제품 생성 (모든 인증 사용자)
+app.post('/task/api/products', authMiddleware, auditMiddleware('products'), async (req, res, next) => {
   try {
     const { name } = req.body;
     if (!name || !name.trim()) {
@@ -81,7 +73,8 @@ app.post('/task/api/products', authMiddleware, adminOnlyProducts, auditMiddlewar
 });
 
 // PUT /task/api/products/:id — 제품 수정
-app.put('/task/api/products/:id', authMiddleware, adminOnlyProducts, auditMiddleware('products'), async (req, res, next) => {
+// PUT /task/api/products/:id — 제품 수정 (모든 인증 사용자)
+app.put('/task/api/products/:id', authMiddleware, auditMiddleware('products'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
@@ -100,7 +93,8 @@ app.put('/task/api/products/:id', authMiddleware, adminOnlyProducts, auditMiddle
 });
 
 // DELETE /task/api/products/:id — 제품 삭제
-app.delete('/task/api/products/:id', authMiddleware, adminOnlyProducts, auditMiddleware('products'), async (req, res, next) => {
+// DELETE /task/api/products/:id — 제품 삭제 (모든 인증 사용자)
+app.delete('/task/api/products/:id', authMiddleware, auditMiddleware('products'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { rows } = await db.query(

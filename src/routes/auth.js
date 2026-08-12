@@ -144,6 +144,7 @@ router.get('/me', authMiddleware, (req, res) => {
       avatar_bg: req.user.avatar_bg,
       avatar_text: req.user.avatar_text,
       avatar_url: req.user.avatar_url || null,
+      is_marketing_member: req.user.is_marketing_member || false,
     }
   });
 });

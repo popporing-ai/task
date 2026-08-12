@@ -162,13 +162,7 @@ router.delete('/:id', auditMiddleware('calendar_events'), async (req, res, next)
 });
 
 // ───────── 이벤트 유형 (CRUD) ─────────
-// 관리자만 추가/수정/삭제, 빌트인은 삭제 불가
-function adminOnly(req, res, next) {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ data: null, message: '일정 유형 관리는 관리자만 가능합니다.' });
-  }
-  next();
-}
+// 모든 인증 사용자가 추가/수정/삭제 가능, 빌트인은 삭제 불가
 
 // GET /event-types — 전체 유형 목록 (모든 사용자)
 router.get('/event-types', async (req, res, next) => {
@@ -181,8 +175,8 @@ router.get('/event-types', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /event-types — 신규 유형 추가 (관리자)
-router.post('/event-types', adminOnly, auditMiddleware('calendar_event_types'), async (req, res, next) => {
+// POST /event-types — 신규 유형 추가 (모든 인증 사용자)
+router.post('/event-types', auditMiddleware('calendar_event_types'), async (req, res, next) => {
   try {
     const { label, color = '#4F6EF7' } = req.body;
     if (!label || !label.trim()) {
@@ -206,8 +200,8 @@ router.post('/event-types', adminOnly, auditMiddleware('calendar_event_types'), 
   } catch (err) { next(err); }
 });
 
-// PUT /event-types/:id — 유형 수정 (관리자) — label/color만 변경 가능
-router.put('/event-types/:id', adminOnly, auditMiddleware('calendar_event_types'), async (req, res, next) => {
+// PUT /event-types/:id — 유형 수정 (모든 인증 사용자) — label/color만 변경 가능
+router.put('/event-types/:id', auditMiddleware('calendar_event_types'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { label, color } = req.body;
@@ -227,8 +221,8 @@ router.put('/event-types/:id', adminOnly, auditMiddleware('calendar_event_types'
   } catch (err) { next(err); }
 });
 
-// DELETE /event-types/:id — 유형 삭제 (관리자) — 빌트인 삭제 불가
-router.delete('/event-types/:id', adminOnly, auditMiddleware('calendar_event_types'), async (req, res, next) => {
+// DELETE /event-types/:id — 유형 삭제 (모든 인증 사용자) — 빌트인 삭제 불가
+router.delete('/event-types/:id', auditMiddleware('calendar_event_types'), async (req, res, next) => {
   try {
     const { id } = req.params;
     // 빌트인 체크

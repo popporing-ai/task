@@ -664,6 +664,16 @@ const App = {
     setTimeout(dismiss, 3000);
   },
 
+  // 마케팅본부 소속 활성 사용자 목록
+  marketingMembers() {
+    return this.users.filter(u => u.is_marketing_member && u.is_active !== false);
+  },
+
+  // 업무 배정 가능한 사용자 (marketingMembers 별칭)
+  assignableUsers() {
+    return this.marketingMembers();
+  },
+
   // 유틸리티
   getCategoryName(id) {
     return this.categories.find(c => c.id == id)?.name || '';

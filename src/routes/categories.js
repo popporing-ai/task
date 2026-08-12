@@ -7,14 +7,6 @@ const auditMiddleware = require('../middleware/audit');
 // 모든 라우트에 인증 미들웨어 적용
 router.use(authMiddleware);
 
-// 관리자 전용 가드 (수정/삭제용)
-function adminOnly(req, res, next) {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ data: null, message: '분류 수정·삭제는 관리자만 가능합니다.' });
-  }
-  next();
-}
-
 // GET /task/api/categories — 카테고리 목록 조회
 router.get('/', async (req, res, next) => {
   try {
@@ -41,7 +33,7 @@ router.post('/', auditMiddleware('task_categories'), async (req, res, next) => {
 });
 
 // PUT /task/api/categories/:id — 카테고리 수정
-router.put('/:id', adminOnly, auditMiddleware('task_categories'), async (req, res, next) => {
+router.put('/:id', auditMiddleware('task_categories'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { name, color } = req.body;
@@ -63,7 +55,7 @@ router.put('/:id', adminOnly, auditMiddleware('task_categories'), async (req, re
 });
 
 // DELETE /task/api/categories/:id — 카테고리 삭제
-router.delete('/:id', adminOnly, auditMiddleware('task_categories'), async (req, res, next) => {
+router.delete('/:id', auditMiddleware('task_categories'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { rows } = await db.query(
