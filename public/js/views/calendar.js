@@ -402,7 +402,18 @@ const CalendarView = {
       </div>
       <div class="form-group">
         <label>유형</label>
-        <select id="cal-type">${typeOptions}</select>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <select id="cal-type" style="flex:1">${typeOptions}</select>
+          <button type="button" class="btn btn-default" id="btn-inline-add-etype" style="white-space:nowrap;padding:8px 10px;font-size:12px;">+ 신규</button>
+        </div>
+        <div id="inline-add-etype-area" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-bg-secondary);">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <input type="text" id="inline-etype-label" placeholder="유형 이름" style="flex:1;min-width:120px;padding:6px 10px;font-size:13px;">
+            <input type="color" id="inline-etype-color" value="#4F6EF7" style="width:36px;height:32px;padding:1px;border-radius:6px;cursor:pointer;background:transparent;border:1px solid var(--color-border);">
+            <button type="button" class="btn btn-primary" id="btn-inline-etype-confirm" style="padding:6px 12px;font-size:12px;">추가</button>
+            <button type="button" class="btn btn-default" id="btn-inline-etype-cancel" style="padding:6px 12px;font-size:12px;">취소</button>
+          </div>
+        </div>
         <div style="font-size:11px;color:var(--color-text-hint);margin-top:4px;">유형에 따라 색상이 자동 적용됩니다.</div>
       </div>
       <div class="form-row">
@@ -446,6 +457,9 @@ const CalendarView = {
       </div>
     `;
 
+    // 인라인 추가 추적
+    let pendingEventTypeReview = null;
+
     App.openPanel(title, html, async () => {
       const eventType = document.getElementById('cal-type').value;
       const data = {
@@ -482,15 +496,59 @@ const CalendarView = {
         }
         await this.loadEvents();
         this.renderCalendar();
+
+        // 인라인 추가된 일정 유형이 있으면 설정 화면 이동 제안
+        if (pendingEventTypeReview) {
+          const review = pendingEventTypeReview;
+          pendingEventTypeReview = null;
+          const ok = await App.confirm(`방금 추가한 일정 유형 "${review.label}"의 세부 설정을 설정 화면에서 확인하시겠어요?`);
+          if (ok) {
+            SettingsView.focusEntity = { type: 'eventType', id: review.id };
+            App.navigate('settings');
+          }
+        }
       } catch (e) {
         App.toast('저장에 실패했습니다.', 'error');
         return false;
       }
     });
 
-    // 종일 토글 → 시간 행 표시/숨김
+    // 종일 토글 -> 시간 행 표시/숨김
     document.getElementById('cal-allday')?.addEventListener('change', (e) => {
       document.getElementById('cal-time-row').style.display = e.target.checked ? 'none' : '';
+    });
+
+    // 인라인 일정 유형 추가 UI 이벤트
+    document.getElementById('btn-inline-add-etype')?.addEventListener('click', () => {
+      document.getElementById('inline-add-etype-area').style.display = '';
+      document.getElementById('inline-etype-label').focus();
+    });
+    document.getElementById('btn-inline-etype-cancel')?.addEventListener('click', () => {
+      document.getElementById('inline-add-etype-area').style.display = 'none';
+      document.getElementById('inline-etype-label').value = '';
+    });
+    document.getElementById('btn-inline-etype-confirm')?.addEventListener('click', async () => {
+      const label = document.getElementById('inline-etype-label').value.trim();
+      const color = document.getElementById('inline-etype-color').value;
+      if (!label) { App.toast('유형 이름을 입력해주세요.', 'error'); return; }
+      try {
+        const res = await API.post('/calendar/event-types', { label, color });
+        App.toast(`"${res.data.label}" 유형이 추가되었습니다.`, 'success');
+        // 이벤트 유형 캐시 갱신
+        await this.loadEventTypes();
+        // select 옵션 갱신 (새 유형 선택)
+        const sel = document.getElementById('cal-type');
+        if (sel) {
+          sel.innerHTML = Object.entries(this.EVENT_TYPE_LABELS).map(([k, v]) =>
+            `<option value="${k}" ${k === res.data.type_key ? 'selected' : ''}>${v}</option>`
+          ).join('');
+        }
+        pendingEventTypeReview = { id: res.data.id, label: res.data.label };
+        document.getElementById('inline-add-etype-area').style.display = 'none';
+        document.getElementById('inline-etype-label').value = '';
+      } catch (e) {
+        App.toast(e.message || '유형 추가 실패', 'error');
+      }
     });
   },
 

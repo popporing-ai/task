@@ -1848,7 +1848,18 @@ const TasksView = {
       </div>
       <div class="form-group">
         <label>분류 카테고리</label>
-        <select id="f-category">${App.categoryOptions(task?.category_id)}</select>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <select id="f-category" style="flex:1">${App.categoryOptions(task?.category_id)}</select>
+          <button type="button" class="btn btn-default" id="btn-inline-add-cat" style="white-space:nowrap;padding:8px 10px;font-size:12px;">+ 신규</button>
+        </div>
+        <div id="inline-add-cat-area" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-bg-secondary);">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <input type="text" id="inline-cat-name" placeholder="분류명" style="flex:1;min-width:120px;padding:6px 10px;font-size:13px;">
+            <input type="color" id="inline-cat-color" value="#4F6EF7" style="width:36px;height:32px;padding:1px;border-radius:6px;cursor:pointer;background:transparent;border:1px solid var(--color-border);">
+            <button type="button" class="btn btn-primary" id="btn-inline-cat-confirm" style="padding:6px 12px;font-size:12px;">추가</button>
+            <button type="button" class="btn btn-default" id="btn-inline-cat-cancel" style="padding:6px 12px;font-size:12px;">취소</button>
+          </div>
+        </div>
       </div>
       <div class="form-group">
         <label>업무 상세</label>
@@ -1876,6 +1887,9 @@ const TasksView = {
       ${statusHtml}
     `;
 
+    // 인라인 추가 추적
+    let pendingCategoryReview = null;
+
     App.openPanel(title, html, async () => {
       const data = {
         title: document.getElementById('f-title').value.trim(),
@@ -1899,6 +1913,47 @@ const TasksView = {
       }
       await this.loadTasks();
       this.renderBoard(document.getElementById('content'));
+
+      // 인라인 추가된 분류가 있으면 설정 화면 이동 제안
+      if (pendingCategoryReview) {
+        const review = pendingCategoryReview;
+        pendingCategoryReview = null;
+        const ok = await App.confirm(`방금 추가한 분류 "${review.name}"의 세부 설정을 설정 화면에서 확인하시겠어요?`);
+        if (ok) {
+          SettingsView.focusEntity = { type: 'category', id: review.id };
+          App.navigate('settings');
+        }
+      }
+    });
+
+    // 인라인 분류 추가 UI 이벤트
+    document.getElementById('btn-inline-add-cat')?.addEventListener('click', () => {
+      document.getElementById('inline-add-cat-area').style.display = '';
+      document.getElementById('inline-cat-name').focus();
+    });
+    document.getElementById('btn-inline-cat-cancel')?.addEventListener('click', () => {
+      document.getElementById('inline-add-cat-area').style.display = 'none';
+      document.getElementById('inline-cat-name').value = '';
+    });
+    document.getElementById('btn-inline-cat-confirm')?.addEventListener('click', async () => {
+      const name = document.getElementById('inline-cat-name').value.trim();
+      const color = document.getElementById('inline-cat-color').value;
+      if (!name) { App.toast('분류명을 입력해주세요.', 'error'); return; }
+      try {
+        const res = await API.post('/categories', { name, color });
+        App.toast(`"${res.data.name}" 분류가 추가되었습니다.`, 'success');
+        await App.loadMeta();
+        // select 옵션만 갱신 (다른 필드 유지)
+        const sel = document.getElementById('f-category');
+        if (sel) {
+          sel.innerHTML = App.categoryOptions(res.data.id);
+        }
+        pendingCategoryReview = { id: res.data.id, name: res.data.name };
+        document.getElementById('inline-add-cat-area').style.display = 'none';
+        document.getElementById('inline-cat-name').value = '';
+      } catch (e) {
+        App.toast(e.message || '분류 추가 실패', 'error');
+      }
     });
   },
 };

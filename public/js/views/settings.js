@@ -3,6 +3,10 @@ const SettingsView = {
   // 현재 활성 탭
   activeTab: 'myaccount',
 
+  // 외부에서 설정 화면 진입 시 특정 엔터티에 포커스 (인라인 추가 후 설정 확인용)
+  // { type: 'category'|'product'|'eventType', id: number }
+  focusEntity: null,
+
   // 채널 코드 + 설명 (시스템 정의)
   CHANNELS: [
     { code: 'IG', desc: 'Instagram' },
@@ -104,7 +108,44 @@ const SettingsView = {
       });
     });
 
-    await this._renderActiveTab();
+    // focusEntity가 설정되어 있으면 해당 탭으로 전환 후 편집 패널 열기
+    if (this.focusEntity) {
+      const fe = this.focusEntity;
+      this.focusEntity = null;
+      const tabMap = { category: 'categories', product: 'products', eventType: 'event_types' };
+      const targetTab = tabMap[fe.type];
+      if (targetTab && targetTab !== this.activeTab) {
+        this.activeTab = targetTab;
+        container.querySelectorAll('.filter-btn[data-tab]').forEach(b =>
+          b.classList.toggle('active', b.dataset.tab === targetTab)
+        );
+      }
+      await this._renderActiveTab();
+      // 탭 렌더 완료 후 해당 엔터티의 편집 패널 열기
+      await this._openFocusedEntityEdit(fe);
+    } else {
+      await this._renderActiveTab();
+    }
+  },
+
+  async _openFocusedEntityEdit(fe) {
+    try {
+      if (fe.type === 'category') {
+        const res = await API.get('/categories');
+        const cat = (res.data || []).find(c => c.id === fe.id || String(c.id) === String(fe.id));
+        if (cat) this.openCategoryPanel(cat, res.data);
+      } else if (fe.type === 'product') {
+        const res = await API.get('/products');
+        const prod = (res.data || []).find(p => p.id === fe.id || String(p.id) === String(fe.id));
+        if (prod) this.openProductPanel(prod, res.data);
+      } else if (fe.type === 'eventType') {
+        const res = await API.get('/calendar/event-types');
+        const et = (res.data || []).find(t => t.id === fe.id || String(t.id) === String(fe.id));
+        if (et) this._openEventTypePanel(et);
+      }
+    } catch {
+      // 엔터티를 찾지 못해도 설정 화면은 정상 표시
+    }
   },
 
   async _renderActiveTab() {

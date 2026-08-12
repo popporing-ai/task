@@ -443,7 +443,17 @@ const ContentView = {
         <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
           <div class="form-group">
             <label>제품</label>
-            <select id="f-product">${App.productOptions(item?.product_id)}</select>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <select id="f-product" style="flex:1">${App.productOptions(item?.product_id)}</select>
+              <button type="button" class="btn btn-default btn-inline-add-prod" data-target="f-product" style="white-space:nowrap;padding:8px 10px;font-size:12px;">+ 신규</button>
+            </div>
+            <div class="inline-add-prod-area" data-target="f-product" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-bg-secondary);">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <input type="text" class="inline-prod-name" placeholder="제품명" style="flex:1;min-width:120px;padding:6px 10px;font-size:13px;">
+                <button type="button" class="btn btn-primary btn-inline-prod-confirm" style="padding:6px 12px;font-size:12px;">추가</button>
+                <button type="button" class="btn btn-default btn-inline-prod-cancel" style="padding:6px 12px;font-size:12px;">취소</button>
+              </div>
+            </div>
           </div>
           <div class="form-group">
             <label>채널 *</label>
@@ -507,7 +517,17 @@ const ContentView = {
         <div class="form-row">
           <div class="form-group">
             <label>제품</label>
-            <select id="f-product-batch">${App.productOptions()}</select>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <select id="f-product-batch" style="flex:1">${App.productOptions()}</select>
+              <button type="button" class="btn btn-default btn-inline-add-prod" data-target="f-product-batch" style="white-space:nowrap;padding:8px 10px;font-size:12px;">+ 신규</button>
+            </div>
+            <div class="inline-add-prod-area" data-target="f-product-batch" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-bg-secondary);">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <input type="text" class="inline-prod-name" placeholder="제품명" style="flex:1;min-width:120px;padding:6px 10px;font-size:13px;">
+                <button type="button" class="btn btn-primary btn-inline-prod-confirm" style="padding:6px 12px;font-size:12px;">추가</button>
+                <button type="button" class="btn btn-default btn-inline-prod-cancel" style="padding:6px 12px;font-size:12px;">취소</button>
+              </div>
+            </div>
           </div>
           <div class="form-group">
             <label>배포 예정일 (공통)</label>
@@ -541,6 +561,9 @@ const ContentView = {
 
     const html = `${modeToggle}${singleFormHtml}${batchFormHtml}`;
 
+    // 인라인 추가 추적
+    let pendingProductReview = null;
+
     App.openPanel(title, html, async () => {
       const mode = document.querySelector('.cc-mode-tab.active')?.dataset.mode || 'single';
 
@@ -571,6 +594,17 @@ const ContentView = {
           App.toast(`${res.data.length}개 콘텐츠가 생성되었습니다.`, 'success');
           if (data.publish_date) this.month = data.publish_date.slice(0, 7);
           this.render();
+
+          // 인라인 추가된 제품이 있으면 설정 화면 이동 제안
+          if (pendingProductReview) {
+            const review = pendingProductReview;
+            pendingProductReview = null;
+            const ok = await App.confirm(`방금 추가한 제품 "${review.name}"의 세부 설정을 설정 화면에서 확인하시겠어요?`);
+            if (ok) {
+              SettingsView.focusEntity = { type: 'product', id: review.id };
+              App.navigate('settings');
+            }
+          }
           return;
         } catch (e) {
           App.toast(`일괄 저장 실패: ${e.message || '알 수 없는 오류'}`, 'error');
@@ -605,6 +639,17 @@ const ContentView = {
         }
         if (data.publish_date) this.month = data.publish_date.slice(0, 7);
         this.render();
+
+        // 인라인 추가된 제품이 있으면 설정 화면 이동 제안
+        if (pendingProductReview) {
+          const review = pendingProductReview;
+          pendingProductReview = null;
+          const ok = await App.confirm(`방금 추가한 제품 "${review.name}"의 세부 설정을 설정 화면에서 확인하시겠어요?`);
+          if (ok) {
+            SettingsView.focusEntity = { type: 'product', id: review.id };
+            App.navigate('settings');
+          }
+        }
       } catch (e) {
         App.toast(`저장 실패: ${e.message || '알 수 없는 오류'}`, 'error');
         return false;
@@ -668,6 +713,60 @@ const ContentView = {
     document.getElementById('f-inflow-url')?.addEventListener('input', () => {
       const shortInput = document.getElementById('f-short-url');
       if (shortInput) shortInput.value = '';
+    });
+
+    // 인라인 제품 추가 UI 이벤트 (단일/일괄 모드 공용)
+    document.querySelectorAll('.btn-inline-add-prod').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.target;
+        const area = document.querySelector(`.inline-add-prod-area[data-target="${target}"]`);
+        if (area) {
+          area.style.display = '';
+          area.querySelector('.inline-prod-name')?.focus();
+        }
+      });
+    });
+    document.querySelectorAll('.btn-inline-prod-cancel').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const area = btn.closest('.inline-add-prod-area');
+        if (area) {
+          area.style.display = 'none';
+          const inp = area.querySelector('.inline-prod-name');
+          if (inp) inp.value = '';
+        }
+      });
+    });
+    document.querySelectorAll('.btn-inline-prod-confirm').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const area = btn.closest('.inline-add-prod-area');
+        const target = area?.dataset.target;
+        const nameInput = area?.querySelector('.inline-prod-name');
+        const name = nameInput?.value.trim();
+        if (!name) { App.toast('제품명을 입력해주세요.', 'error'); return; }
+        try {
+          const res = await API.post('/products', { name });
+          App.toast(`"${res.data.name}" 제품이 추가되었습니다.`, 'success');
+          await App.loadMeta();
+          // 두 select 모두 갱신 (현재 선택 유지하되, 방금 생성한 제품을 신규 대상 select에 선택)
+          const selSingle = document.getElementById('f-product');
+          const selBatch = document.getElementById('f-product-batch');
+          if (selSingle) {
+            const curVal = target === 'f-product' ? res.data.id : selSingle.value;
+            selSingle.innerHTML = App.productOptions(curVal);
+          }
+          if (selBatch) {
+            const curVal = target === 'f-product-batch' ? res.data.id : selBatch.value;
+            selBatch.innerHTML = App.productOptions(curVal);
+          }
+          pendingProductReview = { id: res.data.id, name: res.data.name };
+          if (area) {
+            area.style.display = 'none';
+            if (nameInput) nameInput.value = '';
+          }
+        } catch (e) {
+          App.toast(e.message || '제품 추가 실패', 'error');
+        }
+      });
     });
   },
 
