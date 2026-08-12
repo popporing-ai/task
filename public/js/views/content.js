@@ -599,7 +599,7 @@ const ContentView = {
           if (pendingProductReview) {
             const review = pendingProductReview;
             pendingProductReview = null;
-            const ok = await App.confirm(`방금 추가한 제품 "${review.name}"의 세부 설정을 설정 화면에서 확인하시겠어요?`);
+            const ok = await App.confirm(`방금 추가한 제품 "${review.name}"의 세부 설정을 설정 화면에서 확인하시겠어요?`, { confirmLabel: '확인', confirmClass: 'btn btn-primary' });
             if (ok) {
               SettingsView.focusEntity = { type: 'product', id: review.id };
               App.navigate('settings');

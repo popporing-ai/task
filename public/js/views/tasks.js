@@ -1918,7 +1918,7 @@ const TasksView = {
       if (pendingCategoryReview) {
         const review = pendingCategoryReview;
         pendingCategoryReview = null;
-        const ok = await App.confirm(`방금 추가한 분류 "${review.name}"의 세부 설정을 설정 화면에서 확인하시겠어요?`);
+        const ok = await App.confirm(`방금 추가한 분류 "${review.name}"의 세부 설정을 설정 화면에서 확인하시겠어요?`, { confirmLabel: '확인', confirmClass: 'btn btn-primary' });
         if (ok) {
           SettingsView.focusEntity = { type: 'category', id: review.id };
           App.navigate('settings');

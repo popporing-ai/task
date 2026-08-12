@@ -501,7 +501,7 @@ const CalendarView = {
         if (pendingEventTypeReview) {
           const review = pendingEventTypeReview;
           pendingEventTypeReview = null;
-          const ok = await App.confirm(`방금 추가한 일정 유형 "${review.label}"의 세부 설정을 설정 화면에서 확인하시겠어요?`);
+          const ok = await App.confirm(`방금 추가한 일정 유형 "${review.label}"의 세부 설정을 설정 화면에서 확인하시겠어요?`, { confirmLabel: '확인', confirmClass: 'btn btn-primary' });
           if (ok) {
             SettingsView.focusEntity = { type: 'eventType', id: review.id };
             App.navigate('settings');

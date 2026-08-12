@@ -443,7 +443,7 @@ const SettingsView = {
       <div class="settings-section-header">
         <div>
           <div class="settings-section-title">업무 분류</div>
-          <div class="settings-section-desc">업무 카드의 분류 태그로 사용됩니다.</div>
+          <div class="settings-section-desc">업무 카드의 분류 태그로 사용됩니다. 위/아래 화살표로 순서를 바꾸면 선택 목록에도 그 순서로 반영됩니다.</div>
         </div>
         <button class="btn btn-primary" id="btn-add-category">+ 분류 추가</button>
       </div>
@@ -466,9 +466,31 @@ const SettingsView = {
       this.openCategoryPanel(null, categories);
     });
 
+    // 순서 변경 — 위/아래 이동 후 전체 순서를 서버에 저장
+    const moveCat = async (id, dir) => {
+      const idx = categories.findIndex(c => String(c.id) === String(id));
+      if (idx < 0) return;
+      const swap = dir === 'up' ? idx - 1 : idx + 1;
+      if (swap < 0 || swap >= categories.length) return; // 경계에서는 무시
+      [categories[idx], categories[swap]] = [categories[swap], categories[idx]];
+      const orders = categories.map((c, i) => ({ id: c.id, sort_order: i + 1 }));
+      try {
+        await API.post('/categories/reorder', { orders });
+        await App.loadMeta();
+        await this._renderCategories();
+      } catch {
+        App.toast('순서 변경에 실패했습니다.', 'error');
+      }
+    };
+
     document.getElementById('category-tbody').addEventListener('click', async (e) => {
       const editBtn = e.target.closest('.btn-edit-cat');
       const delBtn  = e.target.closest('.btn-del-cat');
+      const upBtn   = e.target.closest('.btn-cat-up');
+      const downBtn = e.target.closest('.btn-cat-down');
+
+      if (upBtn)   { await moveCat(upBtn.dataset.id, 'up'); return; }
+      if (downBtn) { await moveCat(downBtn.dataset.id, 'down'); return; }
 
       if (editBtn) {
         const cat = categories.find(c => String(c.id) === editBtn.dataset.id);
@@ -493,7 +515,9 @@ const SettingsView = {
 
   _categoryRowHtml(c, isAdmin = true) {
     const actionsCol = isAdmin ? `
-        <td style="text-align:right">
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn btn-default btn-cat-up" data-id="${c.id}" title="위로" style="padding:4px 8px;margin-right:2px">↑</button>
+          <button class="btn btn-default btn-cat-down" data-id="${c.id}" title="아래로" style="padding:4px 8px;margin-right:6px">↓</button>
           <button class="btn btn-default btn-edit-cat" data-id="${c.id}" style="margin-right:6px">수정</button>
           <button class="btn btn-danger btn-del-cat" data-id="${c.id}">삭제</button>
         </td>` : '';

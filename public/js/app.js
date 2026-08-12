@@ -481,7 +481,9 @@ const App = {
     });
   },
 
-  confirm(msg) {
+  // opts.confirmLabel / opts.confirmClass 로 확인 버튼 라벨·스타일 재정의 가능.
+  // 미지정 시 삭제 확인용 기본값('삭제', btn btn-danger) 유지.
+  confirm(msg, opts = {}) {
     return new Promise(resolve => {
       document.getElementById('dialog-msg').textContent = msg;
       document.getElementById('dialog-overlay').style.display = 'flex';
@@ -490,6 +492,8 @@ const App = {
       const newBtn = confirmBtn.cloneNode(true);
       confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
       newBtn.id = 'dialog-confirm';
+      newBtn.textContent = opts.confirmLabel || '삭제';
+      newBtn.className = opts.confirmClass || 'btn btn-danger';
 
       const escHandler = (e) => {
         if (e.key === 'Escape') {
