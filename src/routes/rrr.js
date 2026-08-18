@@ -168,8 +168,8 @@ router.post('/versions/archive', auditMiddleware('rrr_versions'), async (req, re
       // 이전 버전의 항목을 새 버전으로 복제
       if (oldVersion) {
         await client.query(
-          `INSERT INTO rrr_items (user_id, role_type, description, frequency, sort_order, version_id)
-           SELECT user_id, role_type, description, frequency, sort_order, $1
+          `INSERT INTO rrr_items (user_id, role_type, description, task_detail, part, category, frequency, sub_assignee, status_note, sort_order, version_id)
+           SELECT user_id, role_type, description, task_detail, part, category, frequency, sub_assignee, status_note, sort_order, $1
            FROM rrr_items
            WHERE version_id = $2
            ORDER BY id`,
@@ -194,7 +194,7 @@ router.post('/', auditMiddleware('rrr_items'), async (req, res, next) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: '관리자만 수정할 수 있습니다.' });
     }
-    const { user_id, role_type, description, frequency, sort_order } = req.body;
+    const { user_id, role_type, description, task_detail, part, category, frequency, sub_assignee, status_note, sort_order } = req.body;
 
     if (!user_id || !role_type || !description) {
       return res.status(400).json({ error: '필수 항목을 입력해주세요.' });
@@ -206,9 +206,9 @@ router.post('/', auditMiddleware('rrr_items'), async (req, res, next) => {
     }
 
     const { rows } = await db.query(`
-      INSERT INTO rrr_items (user_id, role_type, description, frequency, sort_order, version_id)
-      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *
-    `, [user_id, role_type, description, frequency || null, sort_order || 0, versionId]);
+      INSERT INTO rrr_items (user_id, role_type, description, task_detail, part, category, frequency, sub_assignee, status_note, sort_order, version_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
+    `, [user_id, role_type, description, task_detail || null, part || null, category || null, frequency || null, sub_assignee || null, status_note || null, sort_order || 0, versionId]);
 
     res.json({ data: rows[0], message: 'R&R 항목이 추가되었습니다.' });
   } catch (err) { next(err); }
@@ -220,7 +220,7 @@ router.put('/:id', auditMiddleware('rrr_items'), async (req, res, next) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: '관리자만 수정할 수 있습니다.' });
     }
-    const { role_type, description, frequency, sort_order } = req.body;
+    const { role_type, description, task_detail, part, category, frequency, sub_assignee, status_note, sort_order } = req.body;
 
     const versionId = await getCurrentVersionId();
     if (!versionId) {
@@ -228,9 +228,9 @@ router.put('/:id', auditMiddleware('rrr_items'), async (req, res, next) => {
     }
 
     const { rows } = await db.query(`
-      UPDATE rrr_items SET role_type=$1, description=$2, frequency=$3, sort_order=$4
-      WHERE id=$5 AND version_id=$6 RETURNING *
-    `, [role_type, description, frequency || null, sort_order || 0, req.params.id, versionId]);
+      UPDATE rrr_items SET role_type=$1, description=$2, task_detail=$3, part=$4, category=$5, frequency=$6, sub_assignee=$7, status_note=$8, sort_order=$9
+      WHERE id=$10 AND version_id=$11 RETURNING *
+    `, [role_type, description, task_detail || null, part || null, category || null, frequency || null, sub_assignee || null, status_note || null, sort_order || 0, req.params.id, versionId]);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: '항목을 찾을 수 없거나 현재 버전이 아닙니다.' });

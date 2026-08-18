@@ -7,9 +7,43 @@
 //   MAJOR — 호환성이 깨지는 큰 변경
 //   MINOR — 하위 호환되는 기능 추가
 //   PATCH — 하위 호환되는 버그 수정 / 소규모 개선
-const CURRENT_VERSION = '2.17.1';
+const CURRENT_VERSION = '2.18.0';
 
 const RELEASE_NOTES = [
+  {
+    version: '2.18.0',
+    date: '2026-08-18',
+    title: 'R&R v1.1 업무분장표 반영, 업무 상세 팝업과 파트·주기 항목 추가',
+    sections: [
+      {
+        kind: 'feature',
+        title: 'R&R에 업무 상세 정보 추가',
+        items: [
+          {
+            text: '역할/기능 항목에 파트, 대분류, 주요 내용, 주기, 부 담당 정보를 담았습니다. 항목을 클릭하면 팝업으로 업무명과 주요 내용, 담당 정보를 한눈에 볼 수 있습니다. 목록에서는 대분류와 주기, 부 담당을 항목 아래에 함께 표시합니다.',
+          },
+          {
+            text: 'R&R 추가, 수정 화면에서 파트, 대분류, 주기, 부 담당을 입력할 수 있습니다. 기존에 쓰인 값은 선택 목록으로 제시되어 고르거나 새로 입력할 수 있습니다.',
+          },
+          {
+            text: '솔루션 리드 항목은 상태나 비고(예: 보류, 예정)를 괄호로 함께 표시합니다.',
+          },
+        ],
+      },
+      {
+        kind: 'update',
+        title: '2026.08 인력 3인 기준 R&R 재배분 (v1.1)',
+        items: [
+          {
+            text: '마케팅본부 업무분장표(2026-08-14 기준)를 R&R v1.1(2026-08-18 시행)로 반영했습니다. 정 담당 기준으로 안영선, 남병진, 구지향 각 인원에 정기 업무를 배분하고, 부 담당은 항목에 함께 표시했습니다.',
+          },
+          {
+            text: '솔루션별 리드 담당자를 갱신하고, 안영선은 리드 구분 없이 전 솔루션을 포괄 관리하는 항목으로 넣었습니다. 이전 R&R은 과거 버전으로 보존됩니다.',
+          },
+        ],
+      },
+    ],
+  },
   {
     version: '2.17.1',
     date: '2026-08-12',
@@ -1116,6 +1150,7 @@ const ReleaseNotes = {
         feature: { label: '기능 추가',  cls: 'feature' },
         fix:     { label: '버그 수정',  cls: 'fix' },
         design:  { label: '디자인 개선', cls: 'design' },
+        update:  { label: '데이터 반영', cls: 'feature' },
       };
       return it.sections.map(sec => {
         const meta = KIND_META[sec.kind] || { label: sec.kind, cls: '' };

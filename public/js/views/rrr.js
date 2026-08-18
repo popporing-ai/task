@@ -244,6 +244,17 @@ const RRRView = {
   },
 
   _itemHtml(item, isEditable) {
+    const isLead = item.role_type === 'solution_lead';
+    const note = item.status_note
+      ? `<span class="rrr-item-note">(${escHtml(item.status_note)})</span>` : '';
+
+    // 메타 줄: 대분류, 주기, 부담당 (역할/기능에만 표시)
+    const metaParts = [];
+    if (!isLead && item.category) metaParts.push(`<span class="rrr-item-chip">${escHtml(item.category)}</span>`);
+    if (!isLead && item.frequency) metaParts.push(`<span class="rrr-item-chip freq">${escHtml(item.frequency)}</span>`);
+    if (!isLead && item.sub_assignee) metaParts.push(`<span class="rrr-item-sub">부 ${escHtml(item.sub_assignee)}</span>`);
+    const metaLine = metaParts.length ? `<span class="rrr-item-meta">${metaParts.join('')}</span>` : '';
+
     return `
       <li class="rrr-item" data-item-id="${item.id}" draggable="${isEditable}">
         ${isEditable ? `
@@ -251,7 +262,10 @@ const RRRView = {
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><circle cx="5" cy="4" r="1.2" fill="currentColor"/><circle cx="11" cy="4" r="1.2" fill="currentColor"/><circle cx="5" cy="8" r="1.2" fill="currentColor"/><circle cx="11" cy="8" r="1.2" fill="currentColor"/><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="11" cy="12" r="1.2" fill="currentColor"/></svg>
         </span>
         ` : ''}
-        <span class="rrr-item-text">${escHtml(item.description)}</span>
+        <span class="rrr-item-main" data-item-detail="${item.id}" title="클릭하면 상세 보기">
+          <span class="rrr-item-text">${escHtml(item.description)}${note ? ' ' + note : ''}</span>
+          ${metaLine}
+        </span>
         ${isEditable ? `
         <div class="rrr-item-actions">
           <button class="card-action-btn" data-rrr-edit="${item.id}" title="수정">
@@ -277,6 +291,17 @@ const RRRView = {
         if (e.target.closest('button')) return;
         const userId = card.dataset.userId;
         if (userId) this._showUserDetail(parseInt(userId));
+      });
+    });
+
+    // 항목 클릭 -> 업무 상세 팝업 (업무명, 주요내용, 파트, 대분류, 주기, 정/부담당)
+    content.querySelectorAll('[data-item-detail]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const itemId = el.dataset.itemDetail;
+        const allItems = this.data.flatMap(u => u.items.map(i => ({ ...i, _user_name: u.user_name })));
+        const item = allItems.find(i => String(i.id) === String(itemId));
+        if (item) this._showItemDetail(item);
       });
     });
 
@@ -410,6 +435,58 @@ const RRRView = {
     } catch {
       App.toast('순서 저장에 실패했습니다.', 'error');
     }
+  },
+
+  // 현재 데이터에서 특정 필드의 고유값 목록 (datalist 옵션용)
+  _distinct(field) {
+    const set = new Set();
+    this.data.forEach(u => u.items.forEach(i => { if (i[field]) set.add(i[field]); }));
+    return [...set].sort((a, b) => a.localeCompare(b, 'ko'));
+  },
+
+  // 항목 클릭 -> 업무 상세 팝업
+  _showItemDetail(item) {
+    document.querySelector('.popover-overlay')?.remove();
+    const isLead = item.role_type === 'solution_lead';
+
+    const row = (label, value) => value
+      ? `<div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--color-border);font-size:13px;">
+           <span style="flex-shrink:0;width:64px;color:var(--color-text-muted);font-weight:600;">${label}</span>
+           <span style="flex:1;color:var(--color-text-primary);line-height:1.6;word-break:break-word;">${escHtml(value)}</span>
+         </div>`
+      : '';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'popover-overlay';
+    overlay.innerHTML = `
+      <div class="popover" style="max-width:480px;width:92%;max-height:85vh;display:flex;flex-direction:column;">
+        <button class="popover-close" title="닫기">×</button>
+        <div style="margin-bottom:14px;padding-right:24px;">
+          <div style="display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;margin-bottom:8px;
+            ${isLead ? 'background:rgba(79,110,247,0.14);color:#4F6EF7;' : 'background:rgba(52,199,89,0.16);color:#2F9E52;'}">
+            ${isLead ? '솔루션 리드' : '역할/기능'}
+          </div>
+          <div style="font-size:18px;font-weight:700;letter-spacing:-0.02em;line-height:1.35;">${escHtml(item.description)}</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding-right:4px;">
+          ${row('담당', item._user_name)}
+          ${isLead ? '' : row('파트', item.part)}
+          ${isLead ? '' : row('대분류', item.category)}
+          ${isLead ? '' : row('주기', item.frequency)}
+          ${isLead ? '' : row('부 담당', item.sub_assignee)}
+          ${isLead ? row('상태, 비고', item.status_note) : ''}
+          ${item.task_detail ? `
+            <div style="padding:12px 0 4px;">
+              <div style="font-size:11px;font-weight:700;color:var(--color-text-muted);margin-bottom:6px;letter-spacing:0.02em;">주요 내용</div>
+              <div style="font-size:13px;color:var(--color-text-primary);line-height:1.75;word-break:break-word;">${escHtml(item.task_detail)}</div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.popover-close').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   },
 
   // -- 폼 ---
@@ -551,69 +628,136 @@ const RRRView = {
     }
   },
 
+  // datalist HTML 생성 (파트, 대분류, 주기, 부담당 선택지)
+  _datalists() {
+    const opts = (arr) => arr.map(v => `<option value="${escHtml(v)}">`).join('');
+    const memberNames = App.assignableUsers().map(u => u.name);
+    return `
+      <datalist id="dl-part">${opts(this._distinct('part'))}</datalist>
+      <datalist id="dl-category">${opts(this._distinct('category'))}</datalist>
+      <datalist id="dl-frequency">${opts(this._distinct('frequency'))}</datalist>
+      <datalist id="dl-sub">${opts([...new Set([...memberNames, ...this._distinct('sub_assignee')])])}</datalist>
+    `;
+  },
+
+  // 유형(솔루션 리드/역할·기능)에 따른 입력 필드
+  _formFieldsHtml(item) {
+    const it = item || {};
+    const isLead = (it.role_type || 'function') === 'solution_lead';
+    return `
+      ${this._datalists()}
+      <div class="form-group">
+        <label>유형</label>
+        <div class="radio-group">
+          <label><input type="radio" name="f-type" value="function" ${!isLead ? 'checked' : ''}>역할/기능</label>
+          <label><input type="radio" name="f-type" value="solution_lead" ${isLead ? 'checked' : ''}>솔루션 리드</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label id="f-desc-label">${isLead ? '솔루션명 *' : '업무명 *'}</label>
+        <input type="text" id="f-desc" value="${escHtml(it.description || '')}" placeholder="${isLead ? '예: Remote, VisionX' : '예: 유튜브 영상 기획, 제작, 발행'}">
+      </div>
+
+      <div id="f-func-fields" style="display:${isLead ? 'none' : 'block'};">
+        <div class="form-row" style="display:flex;gap:10px;">
+          <div class="form-group" style="flex:1;">
+            <label>파트</label>
+            <input type="text" id="f-part" list="dl-part" value="${escHtml(it.part || '')}" placeholder="예: 콘텐츠">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>대분류</label>
+            <input type="text" id="f-category" list="dl-category" value="${escHtml(it.category || '')}" placeholder="예: 영상">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>주요 내용</label>
+          <textarea id="f-detail" rows="3" placeholder="업무명 클릭 시 팝업에 표시됩니다">${escHtml(it.task_detail || '')}</textarea>
+        </div>
+        <div class="form-row" style="display:flex;gap:10px;">
+          <div class="form-group" style="flex:1;">
+            <label>주기</label>
+            <input type="text" id="f-freq" list="dl-frequency" value="${escHtml(it.frequency || '')}" placeholder="예: 상시, 주, 분기">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>부 담당</label>
+            <input type="text" id="f-sub" list="dl-sub" value="${escHtml(it.sub_assignee || '')}" placeholder="예: 남병진">
+          </div>
+        </div>
+      </div>
+
+      <div id="f-lead-fields" style="display:${isLead ? 'block' : 'none'};">
+        <div class="form-group">
+          <label>상태, 비고</label>
+          <input type="text" id="f-note" value="${escHtml(it.status_note || '')}" placeholder="예: 보류, 예정">
+        </div>
+      </div>
+    `;
+  },
+
+  // 유형 라디오 변경 시 필드 토글
+  _bindFormToggle() {
+    const radios = document.querySelectorAll('input[name="f-type"]');
+    const apply = () => {
+      const isLead = document.querySelector('input[name="f-type"]:checked').value === 'solution_lead';
+      document.getElementById('f-func-fields').style.display = isLead ? 'none' : 'block';
+      document.getElementById('f-lead-fields').style.display = isLead ? 'block' : 'none';
+      const label = document.getElementById('f-desc-label');
+      if (label) label.textContent = isLead ? '솔루션명 *' : '업무명 *';
+    };
+    radios.forEach(r => r.addEventListener('change', apply));
+  },
+
+  // 폼에서 payload 수집 (유형에 따라 필드 정리)
+  _collectForm() {
+    const role_type = document.querySelector('input[name="f-type"]:checked').value;
+    const isLead = role_type === 'solution_lead';
+    const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    return {
+      role_type,
+      description: val('f-desc'),
+      task_detail: isLead ? null : (val('f-detail') || null),
+      part: isLead ? null : (val('f-part') || null),
+      category: isLead ? null : (val('f-category') || null),
+      frequency: isLead ? null : (val('f-freq') || null),
+      sub_assignee: isLead ? null : (val('f-sub') || null),
+      status_note: isLead ? (val('f-note') || null) : null,
+    };
+  },
+
   openAddForm(userId) {
     const html = `
       <div class="form-group">
         <label>팀원</label>
         <select id="f-user">${App.assignableUserOptions(userId)}</select>
       </div>
-      <div class="form-group">
-        <label>유형</label>
-        <div class="radio-group">
-          <label><input type="radio" name="f-type" value="solution_lead" checked>솔루션 리드</label>
-          <label><input type="radio" name="f-type" value="function">역할/기능</label>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>설명 *</label>
-        <input type="text" id="f-desc" placeholder="예: Remote, Make&View 또는 유튜브 기획 및 제작">
-      </div>
+      ${this._formFieldsHtml(null)}
     `;
 
     App.openPanel('R&R 추가', html, async () => {
-      const data = {
-        user_id: document.getElementById('f-user').value,
-        role_type: document.querySelector('input[name="f-type"]:checked').value,
-        description: document.getElementById('f-desc').value.trim(),
-      };
+      const data = { user_id: document.getElementById('f-user').value, ...this._collectForm() };
       if (!data.user_id || !data.description) {
-        App.toast('필수 항목을 입력해주세요.', 'error');
+        App.toast('팀원과 업무명(솔루션명)을 입력해주세요.', 'error');
         return false;
       }
       await API.post('/rrr', data);
       App.toast('R&R이 추가되었습니다.', 'success');
       this.render();
     });
+    this._bindFormToggle();
   },
 
   openEditForm(item) {
-    const html = `
-      <div class="form-group">
-        <label>유형</label>
-        <div class="radio-group">
-          <label><input type="radio" name="f-type" value="solution_lead" ${item.role_type === 'solution_lead' ? 'checked' : ''}>솔루션 리드</label>
-          <label><input type="radio" name="f-type" value="function" ${item.role_type === 'function' ? 'checked' : ''}>역할/기능</label>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>설명 *</label>
-        <input type="text" id="f-desc" value="${escHtml(item.description)}">
-      </div>
-    `;
-
-    App.openPanel('R&R 수정', html, async () => {
-      const data = {
-        role_type: document.querySelector('input[name="f-type"]:checked').value,
-        description: document.getElementById('f-desc').value.trim(),
-      };
+    App.openPanel('R&R 수정', this._formFieldsHtml(item), async () => {
+      const data = this._collectForm();
       if (!data.description) {
-        App.toast('설명을 입력해주세요.', 'error');
+        App.toast('업무명(솔루션명)을 입력해주세요.', 'error');
         return false;
       }
       await API.put(`/rrr/${item.id}`, data);
       App.toast('R&R이 수정되었습니다.', 'success');
       this.render();
     });
+    this._bindFormToggle();
   },
 
   // 새 버전 아카이브 폼
