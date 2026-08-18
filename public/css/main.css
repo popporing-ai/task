@@ -1085,6 +1085,87 @@ input[type="month"] {
 .rrr-add-area { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--color-border); }
 .rrr-add-btn { font-size: 12px; width: 100%; }
 
+/* R&R 표 형태 (엑셀 업무분장표) */
+.rrr-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 16px;
+}
+.rrr-filter-btn {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-card, #fff);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.rrr-filter-btn:hover { background: rgba(79,110,247,0.06); color: var(--color-text-primary); }
+.rrr-filter-btn.active {
+  background: var(--color-primary, #4F6EF7);
+  border-color: var(--color-primary, #4F6EF7);
+  color: #fff;
+}
+
+.rrr-table-wrap { margin-bottom: 26px; }
+.rrr-table-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+  color: var(--color-text-primary);
+}
+.rrr-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-card, #fff);
+}
+.rrr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 760px;
+}
+.rrr-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-bg-secondary, #F2F3F7);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.rrr-table tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+  line-height: 1.55;
+  color: var(--color-text-primary);
+}
+.rrr-table tbody tr:last-child td { border-bottom: none; }
+.rrr-table tbody tr:hover { background: rgba(79,110,247,0.04); }
+
+.rrr-td-no { width: 40px; text-align: center; color: var(--color-text-hint); }
+.rrr-td-part { white-space: nowrap; font-weight: 600; color: var(--color-text-muted); }
+.rrr-td-cat { white-space: nowrap; color: var(--color-text-muted); }
+.rrr-td-name { min-width: 140px; font-weight: 600; }
+.rrr-td-detail { min-width: 240px; color: var(--color-text-secondary, #555); font-size: 12.5px; }
+.rrr-td-freq { white-space: nowrap; color: var(--color-text-muted); }
+.rrr-td-owner { white-space: nowrap; font-weight: 600; }
+.rrr-td-sub { white-space: nowrap; color: var(--color-text-muted); }
+.rrr-td-note { color: var(--color-text-muted); }
+.rrr-td-act { width: 64px; white-space: nowrap; text-align: right; }
+
+.rrr-name-link { cursor: pointer; border-bottom: 1px dashed transparent; }
+.rrr-name-link:hover { color: var(--color-primary, #4F6EF7); border-bottom-color: var(--color-primary, #4F6EF7); }
+
 /* 아바타 업로드 오버레이 */
 .avatar-upload-wrap { display: inline-flex; position: relative; }
 .avatar-upload-overlay {
