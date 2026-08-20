@@ -1,6 +1,8 @@
 services:
   db:
     image: postgres:16-alpine
+    # Docker/서버 재시작 시 자동 복구 (수동 stop 제외)
+    restart: unless-stopped
     environment:
       POSTGRES_DB: task
       POSTGRES_USER: task
@@ -8,9 +10,16 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U task -d task"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
   task:
     build: .
+    # 크래시/재부팅 후에도 자동으로 다시 올라오게
+    restart: unless-stopped
     ports:
       - "3004:3004"
     environment:
@@ -25,7 +34,9 @@ services:
       LLM_MODEL:   ${LLM_MODEL:-llama3.1:8b}
       LLM_API_KEY: ${LLM_API_KEY:-}
     depends_on:
-      - db
+      # DB가 실제로 준비된 뒤에 기동 (재부팅 시 마이그레이션 실패 방지)
+      db:
+        condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
     extra_hosts:
