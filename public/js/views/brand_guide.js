@@ -95,6 +95,7 @@ const BrandGuideView = {
     const isAdmin = App.user?.role === 'admin';
     const isViewingPast = this.viewingVersion && this.currentGuide && this.viewingVersion.id !== this.currentGuide.id;
     this._copyTexts = [];
+    this._editable = isAdmin && !isViewingPast; // 현재 버전만 인라인 편집
 
     if (!guide) {
       content.innerHTML = `
@@ -135,40 +136,57 @@ const BrandGuideView = {
         ${guide.change_note ? `<p class="brand-guide-change-note">${escHtml(guide.change_note)}</p>` : ''}
 
         ${this._sloganHtml(guide.slogan)}
-        ${this._groupsSectionHtml('메시지 방향', guide.message_direction)}
-        ${this._groupsSectionHtml('대외 커뮤니케이션 규칙', guide.comms_rules)}
-        ${this._notationHtml(guide.notation)}
-        ${this._aiHtml(guide.ai_instructions)}
+        ${this._groupsSectionHtml('메시지 방향', guide.message_direction, 'message_direction')}
+        ${this._groupsSectionHtml('대외 커뮤니케이션 규칙', guide.comms_rules, 'comms_rules')}
+        ${this._notationHtml(guide.notation, 'notation')}
+        ${this._aiHtml(guide.ai_instructions, 'ai_instructions')}
       </div>
     `;
 
     this._bindEvents(guide);
   },
 
+  // 카드 액션 묶음: 복사 + (편집 가능 시) 수정, 삭제
+  _cardActions(field, idx, copyText, copyLabel) {
+    let h = this._copyBtn(copyText, copyLabel);
+    if (this._editable) {
+      h += `<button class="bg-mini" data-edit-sec data-field="${field}" data-idx="${idx}" title="수정">수정</button>`;
+      h += `<button class="bg-mini bg-mini-danger" data-del-sec data-field="${field}" data-idx="${idx}" title="삭제">삭제</button>`;
+    }
+    return `<div class="bg-card-actions">${h}</div>`;
+  },
+
+  _addBtn(field, label) {
+    return this._editable ? `<button class="btn btn-default bg-add-btn" data-add-field="${field}">+ ${escHtml(label)}</button>` : '';
+  },
+
   _sloganHtml(slogan) {
-    if (!slogan) return '';
+    if (!slogan && !this._editable) return '';
     return `
       <div class="bg-section">
         <div class="bg-section-head"><span class="bg-section-label">슬로건</span></div>
         <div class="bg-slogan-card">
-          <span class="bg-slogan-text">${escHtml(slogan)}</span>
-          ${this._copyBtn(slogan)}
+          <span class="bg-slogan-text">${escHtml(slogan || '')}</span>
+          <div class="bg-card-actions">
+            ${slogan ? this._copyBtn(slogan) : ''}
+            ${this._editable ? '<button class="bg-mini" data-edit-slogan title="수정">수정</button>' : ''}
+          </div>
         </div>
       </div>
     `;
   },
 
-  _groupsSectionHtml(label, text) {
+  _groupsSectionHtml(label, text, field) {
     const secs = this._splitSections(text);
-    if (!secs.length) return '';
-    const cards = secs.map(s => {
+    if (!secs.length && !this._editable) return '';
+    const cards = secs.map((s, idx) => {
       const copyText = `${s.title}\n` + s.lines.map(l => `- ${l}`).join('\n');
       const bullets = s.lines.map(l => `<li>${escHtml(l)}</li>`).join('');
       return `
         <div class="bg-group">
           <div class="bg-group-head">
             <span class="bg-group-title">${escHtml(s.title)}</span>
-            ${this._copyBtn(copyText)}
+            ${this._cardActions(field, idx, copyText)}
           </div>
           <ul class="bg-bullets">${bullets}</ul>
         </div>
@@ -176,16 +194,19 @@ const BrandGuideView = {
     }).join('');
     return `
       <div class="bg-section">
-        <div class="bg-section-head"><span class="bg-section-label">${escHtml(label)}</span></div>
+        <div class="bg-section-head">
+          <span class="bg-section-label">${escHtml(label)}</span>
+          <div class="bg-section-actions">${this._addBtn(field, '구역 추가')}</div>
+        </div>
         <div class="bg-group-grid">${cards}</div>
       </div>
     `;
   },
 
-  _notationHtml(text) {
+  _notationHtml(text, field) {
     const tables = this._parseTables(text);
-    if (!tables.length) return '';
-    const cards = tables.map(t => {
+    if (!tables.length && !this._editable) return '';
+    const cards = tables.map((t, idx) => {
       const copyText = `${t.title}\n${t.header.join('\t')}\n` + t.rows.map(r => r.join('\t')).join('\n');
       const thead = `<tr>${t.header.map(h => `<th>${escHtml(h)}</th>`).join('')}</tr>`;
       const tbody = t.rows.map(r => `<tr>${r.map((c, i) => `<td class="${i === 0 ? 'bg-td-key' : ''}">${escHtml(c)}</td>`).join('')}</tr>`).join('');
@@ -193,7 +214,7 @@ const BrandGuideView = {
         <div class="bg-group">
           <div class="bg-group-head">
             <span class="bg-group-title">${escHtml(t.title)}</span>
-            ${this._copyBtn(copyText)}
+            ${this._cardActions(field, idx, copyText)}
           </div>
           <div class="bg-table-scroll">
             <table class="bg-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
@@ -206,21 +227,22 @@ const BrandGuideView = {
         <div class="bg-section-head">
           <span class="bg-section-label">표기 사전</span>
           <span class="bg-section-hint">맞는 표기와 자주 틀리는 표기를 구역별 표로 정리했습니다</span>
+          <div class="bg-section-actions">${this._addBtn(field, '표 추가')}</div>
         </div>
         <div class="bg-group-grid">${cards}</div>
       </div>
     `;
   },
 
-  _aiHtml(text) {
+  _aiHtml(text, field) {
     const blocks = this._splitSections(text);
-    if (!blocks.length) return '';
+    if (!blocks.length && !this._editable) return '';
     const fullText = blocks.map(b => `## ${b.title}\n${b.body}`).join('\n\n');
-    const blockHtml = blocks.map(b => `
+    const blockHtml = blocks.map((b, idx) => `
       <div class="bg-ai-block">
         <div class="bg-group-head">
           <span class="bg-group-title">${escHtml(b.title)}</span>
-          ${this._copyBtn(b.body, '이 구역 복사')}
+          ${this._cardActions(field, idx, b.body, '이 구역 복사')}
         </div>
         <pre class="bg-ai-text">${escHtml(b.body)}</pre>
       </div>
@@ -231,13 +253,113 @@ const BrandGuideView = {
           <span class="bg-section-label">AI 지침 원문</span>
           <span class="bg-section-hint">클로드코드 등 AI 작업 첫머리에 붙여 쓰는 용도입니다</span>
           <div class="bg-section-actions">
-            ${this._copyBtn(fullText, '전체 복사')}
-            <button class="btn btn-default bg-ai-toggle" id="bg-ai-toggle">구역 펼치기</button>
+            ${blocks.length ? this._copyBtn(fullText, '전체 복사') : ''}
+            ${this._addBtn(field, '구역 추가')}
+            ${blocks.length ? `<button class="btn btn-default bg-ai-toggle" id="bg-ai-toggle">${this._editable ? '구역 접기' : '구역 펼치기'}</button>` : ''}
           </div>
         </div>
-        <div class="bg-ai-blocks" id="bg-ai-blocks" style="display:none;">${blockHtml}</div>
+        <div class="bg-ai-blocks" id="bg-ai-blocks" style="display:${this._editable ? 'block' : 'none'};">${blockHtml}</div>
       </div>
     `;
+  },
+
+  // -- 구역 raw 조작 (## 블록 단위) ---
+  _rawSections(text) {
+    const out = [];
+    let cur = null;
+    for (const line of (text || '').split('\n')) {
+      if (/^##\s+/.test(line)) { cur = [line]; out.push(cur); }
+      else if (cur) cur.push(line);
+    }
+    return out.map(a => a.join('\n').replace(/\s+$/, ''));
+  },
+
+  _joinSections(arr) {
+    return arr.map(s => s.trim()).filter(Boolean).join('\n\n');
+  },
+
+  _ensureHeading(t) {
+    const s = (t || '').trim();
+    if (!s) return '';
+    return /^##\s+/.test(s.split('\n')[0]) ? s : ('## 제목\n' + s);
+  },
+
+  async _saveField(field, value) {
+    try {
+      await API.put(`/brand-guide/${this.currentGuide.id}`, { [field]: value });
+      App.toast('수정되었습니다.', 'success');
+      await this.loadData();
+      this.viewingVersion = null;
+      this.renderGuide(document.getElementById('content'));
+    } catch (e) {
+      App.toast(e.message || '수정에 실패했습니다.', 'error');
+    }
+  },
+
+  _sectionEditHint(field) {
+    if (field === 'notation') {
+      return '첫 줄은 <b>## 표 제목</b>, 둘째 줄은 헤더, 이후 각 줄을 <b>|</b> 로 칸을 나눕니다. 예: <code>콘텐츠 | 컨텐츠 | 비고</code>';
+    }
+    if (field === 'ai_instructions') {
+      return '첫 줄은 <b>## 구역 제목</b>, 이후는 원문 그대로 씁니다.';
+    }
+    return '첫 줄은 <b>## 구역 제목</b>, 이후 한 줄에 항목 하나씩 씁니다.';
+  },
+
+  _openSectionEditor(title, field, initial, onValue) {
+    const html = `
+      <p class="bg-form-hint">${this._sectionEditHint(field)}</p>
+      <div class="form-group">
+        <textarea id="bg-sec-ta" rows="16" style="font-family:inherit;">${escHtml(initial)}</textarea>
+      </div>
+    `;
+    App.openPanel(title, html, async () => {
+      const v = this._ensureHeading(document.getElementById('bg-sec-ta').value);
+      if (!v) { App.toast('내용을 입력해주세요.', 'error'); return false; }
+      await onValue(v);
+    });
+  },
+
+  _editSection(field, idx) {
+    const raw = this._rawSections(this.currentGuide[field]);
+    this._openSectionEditor('구역 수정', field, raw[idx] || '', async (v) => {
+      raw[idx] = v;
+      await this._saveField(field, this._joinSections(raw));
+    });
+  },
+
+  _addSection(field) {
+    const template = field === 'notation'
+      ? '## 새 표 제목\n맞는 표기 | 틀린 표기 | 비고\n예시 | 예시 | '
+      : field === 'ai_instructions'
+        ? '## 새 구역 제목\n내용을 입력하세요.'
+        : '## 새 구역 제목\n첫 항목';
+    this._openSectionEditor('구역 추가', field, template, async (v) => {
+      const raw = this._rawSections(this.currentGuide[field]);
+      raw.push(v);
+      await this._saveField(field, this._joinSections(raw));
+    });
+  },
+
+  async _deleteSection(field, idx) {
+    const raw = this._rawSections(this.currentGuide[field]);
+    const title = (raw[idx] || '').split('\n')[0].replace(/^##\s+/, '');
+    const ok = await App.confirm(`"${title}" 구역을 삭제하시겠습니까?`);
+    if (!ok) return;
+    raw.splice(idx, 1);
+    await this._saveField(field, this._joinSections(raw));
+  },
+
+  _editSlogan() {
+    const html = `
+      <div class="form-group">
+        <label>슬로건</label>
+        <input type="text" id="bg-slogan-inp" value="${escHtml(this.currentGuide.slogan || '')}" placeholder="제조·국방 피지컬 AI 기업, 버넥트">
+      </div>
+    `;
+    App.openPanel('슬로건 수정', html, async () => {
+      await this._saveField('slogan', document.getElementById('bg-slogan-inp').value.trim());
+    });
   },
 
   _bindEvents(guide) {
@@ -271,6 +393,20 @@ const BrandGuideView = {
       box.style.display = open ? 'none' : 'block';
       btn.textContent = open ? '구역 펼치기' : '구역 접기';
     });
+
+    if (!this._editable) return;
+
+    // 구역 수정, 삭제, 추가, 슬로건 수정
+    document.querySelectorAll('[data-edit-sec]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); this._editSection(btn.dataset.field, parseInt(btn.dataset.idx)); });
+    });
+    document.querySelectorAll('[data-del-sec]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); this._deleteSection(btn.dataset.field, parseInt(btn.dataset.idx)); });
+    });
+    document.querySelectorAll('[data-add-field]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); this._addSection(btn.dataset.addField); });
+    });
+    document.querySelector('[data-edit-slogan]')?.addEventListener('click', (e) => { e.stopPropagation(); this._editSlogan(); });
   },
 
   _copyText(text) {

@@ -92,4 +92,42 @@ router.post('/', auditMiddleware('brand_guide_versions'), async (req, res, next)
   } catch (err) { next(err); }
 });
 
+// 현재 버전 제자리 수정 (관리자 전용) — 구역별 인라인 편집
+router.put('/:id', auditMiddleware('brand_guide_versions'), async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ data: null, message: '브랜드 가이드 수정은 관리자만 가능합니다.' });
+    }
+
+    // 현재 활성 버전만 수정 허용 (과거 버전은 보존)
+    const { rows: curRows } = await db.query(
+      'SELECT id FROM brand_guide_versions WHERE is_current = true LIMIT 1'
+    );
+    const currentId = curRows[0]?.id;
+    if (!currentId || String(currentId) !== String(req.params.id)) {
+      return res.status(400).json({ data: null, message: '현재 버전만 수정할 수 있습니다.' });
+    }
+
+    const allowed = ['slogan', 'message_direction', 'comms_rules', 'notation', 'ai_instructions', 'title', 'change_note'];
+    const sets = [];
+    const values = [];
+    for (const key of allowed) {
+      if (key in req.body) {
+        values.push(req.body[key] === '' ? null : req.body[key]);
+        sets.push(`${key} = $${values.length}`);
+      }
+    }
+    if (!sets.length) {
+      return res.status(400).json({ data: null, message: '수정할 내용이 없습니다.' });
+    }
+
+    values.push(req.params.id);
+    const { rows } = await db.query(
+      `UPDATE brand_guide_versions SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`,
+      values
+    );
+    res.json({ data: rows[0], message: '수정되었습니다.' });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
