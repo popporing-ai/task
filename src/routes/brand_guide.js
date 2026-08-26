@@ -51,7 +51,7 @@ router.post('/', auditMiddleware('brand_guide_versions'), async (req, res, next)
       return res.status(403).json({ data: null, message: '브랜드 가이드 발행은 관리자만 가능합니다.' });
     }
 
-    const { version, effective_date, title, slogan, message_direction, comms_rules, ai_instructions, change_note } = req.body;
+    const { version, effective_date, title, slogan, message_direction, comms_rules, notation, ai_instructions, change_note } = req.body;
 
     if (!version || !version.trim()) {
       return res.status(400).json({ data: null, message: '버전 번호는 필수입니다.' });
@@ -65,8 +65,8 @@ router.post('/', auditMiddleware('brand_guide_versions'), async (req, res, next)
       // 새 버전 삽입
       const { rows } = await client.query(
         `INSERT INTO brand_guide_versions
-         (version, effective_date, title, slogan, message_direction, comms_rules, ai_instructions, change_note, is_current, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)
+         (version, effective_date, title, slogan, message_direction, comms_rules, notation, ai_instructions, change_note, is_current, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10)
          RETURNING *`,
         [
           version.trim(),
@@ -75,6 +75,7 @@ router.post('/', auditMiddleware('brand_guide_versions'), async (req, res, next)
           slogan || null,
           message_direction || null,
           comms_rules || null,
+          notation || null,
           ai_instructions || null,
           change_note || null,
           req.user.id,
